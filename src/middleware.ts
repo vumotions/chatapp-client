@@ -1,11 +1,10 @@
-import { NextRequestWithAuth, withAuth } from 'next-auth/middleware'
+import { getToken } from 'next-auth/jwt'
+import { withAuth } from 'next-auth/middleware'
 import createMiddleware from 'next-intl/middleware'
-import { LOCALES } from './constants/locales'
-import { routing } from './i18n/routing'
+import { NextRequest, NextResponse } from 'next/server'
 import nextEnv from './config/env'
-
-const privatePaths = ['/', '/auth/login', '/auth/register']
-const publicPaths = []
+import { routing } from './i18n/routing'
+import { checkAuthRoute, checkPrivateRoute, checkPublicRoute } from './lib/utils'
 
 const intlMiddleware = createMiddleware(routing)
 
@@ -16,7 +15,7 @@ const authMiddleware = withAuth(
   {
     secret: nextEnv.NEXTAUTH_SECRET,
     callbacks: {
-      authorized: ({ token }) => token != null
+      authorized: ({ token }) => !!token
     },
     pages: {
       signIn: '/auth/login'
@@ -24,16 +23,26 @@ const authMiddleware = withAuth(
   }
 )
 
-export async function middleware(req: NextRequestWithAuth) {
-  const isAuthenticated = req.nextauth?.token
+export async function middleware(req: NextRequest) {
+  const token = await getToken({ req, secret: nextEnv.NEXTAUTH_SECRET })
+  const isAuthenticated = !!token
   const { pathname } = req.nextUrl
-  const publicPathnameRegex = RegExp(
-    `^(/(${LOCALES.join('|')}))?(${privatePaths.flatMap((p) => (p === '/' ? ['', '/'] : p)).join('|')})/?$`,
-    'i'
-  )
-  const isPublicRoute = publicPathnameRegex.test(req.nextUrl.pathname)
-  console.log({ pathname, isAuthenticated, isPublicRoute })
-  if (isPublicRoute) {
+
+  const isPublicRoute = checkPublicRoute(pathname)
+  const isAuthRoute = checkAuthRoute(pathname)
+  const isPrivateRoute = checkPrivateRoute(pathname)
+
+  if (isAuthenticated && isAuthRoute) {
+    console.log(req.headers.get('referer'), req.headers.get('referer'))
+    const previousUrl = req.headers.get('referer') || '/messages'
+    return NextResponse.redirect(new URL(previousUrl, req.url))
+  }
+
+  if (isPrivateRoute && !isAuthenticated) {
+    return NextResponse.redirect(new URL('/auth/login', req.url))
+  }
+
+  if (isPublicRoute || isAuthRoute) {
     return intlMiddleware(req)
   } else {
     return (authMiddleware as any)(req)

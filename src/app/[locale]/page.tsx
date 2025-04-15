@@ -1,9 +1,16 @@
-import NavLink from '~/components/nav-link'
+'use client'
+
+import { signOut } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
+import { Button } from '~/components/ui/button'
+import { Link } from '~/i18n/navigation'
 
 export default function Home() {
+  const router = useRouter()
   return (
     <div>
-      <NavLink href='/auth/login'>Login</NavLink>
+      <Button onClick={() => signOut()}>Signout</Button>
+      <Link href={'/auth/login'}>Login</Link>
     </div>
   )
 }

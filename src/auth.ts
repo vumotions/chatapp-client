@@ -9,9 +9,6 @@ const auth: AuthOptions = {
       clientSecret: nextEnv.GOOGLE_CLIENT_SECRET
     })
   ],
-  session: {
-    strategy: 'jwt'
-  },
   secret: nextEnv.NEXTAUTH_SECRET,
   callbacks: {
     async signIn({ account, profile }: any) {
@@ -40,8 +37,6 @@ const auth: AuthOptions = {
     async session({ session, token }: any) {
       // Send properties to the client, like an access_token from a provider.
       session.accessToken = token.accessToken
-      console.log({ session })
-
       return session
     },
     /**
@@ -52,13 +47,10 @@ const auth: AuthOptions = {
     async jwt({ token, user, account }: any) {
       // Persist the OAuth access_token to the token right after signin
       if (user) {
-        // Credential sign in
         token.accessToken = user.access_token || user.accessToken
       } else if (account) {
-        // SSO signin
         token.accessToken = account.access_token || account.accessToken
       }
-      console.log({ token })
       return token
     }
   }
