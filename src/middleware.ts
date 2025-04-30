@@ -2,7 +2,7 @@ import { getToken } from 'next-auth/jwt'
 import { withAuth } from 'next-auth/middleware'
 import createMiddleware from 'next-intl/middleware'
 import { NextRequest, NextResponse } from 'next/server'
-import nextEnv from './config/env'
+import nextEnv from './config/next-env'
 import { routing } from './i18n/routing'
 import { checkAuthRoute, checkPrivateRoute, checkPublicRoute } from './lib/utils'
 
@@ -33,8 +33,7 @@ export async function middleware(req: NextRequest) {
   const isPrivateRoute = checkPrivateRoute(pathname)
 
   if (isAuthenticated && isAuthRoute) {
-    console.log(req.headers.get('referer'), req.headers.get('referer'))
-    const previousUrl = req.headers.get('referer') || '/messages'
+    const previousUrl = req.headers.get('referer') || '/'
     return NextResponse.redirect(new URL(previousUrl, req.url))
   }
 

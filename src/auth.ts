@@ -1,6 +1,6 @@
 import { AuthOptions } from 'next-auth'
 import GoogleProvider from 'next-auth/providers/google'
-import nextEnv from './config/env'
+import nextEnv from './config/next-env'
 
 const auth: AuthOptions = {
   providers: [
