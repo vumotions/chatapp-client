@@ -6,14 +6,16 @@ import { signIn } from 'next-auth/react'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
-import DataPreview from '~/components/data-preview'
 import { Button, buttonVariants } from '~/components/ui/button'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '~/components/ui/form'
 import { Icons } from '~/components/ui/icons'
 import { Input } from '~/components/ui/input'
 import { RadioGroup, RadioGroupItem } from '~/components/ui/radio-group'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '~/components/ui/select'
+import { USER_VERIFY_STATUS } from '~/constants/enums'
+import { useRegisterMutation } from '~/hooks/data/auth.hooks'
 import { Link, useRouter } from '~/i18n/navigation'
+import { handleError } from '~/lib/handlers'
 import { cn } from '~/lib/utils'
 import { formRegisterSchema, FormRegisterValues } from '~/schemas/form.schemas'
 
@@ -23,11 +25,12 @@ type Props = {
 
 function FormRegister({ className }: Props) {
   const router = useRouter()
+  const registerMutation = useRegisterMutation()
   const form = useForm<FormRegisterValues>({
     defaultValues: {
       name: '',
       email: '',
-      date: '',
+      day: '',
       month: '',
       year: '',
       gender: 'female',
@@ -38,14 +41,21 @@ function FormRegister({ className }: Props) {
   })
   const [isLoading, setIsLoading] = useState<boolean>(false)
 
-  const handleAccountRegistration = form.handleSubmit((data) => {
-    toast.message('You submitted the following values:', {
-      description: <DataPreview data={data} />
-    })
+  const handleAccountRegistration = form.handleSubmit(async (data) => {
+    try {
+      const response = await registerMutation.mutateAsync(data)
+      const {
+        message,
+        data: { user }
+      } = response.data
 
-    const email = data.email
-    if (email) {
-      router.push(`/auth/recover/code?email=${encodeURIComponent(email)}&redirect_from=register`)
+      toast.success(message)
+
+      if (user.verify !== USER_VERIFY_STATUS.VERIFIED) {
+        router.push(`/auth/recover/code?email=${encodeURIComponent(data.email)}&redirect_from=register`)
+      }
+    } catch (error: any) {
+      handleError(error, form)
     }
   })
 
@@ -68,7 +78,7 @@ function FormRegister({ className }: Props) {
                   <FormItem>
                     <FormLabel>Name</FormLabel>
                     <FormControl>
-                      <Input disabled={isLoading} placeholder='Vu Motions' {...field} />
+                      <Input disabled={isLoading || registerMutation.isPending} placeholder='Vu Motions' {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -81,7 +91,12 @@ function FormRegister({ className }: Props) {
                   <FormItem>
                     <FormLabel>Email</FormLabel>
                     <FormControl>
-                      <Input placeholder='name@example.com' disabled={isLoading} type='email' {...field} />
+                      <Input
+                        placeholder='name@example.com'
+                        disabled={isLoading || registerMutation.isPending}
+                        type='email'
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -93,7 +108,7 @@ function FormRegister({ className }: Props) {
                   {/* Date */}
                   <FormField
                     control={form.control}
-                    name='date'
+                    name='day'
                     render={({ field }) => (
                       <FormItem className='w-full'>
                         <div className='relative w-full'>
@@ -146,21 +161,21 @@ function FormRegister({ className }: Props) {
                               <SelectContent>
                                 <SelectGroup>
                                   {[
-                                    'Jan',
-                                    'Feb',
-                                    'Mar',
-                                    'Apr',
-                                    'May',
-                                    'Jun',
-                                    'Jul',
-                                    'Aug',
-                                    'Sep',
-                                    'Oct',
-                                    'Nov',
-                                    'Dec'
-                                  ].map((month) => (
-                                    <SelectItem value={month} key={month}>
-                                      {month}
+                                    { label: 'Jan', month: 1 },
+                                    { label: 'Feb', month: 2 },
+                                    { label: 'Mar', month: 3 },
+                                    { label: 'Apr', month: 4 },
+                                    { label: 'May', month: 5 },
+                                    { label: 'Jun', month: 6 },
+                                    { label: 'Jul', month: 7 },
+                                    { label: 'Aug', month: 8 },
+                                    { label: 'Sep', month: 9 },
+                                    { label: 'Oct', month: 10 },
+                                    { label: 'Nov', month: 11 },
+                                    { label: 'Dec', month: 12 }
+                                  ].map((line) => (
+                                    <SelectItem value={`${line.month}`} key={line.month}>
+                                      {line.label}
                                     </SelectItem>
                                   ))}
                                 </SelectGroup>
@@ -271,7 +286,12 @@ function FormRegister({ className }: Props) {
                   <FormItem>
                     <FormLabel>Password</FormLabel>
                     <FormControl>
-                      <Input id='password' type='password' disabled={isLoading} {...field} />
+                      <Input
+                        id='password'
+                        type='password'
+                        disabled={isLoading || registerMutation.isPending}
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -284,14 +304,19 @@ function FormRegister({ className }: Props) {
                   <FormItem>
                     <FormLabel>Confirm Password</FormLabel>
                     <FormControl>
-                      <Input id='confirmPassword' type='password' disabled={isLoading} {...field} />
+                      <Input
+                        id='confirmPassword'
+                        type='password'
+                        disabled={isLoading || registerMutation.isPending}
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <Button disabled={isLoading}>
-                {isLoading && <Icons.spinner className='mr-2 h-4 w-4 animate-spin' />}
+              <Button disabled={isLoading || registerMutation.isPending}>
+                {registerMutation.isPending && <Icons.spinner className='mr-2 h-4 w-4 animate-spin' />}
                 Create account
               </Button>
             </div>
@@ -303,7 +328,12 @@ function FormRegister({ className }: Props) {
           <span className='w-full border-t' />
         </div>
         <div className='flex gap-5 px-0'>
-          <Button variant='outline' onClick={handleGoogleLogin} className='flex-1/2' disabled={isLoading}>
+          <Button
+            variant='outline'
+            onClick={handleGoogleLogin}
+            className='flex-1/2'
+            disabled={isLoading || registerMutation.isPending}
+          >
             {isLoading ? (
               <Icons.spinner className='mr-2 h-4 w-4 animate-spin' />
             ) : (
@@ -311,7 +341,7 @@ function FormRegister({ className }: Props) {
             )}{' '}
             Google
           </Button>
-          <Button variant='outline' className='flex-1/2' disabled={isLoading}>
+          <Button variant='outline' className='flex-1/2' disabled={isLoading || registerMutation.isPending}>
             {isLoading ? (
               <Icons.spinner className='mr-2 h-4 w-4 animate-spin' />
             ) : (

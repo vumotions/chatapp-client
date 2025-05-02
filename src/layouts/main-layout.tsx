@@ -1,5 +1,5 @@
 import Header from '~/components/header'
-import { LayoutProps } from '~/types/props'
+import { LayoutProps } from '~/types/props.types'
 
 function MainLayout({ children }: LayoutProps) {
   return (

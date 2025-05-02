@@ -11,6 +11,7 @@ import NextAuthProvider from '~/providers/nextauth-provider'
 import ReactQueryProvider from '~/providers/query-client-provider'
 import { ThemeProvider } from '~/providers/theme-provider'
 import './globals.css'
+import SocketProvider from '~/providers/socket-provider'
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -52,7 +53,9 @@ function Layout({ params, children }: Props) {
           <NextAuthProvider>
             <BProgressProvider>
               <ThemeProvider attribute='class' defaultTheme='dark' enableSystem disableTransitionOnChange>
-                <ReactQueryProvider>{children}</ReactQueryProvider>
+                <ReactQueryProvider>
+                  <SocketProvider>{children}</SocketProvider>
+                </ReactQueryProvider>
                 <Toaster position='top-center' />
               </ThemeProvider>
             </BProgressProvider>

@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { emailRgx } from '~/constants/regex'
 
 export const formCodeSchema = z.object({
+  email: z.string().email({ message: 'Invalid email address' }),
   otp: z.string().regex(/^\d{6}$/, {
     message: 'OTP must be exactly 6 digits'
   })
@@ -21,21 +22,21 @@ export const formRegisterSchema = z
   .object({
     name: z.string().min(2, 'Name must be at least 2 characters').max(50, 'Name must not be longer than 50 characters'),
     email: z.string().min(1, 'Email is required').regex(emailRgx, 'Invalid email address'),
-    date: z.string(),
+    day: z.string(),
     month: z.string(),
     year: z.string(),
-    gender: z.enum(['male', 'female'], {
+    gender: z.enum(['male', 'female', 'other'], {
       message: 'Please select your gender'
     }),
     password: z.string().min(6, 'Password must be at least 6 characters'),
-    confirmPassword: z.string().min(6, 'Confirm password is required'),
+    confirmPassword: z.string().min(1, 'Confirm password is required'),
     dob: z.string().optional()
   })
   .refine((data) => data.password === data.confirmPassword, {
-    message: 'Passwords do not match',
+    message: 'Password and confirm password do not match',
     path: ['confirmPassword']
   })
-  .refine((data) => data.date && data.month && data.year, {
+  .refine((data) => data.day && data.month && data.year, {
     message: 'Please complete your date of birth',
     path: ['dob']
   })

@@ -4,58 +4,79 @@ import { cn } from '~/lib/utils'
 
 import { zodResolver } from '@hookform/resolvers/zod'
 import { redirect, useSearchParams } from 'next/navigation'
-import { useState } from 'react'
+import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
+import CustomFormMessage from '~/components/custom-form-message'
 import { Button, buttonVariants } from '~/components/ui/button'
-import { Form, FormControl, FormField, FormItem, FormMessage } from '~/components/ui/form'
+import { Form, FormControl, FormField, FormItem } from '~/components/ui/form'
 import { Icons } from '~/components/ui/icons'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '~/components/ui/input-otp'
-import { Link, useRouter } from '~/i18n/navigation'
-import { formCodeSchema, FormCodeValues } from '~/schemas/form.schemas'
+import { useSendEmailVerificationMutation, useVerifyAccountMutation } from '~/hooks/data/auth.hooks'
 import useCountdown from '~/hooks/use-countdown'
+import { Link, useRouter } from '~/i18n/navigation'
+import { handleError } from '~/lib/handlers'
+import { formCodeSchema, FormCodeValues } from '~/schemas/form.schemas'
 
 type Props = {
   className?: string
 }
 
 function FormCode({ className }: Props) {
-  const form = useForm<FormCodeValues>({
+  const form = useForm<Pick<FormCodeValues, 'otp'>>({
     defaultValues: {
       otp: ''
     },
-    resolver: zodResolver(formCodeSchema)
+    resolver: zodResolver(formCodeSchema.pick({ otp: true }))
   })
   const router = useRouter()
-  const { isTimeout, setCountdown, time } = useCountdown(Date.now() + 60 * 1000)
-  const [isLoading, setIsLoading] = useState<boolean>(false)
+  const { isTimeout, setCountdown, time } = useCountdown()
+  const verifyAccountMutation = useVerifyAccountMutation()
+  const sendEmailVerificationMutation = useSendEmailVerificationMutation()
   const searchParams = useSearchParams()
   const email = searchParams.get('email')
 
+  // Validate email (weak now)
   if (!email) {
     return redirect('/auth/register')
   }
 
-  const handleAccountVerification = form.handleSubmit(async (data) => {
-    setIsLoading(true)
+  useEffect(() => {
+    const otpExpiresAt = localStorage.getItem('otpExpiresAt')
+    if (otpExpiresAt) {
+      const expiresAt = new Date(otpExpiresAt).getTime()
+      setCountdown(expiresAt)
+    }
+  }, [])
 
+  const handleAccountVerification = form.handleSubmit(async (data) => {
     try {
-      toast.success('Account verified successfully')
+      const response = await verifyAccountMutation.mutateAsync({
+        email,
+        otp: data.otp
+      })
+      toast.success(response.data.message)
       router.replace(`/auth/login?email=${encodeURIComponent(email)}&redirect_from=register`)
     } catch (error) {
-      toast.error('Account verification failed')
-    } finally {
-      setIsLoading(false)
+      handleError(error, form)
     }
   })
 
   const handleResendCode = async () => {
-    form.reset()
     try {
-      toast.success('Code resent successfully')
-      setCountdown(Date.now() + 5 * 1000) // fake 5s
+      form.reset()
+      const response = await sendEmailVerificationMutation.mutateAsync({ email })
+      const {
+        message,
+        data: { otpExpiresAt }
+      } = response.data
+
+      toast.success(message)
+      localStorage.setItem('otpExpiresAt', otpExpiresAt)
+      const expiresAt = new Date(otpExpiresAt).getTime()
+      setCountdown(expiresAt)
     } catch (error) {
-      toast.error('Code resent failed')
+      handleError(error, form)
     }
   }
 
@@ -64,12 +85,12 @@ function FormCode({ className }: Props) {
       <div className={'grid gap-6'}>
         <Form {...form}>
           <form onSubmit={handleAccountVerification}>
-            <div className='grid gap-4'>
+            <div className='grid gap-3'>
               <FormField
                 control={form.control}
                 name='otp'
                 render={({ field }) => (
-                  <FormItem className='flex flex-col items-center justify-center'>
+                  <FormItem className='mt-3 flex flex-col items-center justify-center gap-1'>
                     <FormControl>
                       <InputOTP
                         maxLength={6}
@@ -97,11 +118,11 @@ function FormCode({ className }: Props) {
                         </InputOTPGroup>
                       </InputOTP>
                     </FormControl>
-                    <FormMessage />
+                    <CustomFormMessage message={form.formState.errors.otp?.message} />
                   </FormItem>
                 )}
               />
-              <div className='flex items-center justify-center space-x-3'>
+              <div className='mx-auto grid w-full max-w-[216px] grid-cols-2 items-center justify-center space-x-3'>
                 <Link
                   href={'/auth/login'}
                   className={cn(
@@ -112,14 +133,23 @@ function FormCode({ className }: Props) {
                 >
                   Cancel
                 </Link>
-                <Button disabled={isLoading || !form.formState.isDirty}>
-                  {isLoading && <Icons.spinner className='mr-2 h-4 w-4 animate-spin' />}
+                <Button
+                  onClick={handleAccountVerification}
+                  disabled={verifyAccountMutation.isPending || !form.formState.isDirty}
+                >
+                  {verifyAccountMutation.isPending && <Icons.spinner className='mr-2 h-4 w-4 animate-spin' />}
                   Continue
                 </Button>
               </div>
 
-              <Button type='button' variant={'link'} onClick={handleResendCode} disabled={!isTimeout}>
-                Send Email Again
+              <Button
+                type='button'
+                variant={'link'}
+                onClick={handleResendCode}
+                disabled={!isTimeout || sendEmailVerificationMutation.isPending}
+              >
+                Send Email Again{' '}
+                {sendEmailVerificationMutation.isPending && <Icons.spinner className='mr-2 h-4 w-4 animate-spin' />}
               </Button>
               {!isTimeout && (
                 <div className='flex items-center justify-center'>

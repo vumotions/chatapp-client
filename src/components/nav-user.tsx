@@ -44,13 +44,11 @@ function NavUser() {
             <div className='flex items-center gap-2 px-1 py-1.5 text-left text-sm'>
               <Avatar className='h-8 w-8 rounded-full'>
                 <AvatarImage src={session.data?.user?.image || ''} alt={session.data?.user?.name || ''} />
-                <AvatarFallback className='rounded-lg'>CN</AvatarFallback>
+                <AvatarFallback className='rounded-lg'>{session.data?.user?.name?.[0]}</AvatarFallback>
               </Avatar>
               <div className='grid flex-1 overflow-hidden text-left text-sm leading-tight'>
                 <span className='max-w-56 truncate font-semibold'>{session.data?.user?.name}</span>
-                <span className='max-w-56 truncate text-xs'>
-                  {session.data?.user?.email}ad asdasdfasdf asdfasdfasfasdf
-                </span>
+                <span className='max-w-56 truncate text-xs'>{session.data?.user?.email}</span>
               </div>
             </div>
           </DropdownMenuLabel>

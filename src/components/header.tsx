@@ -8,8 +8,8 @@ import NotificationMenu from './notification-menu'
 import { buttonVariants } from './ui/button'
 
 async function Header() {
-  const session  = await getServerSession()
-
+  const session = await getServerSession()
+  console.log({ session })
   return (
     <header className='bg-background sticky top-0 z-50 flex h-16 w-full items-center border-b'>
       <div className='flex w-full items-center justify-between gap-2 px-4 py-2'>

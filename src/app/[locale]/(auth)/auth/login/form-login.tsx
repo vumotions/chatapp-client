@@ -1,18 +1,26 @@
 'use client'
 
 import { zodResolver } from '@hookform/resolvers/zod'
+import status from 'http-status'
 import { signIn } from 'next-auth/react'
-import { useSearchParams } from 'next/navigation'
-import { useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
+import { toast } from 'sonner'
+import { ZodIssue } from 'zod'
 import { Button } from '~/components/ui/button'
 import { Checkbox } from '~/components/ui/checkbox'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '~/components/ui/form'
 import { Icons } from '~/components/ui/icons'
 import { Input } from '~/components/ui/input'
-import { Label } from '~/components/ui/label'
+import { useSendEmailVerificationMutation } from '~/hooks/data/auth.hooks'
 import { Link } from '~/i18n/navigation'
-import { cn } from '~/lib/utils'
+import {
+  cn,
+  getRememberedAccountFromCookie,
+  removeRememberedAccountFromCookie,
+  setRememberedAccountToCookie
+} from '~/lib/utils'
 import { formLoginSchema, FormLoginValues } from '~/schemas/form.schemas'
 
 type Props = {
@@ -20,7 +28,9 @@ type Props = {
 }
 
 function FormLogin({ className }: Props) {
+  const sendEmailVerificationMutation = useSendEmailVerificationMutation()
   const searchParams = useSearchParams()
+  const router = useRouter()
   const form = useForm<FormLoginValues>({
     defaultValues: {
       email: searchParams.get('email') || '',
@@ -29,20 +39,82 @@ function FormLogin({ className }: Props) {
     },
     resolver: zodResolver(formLoginSchema)
   })
-  const [isLoading, setIsLoading] = useState<boolean>(false)
+  const [loadingState, setLoadingState] = useState<{ credentials: boolean; google: boolean; github: boolean }>({
+    credentials: false,
+    github: false,
+    google: false
+  })
+  const isLoading = Object.values(loadingState).some(Boolean)
+
+  useEffect(() => {
+    const credentials = getRememberedAccountFromCookie()
+    if (credentials) {
+      form.setValue('remember', true)
+      form.setValue('email', credentials.email)
+      form.setValue('password', credentials.password)
+    }
+  }, [])
 
   const handleCredentialsLogin = form.handleSubmit(async (data) => {
-    try {
-      console.log({ data })
-    } catch (error) {
-      // Handle error here
+    setLoadingState((prev) => ({ ...prev, credentials: true }))
+    const { remember, ...credentials } = data
+    const response = await signIn('credentials', {
+      ...credentials,
+      redirect: false
+    })
+
+    if (response?.error) {
+      const error = JSON.parse(response.error)
+
+      // UNPROCESSABLE_ENTITY_ERROR
+      if (error?.status === status.UNPROCESSABLE_ENTITY) {
+        const errors = error?.data?.errors
+
+        if (errors && typeof errors === 'object') {
+          Object.entries(errors as Record<string, ZodIssue>).forEach(([key, value]) => {
+            if (typeof value === 'object' && 'message' in value && 'code' in value) {
+              form.setError(key as keyof FormLoginValues, {
+                type: value.code,
+                message: value.message
+              })
+            }
+          })
+        }
+      }
+
+      // UNVERIFIED_ACCOUNT_ERROR
+      if (error?.status === status.FORBIDDEN && error?.data?.name === 'UNVERIFIED_ACCOUNT_ERROR') {
+        const response = await sendEmailVerificationMutation.mutateAsync({
+          email: data.email
+        })
+
+        router.push(`/auth/recover/code?email=${encodeURIComponent(data.email)}&redirect_from=register`)
+        toast.info(error?.data?.message || response.data.message)
+      }
+
+      // ACCOUNT_SUSPENDED_ERROR
+      if (error?.status === status.FORBIDDEN && error?.data?.name === 'ACCOUNT_SUSPENDED_ERROR') {
+        toast.info(error?.data?.message)
+      }
+    } else {
+      if (data.remember) {
+        setRememberedAccountToCookie({
+          email: data.email,
+          password: data.password
+        })
+      } else {
+        removeRememberedAccountFromCookie()
+      }
+      router.replace('/')
     }
+
+    setLoadingState((prev) => ({ ...prev, credentials: false }))
   })
 
   async function handleGoogleLogin() {
-    setIsLoading(true)
+    setLoadingState((prev) => ({ ...prev, google: true }))
     await signIn('google')
-    setIsLoading(false)
+    setLoadingState((prev) => ({ ...prev, google: false }))
   }
 
   return (
@@ -58,7 +130,7 @@ function FormLogin({ className }: Props) {
                   <FormItem>
                     <FormLabel>Email</FormLabel>
                     <FormControl>
-                      <Input placeholder='name@example.com' disabled={isLoading} type='email' {...field} />
+                      <Input placeholder='name@example.com' disabled={isLoading} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -106,7 +178,7 @@ function FormLogin({ className }: Props) {
                 </Link>
               </div>
               <Button disabled={isLoading}>
-                {isLoading && <Icons.spinner className='mr-2 h-4 w-4 animate-spin' />}
+                {loadingState.credentials && <Icons.spinner className='mr-2 h-4 w-4 animate-spin' />}
                 Login
               </Button>
             </div>
@@ -119,7 +191,7 @@ function FormLogin({ className }: Props) {
         </div>
         <div className='flex gap-5 px-0'>
           <Button variant='outline' onClick={handleGoogleLogin} className='flex-1/2' disabled={isLoading}>
-            {isLoading ? (
+            {loadingState.google ? (
               <Icons.spinner className='mr-2 h-4 w-4 animate-spin' />
             ) : (
               <Icons.google className='mr-2 h-4 w-4' />
@@ -127,7 +199,7 @@ function FormLogin({ className }: Props) {
             Google
           </Button>
           <Button variant='outline' className='flex-1/2' disabled={isLoading}>
-            {isLoading ? (
+            {loadingState.github ? (
               <Icons.spinner className='mr-2 h-4 w-4 animate-spin' />
             ) : (
               <Icons.gitHub className='mr-2 h-4 w-4' />
