@@ -29,7 +29,7 @@ export default function ReactQueryProvider({ children }: { children: React.React
   return (
     <QueryClientProvider client={queryClient}>
       {children}
-      <ReactQueryDevtools initialIsOpen={false} />
+      <ReactQueryDevtools buttonPosition='bottom-left' initialIsOpen={false} />
     </QueryClientProvider>
   )
 }

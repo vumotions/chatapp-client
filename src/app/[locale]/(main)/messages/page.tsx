@@ -1,25 +1,5 @@
-import { cookies } from 'next/headers'
-
-// Data from API
-import Chat from './components/chat'
-import { accounts, mails } from './data'
-
-async function Messages() {
-  const layout = (await cookies()).get('react-resizable-panels:layout:messages')
-  const collapsed = (await cookies()).get('react-resizable-panels:collapsed')
-
-  const defaultLayout = layout ? JSON.parse(layout.value) : undefined
-  const defaultCollapsed = collapsed ? JSON.parse(collapsed.value) : undefined
-
-  return (
-    <Chat
-      accounts={accounts}
-      mails={mails}
-      defaultLayout={defaultLayout}
-      defaultCollapsed={defaultCollapsed}
-      navCollapsedSize={4}
-    />
-  )
+function Messages() {
+  return <div className='text-muted-foreground p-8 text-center'>Select a chat to start messaging</div>
 }
 
 export default Messages

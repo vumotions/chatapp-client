@@ -1,14 +1,9 @@
-import { atom, useAtom } from 'jotai'
-import { Mail, mails } from '../app/[locale]/(main)/messages/data'
+import { useParams } from 'next/navigation'
 
-type Config = {
-  selected: Mail['id'] | null
+function useChat() {
+  const chatId = useParams()
+
+  return chatId
 }
 
-const configAtom = atom<Config>({
-  selected: null
-})
-
-export function useMail() {
-  return useAtom(configAtom)
-}
+export default useChat

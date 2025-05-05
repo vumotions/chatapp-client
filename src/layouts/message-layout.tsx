@@ -1,45 +1,29 @@
 'use client'
 
 import { Archive, ArchiveX, File, Inbox, Search, Send, Settings, Trash2, Users2 } from 'lucide-react'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 import { useEffect, useState } from 'react'
+import { ChatList } from '~/app/[locale]/(main)/messages/components/chat-list'
+import { Nav } from '~/components/nav'
 import { Input } from '~/components/ui/input'
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '~/components/ui/resizable'
+import { ScrollArea } from '~/components/ui/scroll-area'
 import { Separator } from '~/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/components/ui/tabs'
 import { TooltipProvider } from '~/components/ui/tooltip'
-import { cn } from '~/lib/utils'
-import { useMail } from '~/hooks/use-chat'
-import type { Mail } from '../data'
-import { ChatDisplay } from './chat-display'
-import { ChatList } from './chat-list'
-
-import { Nav } from '~/components/nav'
-import { ScrollArea } from '~/components/ui/scroll-area'
 import useMediaQuery from '~/hooks/use-media-query'
+import { usePathname } from '~/i18n/navigation'
+import { cn } from '~/lib/utils'
+import { LayoutProps } from '~/types/props.types'
 
-type Props = {
-  accounts: {
-    label: string
-    email: string
-    icon: React.ReactNode
-  }[]
-  mails: Mail[]
-  defaultLayout: number[] | undefined
-  defaultCollapsed?: boolean
-  navCollapsedSize: number
-}
-
-function Chat({ accounts, mails, defaultLayout = [20, 32, 48], defaultCollapsed = false, navCollapsedSize }: Props) {
-  const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed)
-  const [mail] = useMail()
-  const [minLayout, setMinLayout] = useState<number[]>(defaultLayout)
+function MessageLayout({ children }: LayoutProps) {
+  const searchParams = useSearchParams()
+  const pathname = usePathname()
+  const router = useRouter()
+  const [isCollapsed, setIsCollapsed] = useState(false)
+  const [minLayout, setMinLayout] = useState<number[]>([20, 32, 48])
   const isSmallScreen = useMediaQuery('(max-width: 1024px)')
-
-  const onCollapseCallback = (isCollapsed: boolean) => {
-    setIsCollapsed(isCollapsed)
-    document.cookie = `react-resizable-panels:collapsed=${JSON.stringify(isCollapsed)}`
-  }
 
   useEffect(() => {
     if (isSmallScreen) {
@@ -47,6 +31,17 @@ function Chat({ accounts, mails, defaultLayout = [20, 32, 48], defaultCollapsed 
       setMinLayout([4, 46, 50])
     }
   }, [isSmallScreen])
+
+  const onCollapseCallback = (isCollapsed: boolean) => {
+    setIsCollapsed(isCollapsed)
+    document.cookie = `react-resizable-panels:collapsed=${JSON.stringify(isCollapsed)}`
+  }
+
+  const handleChangeTab = (value: string) => {
+    const params = new URLSearchParams(searchParams)
+    params.set('filter', value)
+    router.push(`${pathname}?${params.toString()}`)
+  }
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -58,8 +53,8 @@ function Chat({ accounts, mails, defaultLayout = [20, 32, 48], defaultCollapsed 
         className='h-full max-h-screen items-stretch'
       >
         <ResizablePanel
-          defaultSize={defaultLayout[0]}
-          collapsedSize={navCollapsedSize}
+          defaultSize={minLayout[0]}
+          collapsedSize={4}
           collapsible={true}
           minSize={15}
           maxSize={isSmallScreen ? 4 : 20}
@@ -117,14 +112,15 @@ function Chat({ accounts, mails, defaultLayout = [20, 32, 48], defaultCollapsed 
               isCollapsed={isCollapsed}
               links={[
                 {
-                  title: 'Social',
-                  label: '972',
+                  title: 'Home',
+                  label: '',
                   icon: Users2,
-                  variant: 'ghost'
+                  variant: 'ghost',
+                  href: '/'
                 },
                 {
                   title: 'Settings',
-                  label: '21',
+                  label: '',
                   icon: Settings,
                   variant: 'ghost',
                   href: '/settings'
@@ -134,8 +130,8 @@ function Chat({ accounts, mails, defaultLayout = [20, 32, 48], defaultCollapsed 
           </ScrollArea>
         </ResizablePanel>
         <ResizableHandle withHandle={!isSmallScreen} />
-        <ResizablePanel defaultSize={defaultLayout[1]} minSize={30}>
-          <Tabs defaultValue='all'>
+        <ResizablePanel defaultSize={minLayout[1]} minSize={40}>
+          <Tabs defaultValue='all' onValueChange={handleChangeTab}>
             <div className='flex items-center px-4 py-2'>
               <h1 className='text-xl font-bold'>Inbox</h1>
               <TabsList className='ml-auto'>
@@ -163,20 +159,20 @@ function Chat({ accounts, mails, defaultLayout = [20, 32, 48], defaultCollapsed 
               </form>
             </div>
             <TabsContent value='all' className='m-0'>
-              <ChatList items={mails} />
+              <ChatList />
             </TabsContent>
             <TabsContent value='unread' className='m-0'>
-              <ChatList items={mails.filter((item) => !item.read)} />
+              <ChatList />
             </TabsContent>
           </Tabs>
         </ResizablePanel>
         <ResizableHandle withHandle />
-        <ResizablePanel defaultSize={defaultLayout[2]} minSize={35}>
-          <ChatDisplay mail={mails.find((item) => item.id === mail.selected) || null} />
+        <ResizablePanel defaultSize={minLayout[2]} minSize={35}>
+          {children}
         </ResizablePanel>
       </ResizablePanelGroup>
     </TooltipProvider>
   )
 }
 
-export default Chat
+export default MessageLayout

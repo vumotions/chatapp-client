@@ -1,6 +1,4 @@
-import Image from 'next/image'
-import React, { ReactNode } from 'react'
-import icons from '~/assets/icons'
+import { ReactNode } from 'react'
 import MessageLoading from './message-loading'
 
 type Props = {

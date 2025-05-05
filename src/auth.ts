@@ -1,20 +1,15 @@
 import { AuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import GoogleProvider from 'next-auth/providers/google'
+import httpRequest from './config/http-request'
 import nextEnv from './config/next-env'
-import authService from './services/auth.service'
+import { LoginResponse } from './types/auth.types'
+import { omit } from 'lodash'
 
 const auth: AuthOptions = {
-  logger: {
-    error(code, metadata) {
-      console.error(code, metadata)
-    },
-    warn(code) {
-      console.warn(code)
-    },
-    debug(code, metadata) {
-      console.debug(code, metadata)
-    }
+  pages: {
+    error: '/auth/login',
+    signIn: '/auth/login'
   },
   providers: [
     CredentialsProvider({
@@ -31,9 +26,9 @@ const auth: AuthOptions = {
           placeholder: 'Enter your password'
         }
       },
-      async authorize(credentials, req) {
+      async authorize(credentials) {
         try {
-          const response = await authService.login(credentials as any)
+          const response = await httpRequest.post<LoginResponse>('/auth/login', credentials)
           return {
             ...response.data.data.user,
             ...response.data.data.tokens
@@ -57,10 +52,40 @@ const auth: AuthOptions = {
       clientSecret: nextEnv.GOOGLE_CLIENT_SECRET
     })
   ],
+  session: {
+    strategy: 'jwt'
+  },
   secret: nextEnv.NEXTAUTH_SECRET,
   callbacks: {
-    async signIn({ account, profile }: any) {
-      if (account.provider === 'google') {
+    async signIn({ account, profile, user }: any) {
+      if (account.provider === 'google' || account?.provider === 'github') {
+        const response = await httpRequest.post<LoginResponse>('/auth/oauth-login', {
+          provider: account.provider,
+          providerId: account.providerAccountId,
+          email: profile.email,
+          name: profile.name,
+          avatar: profile.picture
+        })
+        const data = response.data.data
+
+        if (data) {
+          // Cập nhật trực tiếp thông tin của user từ API vào đối tượng user
+          user._id = data.user._id
+          user.username = data.user.username
+          user.email = data.user.email
+          user.name = data.user.name
+          user.dateOfBirth = data.user.dateOfBirth
+          user.verify = data.user.verify
+          user.isBot = data.user.isBot
+          user.createdBy = data.user.createdBy
+          user.emailLockedUntil = data.user.emailLockedUntil
+          user.createdAt = data.user.createdAt
+          user.updatedAt = data.user.updatedAt
+          user.__v = data.user.__v
+          user.accessToken = data.tokens.accessToken
+          user.refreshToken = data.tokens.refreshToken
+        }
+
         return profile.email_verified
       }
       return true
@@ -82,8 +107,9 @@ const auth: AuthOptions = {
      * e.g.: calls to getSession(), useSession(), or request to /api/auth/session
      * Refer: https://next-auth.js.org/configuration/callbacks#session-callback
      */
-    async session({ session, token }: any) {
+    async session({ session, token, user }: any) {
       // Send properties to the client, like an access_token from a provider.
+      session.user = token.user
       session.accessToken = token.accessToken
       session.refreshToken = token.refreshToken
       return session
@@ -93,16 +119,29 @@ const auth: AuthOptions = {
      * e.g.: requests to /api/auth/signin, /api/auth/session and calls to getSession(), getServerSession(), useSession()
      * Refer: https://next-auth.js.org/configuration/callbacks#jwt-callback
      */
-    async jwt({ token, user, account }: any) {
+    async jwt({ token, user, account, session, trigger }: any) {
+      // Update tokens after refresh token
+      if (trigger === 'update' && session?.accessToken && session?.refreshToken) {
+        token.accessToken = session.accessToken
+        token.refreshToken = session.refreshToken
+      }
       // Persist the OAuth access_token to the token right after signin
       if (user) {
         token.accessToken = user?.access_token || user?.accessToken
         token.refreshToken = user?.refresh_token || user?.refreshToken
+        token.user = omit(user, ['accessToken', 'refreshToken'])
       } else if (account) {
         token.accessToken = account.access_token || account.accessToken
         token.refreshToken = token?.refresh_token || token?.refreshToken
       }
       return token
+    }
+  },
+  events: {
+    async signOut({ token }: any) {
+      try {
+        // Logout logic
+      } catch (error) {}
     }
   }
 }

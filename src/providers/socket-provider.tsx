@@ -21,9 +21,8 @@ export const SocketContext = createContext<SocketContextType>({
 function SocketProvider({ children }: Props) {
   const { data: session } = useSession()
   const [socket, setSocket] = useState<Socket | null>(null)
-
   useEffect(() => {
-    const accessToken = (session as any)?.accessToken
+    const accessToken = session?.accessToken
     if (!accessToken) return
 
     const socketInstance = io(nextEnv.NEXT_PUBLIC_SERVER_URL, {
@@ -40,7 +39,7 @@ function SocketProvider({ children }: Props) {
     return () => {
       socketInstance.disconnect()
     }
-  }, [session])
+  }, [session?.accessToken])
 
   return <SocketContext value={{ socket }}>{children}</SocketContext>
 }

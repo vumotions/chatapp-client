@@ -1,14 +1,12 @@
 'use client'
 
-import { ChevronDown, LogOut, MessageCircle, Settings } from 'lucide-react'
+import { MessageCircle, Settings } from 'lucide-react'
 
-import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '~/components/ui/dropdown-menu'
@@ -37,8 +35,12 @@ function ChatMenu() {
           </Link>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem>chat 1</DropdownMenuItem>
-        <DropdownMenuItem>chat 2</DropdownMenuItem>
+        <Link href={'/messages'}>
+          <DropdownMenuItem>chat 1</DropdownMenuItem>
+        </Link>
+        <Link href={'/messages'}>
+          <DropdownMenuItem>chat 2</DropdownMenuItem>
+        </Link>
       </DropdownMenuContent>
     </DropdownMenu>
   )

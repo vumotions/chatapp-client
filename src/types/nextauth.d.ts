@@ -5,9 +5,20 @@ declare module 'next-auth' {
     accessToken?: string
     refreshToken?: string
     user?: {
-      id: string
-      name?: string
-      email?: string
+      _id: string
+      username: string
+      email: string
+      name: string
+      avatar?: string
+      coverPhoto?: string
+      dateOfBirth: string
+      verify: string
+      isBot: boolean
+      createdBy: null
+      emailLockedUntil: null
+      createdAt: string
+      updatedAt: string
+      __v: number
     }
   }
 }

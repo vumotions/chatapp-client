@@ -1,9 +1,13 @@
 import { useMutation } from '@tanstack/react-query'
-import authService from '~/services/auth.service'
+import { FormCodeValues, FormRegisterValues } from '~/schemas/form.schemas'
+import { RegisterResponse, SendEmailVerificationResponse, VerifyAccountResponse } from '~/types/auth.types'
+import useRequest from '../use-request'
 
 export const useRegisterMutation = () => {
+  const request = useRequest()
+
   return useMutation({
-    mutationFn: authService.register,
+    mutationFn: (body: FormRegisterValues) => request.post<RegisterResponse>('/auth/register', body),
     onSuccess: (response) => {
       const { otpExpiresAt } = response.data.data
       localStorage.setItem('otpExpiresAt', otpExpiresAt)
@@ -12,8 +16,11 @@ export const useRegisterMutation = () => {
 }
 
 export const useSendEmailVerificationMutation = () => {
+  const request = useRequest()
+
   return useMutation({
-    mutationFn: authService.sendEmailVerification,
+    mutationFn: (body: Pick<FormCodeValues, 'email'>) =>
+      request.post<SendEmailVerificationResponse>('/auth/email/verify/request', body),
     onSuccess: (response) => {
       const { otpExpiresAt } = response.data.data
       localStorage.setItem('otpExpiresAt', otpExpiresAt)
@@ -22,7 +29,9 @@ export const useSendEmailVerificationMutation = () => {
 }
 
 export const useVerifyAccountMutation = () => {
+  const request = useRequest()
+
   return useMutation({
-    mutationFn: authService.verifyAccount
+    mutationFn: (body: FormCodeValues) => request.post<VerifyAccountResponse>('/auth/email/verify/confirm', body)
   })
 }

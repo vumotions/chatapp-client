@@ -36,9 +36,18 @@ export const isAxiosUnauthorizedError = <UnauthorizedError>(error: unknown): err
   return isAxiosError<UnauthorizedError>(error) && error.response?.status === status.UNAUTHORIZED
 }
 
+export const isAccessTokenExpiredError = (error: unknown) => {
+  return (
+    isAxiosUnauthorizedError<{ name: string; message: string }>(error) &&
+    error.response?.data.name === 'ACCESS_TOKEN_EXPIRED_ERROR'
+  )
+}
+
 export const setRememberedAccountToCookie = (account: RememberedAccount) => {
   Cookies.set('credentials', encrypt(JSON.stringify(account)), { expires: 365 })
 }
+
+export const isBrowser = typeof window !== 'undefined'
 
 export const getRememberedAccountFromCookie = (): RememberedAccount | null => {
   try {
