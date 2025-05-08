@@ -1,6 +1,6 @@
 'use client'
 
-import { Archive, ArchiveX, File, Inbox, Search, Send, Settings, Trash2, Users2 } from 'lucide-react'
+import { Archive, ArchiveX, File, Home, Inbox, Search, Send, Settings, Trash2, Users2 } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 import { useEffect, useState } from 'react'
@@ -114,7 +114,7 @@ function MessageLayout({ children }: LayoutProps) {
                 {
                   title: 'Home',
                   label: '',
-                  icon: Users2,
+                  icon: Home,
                   variant: 'ghost',
                   href: '/'
                 },

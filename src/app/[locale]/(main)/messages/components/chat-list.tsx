@@ -1,62 +1,73 @@
+'use client'
+
 import { formatDistanceToNow } from 'date-fns'
 import { useParams, useSearchParams } from 'next/navigation'
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo } from 'react'
 import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
 import { ScrollArea } from '~/components/ui/scroll-area'
+import { Skeleton } from '~/components/ui/skeleton'
+import { useChatList } from '~/hooks/data/chat.hooks'
 import { Link } from '~/i18n/navigation'
 import { cn } from '~/lib/utils'
-import { Chat } from '~/types/common.types'
+import { useQueryClient } from '@tanstack/react-query'
+import { useRouter } from 'next/navigation'
 
 export function ChatList() {
-  const { chatId } = useParams()
-  const searchParams = useSearchParams()
-  const filter = searchParams.get('filter')
+  const queryClient = useQueryClient();
+  const router = useRouter();
+  const params = useParams();
+  const searchParams = useSearchParams();
+  const { data, isLoading, isError, fetchNextPage, hasNextPage } = useChatList();
+  const chatId = params?.chatId as string;
+  
+  // Lấy filter từ searchParams
+  const filter = searchParams.get('filter') || 'all';
 
-  const [list, setList] = useState<Chat[]>([
-    {
-      _id: '1',
-      userId: 'user1',
-      type: 'PRIVATE',
-      name: 'Alice',
-      avatar:
-        'https://images.unsplash.com/photo-1566438480900-0609be27a4be?w=400&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8NHx8aW1hZ2V8ZW58MHx8MHx8fDA%3D',
-      lastMessage: 'Hey, how are you?',
-      participants: ['user1', 'user2'],
-      createdAt: '2025-05-01T10:00:00.000Z',
-      updatedAt: '2025-05-04T10:00:00.000Z',
-      read: true
-    },
-    {
-      _id: '2',
-      userId: 'user2',
-      type: 'GROUP',
-      name: 'Dev Team',
-      avatar:
-        'https://images.unsplash.com/photo-1566438480900-0609be27a4be?w=400&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8NHx8aW1hZ2V8ZW58MHx8MHx8fDA%3D',
-      lastMessage: 'Code pushed to main branch!',
-      participants: ['user2', 'user3', 'user4'],
-      createdAt: '2025-04-28T14:30:00.000Z',
-      updatedAt: '2025-05-03T09:20:00.000Z',
-      read: false
-    },
-    {
-      _id: '3',
-      userId: 'user3',
-      type: 'PRIVATE',
-      name: 'Bob',
-      avatar:
-        'https://images.unsplash.com/photo-1566438480900-0609be27a4be?w=400&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8NHx8aW1hZ2V8ZW58MHx8MHx8fDA%3D',
-      lastMessage: 'Let’s catch up later. asd asfasdasdfasdlfjasd;flsadjf;sdaljfdas;fjkadfsdafldas;kjf',
-      participants: ['user3', 'user1'],
-      createdAt: '2025-05-02T08:45:00.000Z',
-      updatedAt: '2025-05-04T08:45:00.000Z',
-      read: false
+  // Hàm xử lý khi click vào chat
+  const handleChatClick = (selectedChatId: string) => {
+    // Nếu đang ở chat khác, invalidate query để lấy tin nhắn mới
+    if (selectedChatId !== chatId) {
+      queryClient.invalidateQueries({ 
+        queryKey: ['MESSAGES', selectedChatId] 
+      });
+      console.log('Invalidating query for chat:', selectedChatId);
     }
-  ])
+  };
 
   const items = useMemo(() => {
-    return filter === 'unread' ? list.filter((item) => !item.read) : list
-  }, [list, filter])
+    return data?.pages.flatMap((page) => page?.conversations) || []
+  }, [data])
+  
+  if (isLoading)
+    return (
+      <div className='px-4'>
+        {Array(5)
+          .fill(0)
+          .map((_, index) => (
+            <div key={index} className='flex flex-col items-start gap-2 rounded-lg p-3'>
+              <div className='flex w-full flex-col gap-1'>
+                <div className='flex items-center'>
+                  <div className='flex items-center gap-2'>
+                    {/* Skeleton Avatar */}
+                    <Skeleton className='h-10 w-10 shrink-0 rounded-full' />
+                    <div className='flex w-full flex-col'>
+                      {/* Skeleton for Name */}
+                      <Skeleton className='mb-1 h-4 w-32' />
+                      {/* Skeleton for Last Message */}
+                      <Skeleton className='h-3 w-48' />
+                    </div>
+                  </div>
+                  <div className='ml-auto'>
+                    {/* Skeleton for Date */}
+                    <Skeleton className='h-3 w-16' />
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+      </div>
+    )
+  if (isError) return <div>Error loading chat list</div>
 
   return (
     <ScrollArea className='h-[calc(100vh-120px)]'>
@@ -65,6 +76,7 @@ export function ChatList() {
           <Link
             href={`/messages/${item._id}`}
             key={item._id}
+            onClick={() => handleChatClick(item._id)}
             className={cn(
               'hover:bg-accent flex flex-col items-start gap-2 rounded-lg border p-3 text-left text-sm transition-all',
               {
@@ -76,19 +88,39 @@ export function ChatList() {
               <div className='flex items-center'>
                 <div className='flex items-center gap-2'>
                   <Avatar>
-                    <AvatarImage src={item?.avatar} alt={item.name} />
+                    {/* Kiểm tra cấu trúc của item để lấy đúng avatar */}
+                    <AvatarImage 
+                      src={
+                        item.avatar || 
+                        (item.type === 'PRIVATE' && item.participants?.[0]?.avatar) || 
+                        ''
+                      } 
+                      alt={
+                        item.name || 
+                        (item.type === 'PRIVATE' && item.participants?.[0]?.name) || 
+                        'User'
+                      } 
+                    />
                     <AvatarFallback>
-                      {item?.name
+                      {/* Lấy chữ cái đầu của tên để hiển thị fallback */}
+                      {(item.name || 
+                        (item.type === 'PRIVATE' && item.participants?.[0]?.name) || 
+                        'U')
                         ?.split(' ')
-                        .map((chunk) => chunk[0])
+                        .map((chunk: any) => chunk?.[0])
                         .join('')}
                     </AvatarFallback>
                   </Avatar>
                   <div>
                     <div className='flex items-center gap-2'>
-                      <div className='font-semibold'>{item.name}</div>
+                      {/* Hiển thị tên */}
+                      <div className='font-semibold'>
+                        {item.name || 
+                         (item.type === 'PRIVATE' && item.participants?.[0]?.name) || 
+                         'Unknown User'}
+                      </div>
                       <div className='text-muted-foreground text-xs font-medium'>
-                        {item.type === 'GROUP' && <span>{item.participants.length} members</span>}
+                        {item.type === 'GROUP' && <span>{item.participants?.length || 0} members</span>}
                       </div>
                       {!item.read && <span className='flex h-2 w-2 rounded-full bg-blue-600' />}{' '}
                     </div>
@@ -97,7 +129,10 @@ export function ChatList() {
                         'text-muted-foreground': item.read
                       })}
                     >
-                      {item.lastMessage}
+                      {/* Hiển thị lastMessage */}
+                      {typeof item.lastMessage === 'string' 
+                        ? item.lastMessage 
+                        : item.lastMessage?.content || 'No message'}
                     </span>
                   </div>
                 </div>
@@ -115,7 +150,18 @@ export function ChatList() {
             </div>
           </Link>
         ))}
+        {/* Nếu còn trang tiếp theo, hiển thị nút load more */}
+        {hasNextPage && (
+          <button onClick={() => fetchNextPage()} className='mt-4 text-blue-600'>
+            Load more
+          </button>
+        )}
       </div>
     </ScrollArea>
   )
 }
+
+
+
+
+

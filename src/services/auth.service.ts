@@ -16,6 +16,16 @@ class AuthService {
     return httpRequest.post<LoginResponse>('/auth/login', body)
   }
 
+  async loginOauth() {
+    
+  }
+
+  async logout(refreshToken: string) {
+    return httpRequest.post('/auth/logout', {
+      refreshToken
+    })
+  }
+
   async sendEmailVerification(body: Pick<FormCodeValues, 'email'>) {
     return httpRequest.post<SendEmailVerificationResponse>('/auth/email/verify/request', body)
   }

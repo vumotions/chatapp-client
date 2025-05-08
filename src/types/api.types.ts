@@ -1,4 +1,5 @@
 export interface SuccessResponse<T> {
+  [x: string]: SuccessResponse<NotificationsResponse>
   message: string
   data: T
 }

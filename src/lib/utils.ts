@@ -3,6 +3,7 @@ import { clsx, type ClassValue } from 'clsx'
 import { status } from 'http-status'
 import Cookies from 'js-cookie'
 import { twMerge } from 'tailwind-merge'
+import httpRequest from '~/config/http-request'
 import { authRouteRegex, privateRouteRegex, publicRouteRegex } from '~/constants/regex'
 import { RememberedAccount } from '~/types/user.types'
 import { decrypt, encrypt } from './crypto'
@@ -61,4 +62,18 @@ export const getRememberedAccountFromCookie = (): RememberedAccount | null => {
 
 export const removeRememberedAccountFromCookie = () => {
   Cookies.remove('credentials')
+}
+
+export async function refreshToken(refreshToken: string) {
+  const response = await httpRequest.post('/auth/refresh-token', {
+    refreshToken
+  })
+
+  const data = response.data.data
+
+  return {
+    accessToken: data.tokens.accessToken,
+    refreshToken: data.tokens.refreshToken,
+    accessTokenExpiresAt: data.tokens.accessTokenExpiresAt
+  }
 }

@@ -1,16 +1,18 @@
+'use client'
+
 import { HomeIcon } from 'lucide-react'
-import { getServerSession } from 'next-auth'
+import { useSession } from 'next-auth/react'
 import { Fragment } from 'react'
 import { Link } from '~/i18n/navigation'
-import ChatMenu from './chat-menu'
 import HeaderSearch from './header-search'
+import MessagePopover from './message-popover'
 import NavLink from './nav-link'
-import NavUser from './nav-user'
-import NotificationMenu from './notification-menu'
+import NotificationPopover from './notification-popover'
 import { buttonVariants } from './ui/button'
+import UserPopover from './user-popover'
 
-async function Header() {
-  const session = await getServerSession()
+function Header() {
+  const { data: session } = useSession()
   return (
     <header className='bg-background sticky top-0 z-50 flex h-16 w-full items-center border-b'>
       <div className='flex w-full items-center justify-between gap-2 px-4 py-2'>
@@ -26,9 +28,9 @@ async function Header() {
               <NavLink href={'/'} className='bg-accent cursor-pointer rounded-full p-2'>
                 <HomeIcon className='size-5' />
               </NavLink>
-              <NotificationMenu />
-              <ChatMenu />
-              <NavUser />
+              <NotificationPopover />
+              <MessagePopover />
+              <UserPopover />
             </Fragment>
           )}
 

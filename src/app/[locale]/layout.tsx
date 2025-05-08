@@ -4,14 +4,17 @@ import { getMessages } from 'next-intl/server'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { notFound } from 'next/navigation'
 import { use } from 'react'
+import TokenRefresher from '~/components/token-refresher'
+import NotificationListener from '~/components/notification-listener'
 import { Toaster } from '~/components/ui/sonner'
 import { routing } from '~/i18n/routing'
 import BProgressProvider from '~/providers/bprogress-provider'
 import NextAuthProvider from '~/providers/nextauth-provider'
 import ReactQueryProvider from '~/providers/query-client-provider'
+import SocketProvider from '~/providers/socket-provider'
 import { ThemeProvider } from '~/providers/theme-provider'
 import './globals.css'
-import SocketProvider from '~/providers/socket-provider'
+
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -51,14 +54,16 @@ function Layout({ params, children }: Props) {
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <NextIntlClientProvider locale={locale} messages={messages}>
           <NextAuthProvider>
-            <BProgressProvider>
-              <ThemeProvider attribute='class' defaultTheme='dark' enableSystem disableTransitionOnChange>
+            <ThemeProvider attribute='class' defaultTheme='dark' enableSystem disableTransitionOnChange>
+              <BProgressProvider>
                 <ReactQueryProvider>
                   <SocketProvider>{children}</SocketProvider>
+                  <TokenRefresher />
+                  <NotificationListener />
                 </ReactQueryProvider>
                 <Toaster position='top-center' />
-              </ThemeProvider>
-            </BProgressProvider>
+              </BProgressProvider>
+            </ThemeProvider>
           </NextAuthProvider>
         </NextIntlClientProvider>
       </body>
@@ -67,3 +72,4 @@ function Layout({ params, children }: Props) {
 }
 
 export default Layout
+

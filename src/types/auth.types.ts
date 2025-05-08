@@ -11,6 +11,7 @@ export type LoginResponse = SuccessResponse<{
   tokens: {
     accessToken: string
     refreshToken: string
+    accessTokenExpiresAt: number
   }
 }>
 

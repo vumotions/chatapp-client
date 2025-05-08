@@ -1,63 +1,48 @@
 'use client'
 
+import { Heart, Images, Link as LinkIcon, MessageCircle, Send, SmilePlus } from 'lucide-react'
+import PostSkeleton from '~/components/post-skeleton'
+import Protected from '~/components/protected'
+import SharePopover from '~/components/share-popover'
 import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
 import { Button } from '~/components/ui/button'
 import { Card, CardContent } from '~/components/ui/card'
-import { ScrollArea } from '~/components/ui/scroll-area'
-import { Textarea } from '~/components/ui/textarea'
+import { Input } from '~/components/ui/input'
+import nextEnv from '~/config/next-env'
+import RightSidebarFriendList from './components/right-sidebar'
 
-const friends = [
-  'Bảo Ngaan',
-  'Adam Chu',
-  'Việt Hải',
-  'Thảo Nguyên',
-  'Hoàng Tùng',
-  'Nguyễn Mi An',
-  'Lâm.T Bích Ngọc',
-  'Anh Minh',
-  'Bảo Thiên',
-  'Nguyễn Tuấn Hưng',
-  'Nguyễn Thị Mai',
-  'Mỹ Tiên',
-  'Trần Long'
-]
-
-const stories = ['Bạn', 'Vann Tienn', 'Quốc Đạt', 'Trà Trần', 'Lâm Lê', 'Lương Ngọc Hà']
+import { useSession } from 'next-auth/react'
+import { cn } from '~/lib/utils'
+import FriendSuggestions from '~/components/friend-suggestions'
 
 function Home() {
+  const { data: session } = useSession()
+  console.log(session)
   return (
-    <div className='mx-auto flex max-w-screen-2xl flex-col gap-4 py-4 lg:flex-row'>
+    <div className='mx-auto flex max-w-screen-2xl gap-4 py-4 lg:flex-row'>
       {/* Main Content */}
       <div className='flex flex-1 flex-col gap-4'>
         {/* Status input */}
-        <Card>
-          <CardContent className='p-4'>
-            <Textarea placeholder='Lê ơi, bạn đang nghĩ gì thế?' />
-            <div className='mt-2 flex gap-2'>
-              <Button variant='outline'>🎥 Video trực tiếp</Button>
-              <Button variant='outline'>📷 Ảnh/video</Button>
-              <Button variant='outline'>😊 Cảm xúc</Button>
+        {/* <Card>
+          <CardContent className='grid gap-2 px-4'>
+            <Input placeholder='Lê ơi, bạn đang nghĩ gì thế?' className='rounded-full' />
+            <div className='mt-2 ml-auto flex gap-2'>
+              <Button variant='outline'>
+                <Images /> Ảnh/video
+              </Button>
+              <Button variant='outline'>
+                <SmilePlus />
+              </Button>
+              <Button variant='default'>Post</Button>
             </div>
           </CardContent>
-        </Card>
-
-        {/* Stories */}
-        <ScrollArea className='w-full whitespace-nowrap'>
-          <div className='flex space-x-4 px-2'>
-            {stories.map((name, idx) => (
-              <div key={idx} className='flex flex-col items-center'>
-                <Avatar className='h-16 w-16 border'>
-                  <AvatarFallback>{name.charAt(0)}</AvatarFallback>
-                </Avatar>
-                <span className='mt-1 text-sm'>{name}</span>
-              </div>
-            ))}
-          </div>
-        </ScrollArea>
+        </Card> */}
 
         {/* Post */}
-        <Card>
-          <CardContent className='space-y-3 p-4'>
+        {/* <PostSkeleton /> */}
+        <FriendSuggestions />
+        {/* <Card>
+          <CardContent className='space-y-3 px-4'>
             <div className='flex items-center gap-3'>
               <Avatar className='h-10 w-10'>
                 <AvatarImage src='https://i.pravatar.cc/100?img=45' />
@@ -68,27 +53,30 @@ function Home() {
                 <p className='text-muted-foreground text-xs'>40 phút trước</p>
               </div>
             </div>
-
             <p className='text-lg font-semibold'>Cần tìm người pass phòng hộ. Giá 500k</p>
 
-            <div className='text-muted-foreground flex justify-between border-t pt-2 text-sm'>
-              <Button variant='ghost' size='sm'>
-                👍 Thích
+            <div className='text-muted-foreground flex justify-evenly border-t pt-2 text-sm'>
+              <Button variant='ghost' size='icon'>
+                <Heart />
               </Button>
               <Button variant='ghost' size='sm'>
-                💬 Bình luận
+                <MessageCircle />
               </Button>
-              <Button variant='ghost' size='sm'>
-                📤 Gửi
-              </Button>
-              <Button variant='ghost' size='sm'>
-                🔗 Chia sẻ
-              </Button>
+              <Protected>
+                <Button variant='ghost' size='sm'>
+                  <Send />
+                </Button>
+              </Protected>
+              <SharePopover shareUrl={`${nextEnv.NEXT_PUBLIC_URL_INTERNAL}/posts/${1}`}>
+                <Button variant='ghost' size='sm'>
+                  <LinkIcon className='h-4 w-4' />
+                </Button>
+              </SharePopover>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className='space-y-3 p-4'>
+          <CardContent className='space-y-3 px-4'>
             <div className='flex items-center gap-3'>
               <Avatar className='h-10 w-10'>
                 <AvatarImage src='https://i.pravatar.cc/100?img=45' />
@@ -99,27 +87,28 @@ function Home() {
                 <p className='text-muted-foreground text-xs'>40 phút trước</p>
               </div>
             </div>
-
             <p className='text-lg font-semibold'>Cần tìm người pass phòng hộ. Giá 500k</p>
 
-            <div className='text-muted-foreground flex justify-between border-t pt-2 text-sm'>
-              <Button variant='ghost' size='sm'>
-                👍 Thích
+            <div className='text-muted-foreground flex justify-evenly border-t pt-2 text-sm'>
+              <Button variant='ghost' size='icon'>
+                <Heart />
               </Button>
               <Button variant='ghost' size='sm'>
-                💬 Bình luận
+                <MessageCircle />
               </Button>
               <Button variant='ghost' size='sm'>
-                📤 Gửi
+                <Send />
               </Button>
-              <Button variant='ghost' size='sm'>
-                🔗 Chia sẻ
-              </Button>
+              <SharePopover shareUrl={`${nextEnv.NEXT_PUBLIC_URL_INTERNAL}/posts/${1}`}>
+                <Button variant='ghost' size='sm'>
+                  <LinkIcon className='h-4 w-4' />
+                </Button>
+              </SharePopover>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className='space-y-3 p-4'>
+          <CardContent className='space-y-3 px-4'>
             <div className='flex items-center gap-3'>
               <Avatar className='h-10 w-10'>
                 <AvatarImage src='https://i.pravatar.cc/100?img=45' />
@@ -130,46 +119,35 @@ function Home() {
                 <p className='text-muted-foreground text-xs'>40 phút trước</p>
               </div>
             </div>
-
             <p className='text-lg font-semibold'>Cần tìm người pass phòng hộ. Giá 500k</p>
 
-            <div className='text-muted-foreground flex justify-between border-t pt-2 text-sm'>
-              <Button variant='ghost' size='sm'>
-                👍 Thích
+            <div className='text-muted-foreground flex justify-evenly border-t pt-2 text-sm'>
+              <Button variant='ghost' size='icon'>
+                <Heart />
               </Button>
               <Button variant='ghost' size='sm'>
-                💬 Bình luận
+                <MessageCircle />
               </Button>
               <Button variant='ghost' size='sm'>
-                📤 Gửi
+                <Send />
               </Button>
-              <Button variant='ghost' size='sm'>
-                🔗 Chia sẻ
-              </Button>
+              <SharePopover shareUrl={`${nextEnv.NEXT_PUBLIC_URL_INTERNAL}/posts/${1}`}>
+                <Button variant='ghost' size='sm'>
+                  <LinkIcon className='h-4 w-4' />
+                </Button>
+              </SharePopover>
             </div>
           </CardContent>
-        </Card>
+        </Card> */}
       </div>
 
       {/* Right Sidebar (friends list) */}
-      <div className='sticky top-[100px] hidden h-fit w-[250px] lg:block'>
-        <Card>
-          <CardContent className='p-4'>
-            <h4 className='mb-2 font-semibold'>Người liên hệ</h4>
-            <ScrollArea className='h-[70vh]'>
-              <div className='space-y-2'>
-                {friends.map((name, i) => (
-                  <div key={i} className='flex items-center gap-2'>
-                    <Avatar className='h-8 w-8'>
-                      <AvatarFallback>{name.charAt(0)}</AvatarFallback>
-                    </Avatar>
-                    <span className='text-sm'>{name}</span>
-                  </div>
-                ))}
-              </div>
-            </ScrollArea>
-          </CardContent>
-        </Card>
+      <div
+        className={cn('sticky top-[100px] h-fit w-fit lg:w-[250px]', {
+          'hidden lg:flex': !session
+        })}
+      >
+        <RightSidebarFriendList />
       </div>
     </div>
   )

@@ -5,7 +5,11 @@ type Props = {
 }
 
 function Layout({ children }: Props) {
-  return <div className='mx-auto w-full max-w-[1000px] px-4 py-5'>{children}</div>
+  return (
+    <div className='mx-auto w-full max-w-[1000px] overflow-hidden px-4 py-5'>
+      <div>{children}</div>
+    </div>
+  )
 }
 
 export default Layout

@@ -1,10 +1,13 @@
 import { AuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import GoogleProvider from 'next-auth/providers/google'
+
+import { omit } from 'lodash'
 import httpRequest from './config/http-request'
 import nextEnv from './config/next-env'
+import { refreshToken } from './lib/utils'
 import { LoginResponse } from './types/auth.types'
-import { omit } from 'lodash'
+import authService from './services/auth.service'
 
 const auth: AuthOptions = {
   pages: {
@@ -84,6 +87,7 @@ const auth: AuthOptions = {
           user.__v = data.user.__v
           user.accessToken = data.tokens.accessToken
           user.refreshToken = data.tokens.refreshToken
+          user.accessTokenExpiresAt = data.tokens.accessTokenExpiresAt
         }
 
         return profile.email_verified
@@ -112,6 +116,7 @@ const auth: AuthOptions = {
       session.user = token.user
       session.accessToken = token.accessToken
       session.refreshToken = token.refreshToken
+      session.accessTokenExpiresAt = token.accessTokenExpiresAt
       return session
     },
     /**
@@ -124,16 +129,19 @@ const auth: AuthOptions = {
       if (trigger === 'update' && session?.accessToken && session?.refreshToken) {
         token.accessToken = session.accessToken
         token.refreshToken = session.refreshToken
+        token.accessTokenExpiresAt = session.accessTokenExpiresAt
       }
       // Persist the OAuth access_token to the token right after signin
       if (user) {
         token.accessToken = user?.access_token || user?.accessToken
         token.refreshToken = user?.refresh_token || user?.refreshToken
-        token.user = omit(user, ['accessToken', 'refreshToken'])
+        token.accessTokenExpiresAt = user?.accessTokenExpiresAt
+        token.user = omit(user, ['accessToken', 'refreshToken', 'accessTokenExpiresAt'])
       } else if (account) {
         token.accessToken = account.access_token || account.accessToken
         token.refreshToken = token?.refresh_token || token?.refreshToken
       }
+
       return token
     }
   },
@@ -141,7 +149,10 @@ const auth: AuthOptions = {
     async signOut({ token }: any) {
       try {
         // Logout logic
-      } catch (error) {}
+        await authService.logout(token?.refreshToken as string)
+      } catch (error) {
+        console.log('Error while logging out')
+      }
     }
   }
 }
