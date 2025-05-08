@@ -79,6 +79,7 @@ const auth: AuthOptions = {
           user.name = data.user.name
           user.dateOfBirth = data.user.dateOfBirth
           user.verify = data.user.verify
+          user.avatar = data.user.avatar
           user.isBot = data.user.isBot
           user.createdBy = data.user.createdBy
           user.emailLockedUntil = data.user.emailLockedUntil

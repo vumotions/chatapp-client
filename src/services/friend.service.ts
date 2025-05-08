@@ -56,6 +56,16 @@ class FriendService {
   getFriendSuggestions() {
     return httpRequest.get<SuccessResponse<Friend[]>>('/friends/suggestions')
   }
+
+  // Thêm phương thức removeFriend
+  removeFriend(friendId: string) {
+    return httpRequest.delete(`/friends/remove/${friendId}`)
+  }
+
+  // Lấy trạng thái kết bạn với một người dùng
+  getFriendStatus(userId: string) {
+    return httpRequest.get<SuccessResponse<{ status: string | null }>>(`/friends/status/${userId}`)
+  }
 }
 
 const friendService = new FriendService()

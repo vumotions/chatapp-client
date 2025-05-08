@@ -142,7 +142,8 @@ export function ChatList() {
                     chatId === item._id ? 'text-foreground' : 'text-muted-foreground'
                   )}
                 >
-                  {formatDistanceToNow(new Date(item.createdAt), {
+                  {/* Sử dụng thời gian của lastMessage thay vì createdAt của conversation */}
+                  {formatDistanceToNow(new Date(item.lastMessage?.createdAt || item.createdAt), {
                     addSuffix: true
                   })}
                 </div>
@@ -160,6 +161,7 @@ export function ChatList() {
     </ScrollArea>
   )
 }
+
 
 
 

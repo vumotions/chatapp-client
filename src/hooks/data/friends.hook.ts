@@ -75,3 +75,17 @@ export const useCancelFriendRequestMutation = () => {
     }
   })
 }
+
+export const useRemoveFriendMutation = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (friendId: string) => friendService.removeFriend(friendId),
+    onSuccess: () => {
+      toast.success('Đã hủy kết bạn')
+      queryClient.invalidateQueries({ queryKey: ['FRIENDS'] })
+    },
+    onError: () => {
+      toast.error('Hủy kết bạn thất bại!')
+    }
+  })
+}

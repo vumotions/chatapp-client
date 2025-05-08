@@ -1,12 +1,24 @@
 'use client'
-import { v4 as uuidv4 } from 'uuid'
-import { addDays, addHours, format, formatDistanceToNow, nextSaturday } from 'date-fns'
-import { Archive, ArchiveX, Clock, Forward, MoreVertical, Reply, ReplyAll, Trash2 } from 'lucide-react'
+import { format, formatDistanceToNow } from 'date-fns'
+import {
+  Archive,
+  ArrowDown,
+  Check,
+  CheckCheck,
+  Copy,
+  Heart,
+  MoreVertical,
+  Phone,
+  Trash2,
+  UserPlus,
+  Video
+} from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { v4 as uuidv4 } from 'uuid'
 import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
 import { Button } from '~/components/ui/button'
-import { Calendar } from '~/components/ui/calendar'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '~/components/ui/dropdown-menu'
+import { HoverCard, HoverCardContent, HoverCardTrigger } from '~/components/ui/hover-card'
 import { Popover, PopoverContent, PopoverTrigger } from '~/components/ui/popover'
 import { Separator } from '~/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '~/components/ui/tooltip'
@@ -21,11 +33,19 @@ import { useSocket } from '~/hooks/use-socket'
 import { useQueryClient } from '@tanstack/react-query'
 import { vi } from 'date-fns/locale'
 import { useSession } from 'next-auth/react'
-import { ChatBubble, ChatBubbleAvatar, ChatBubbleMessage } from '~/components/ui/chat/chat-bubble'
-import MessageLoading from '~/components/ui/chat/message-loading'
-import { CHAT_TYPE, MEDIA_TYPE, MESSAGE_STATUS, MESSAGE_TYPE } from '~/constants/enums'
+import { toast } from 'sonner'
+import httpRequest from '~/config/http-request'
+import { CHAT_TYPE, FRIEND_REQUEST_STATUS, MEDIA_TYPE, MESSAGE_STATUS, MESSAGE_TYPE } from '~/constants/enums'
 import SOCKET_EVENTS from '~/constants/socket-events'
-import { uniqueId } from 'lodash'
+import {
+  useAcceptFriendRequestMutation,
+  useCancelFriendRequestMutation,
+  useRemoveFriendMutation,
+  useSendFriendRequestMutation
+} from '~/hooks/data/friends.hook'
+import friendService from '~/services/friend.service'
+
+const DEFAULT_AVATAR = '/images/default-avatar.png'
 
 type Props = {
   params: Promise<{ chatId: string }>
@@ -79,22 +99,54 @@ interface PageData {
 }
 
 function ChatDetail({ params }: Props) {
-  // 1. Tất cả các state và ref - Xóa localMessages
+  // 1. Tất cả các state và ref
   const { chatId } = use(params)
   const [message, setMessage] = useState('')
   const [typingUsers, setTypingUsers] = useState<Record<string, boolean>>({})
   const [isFirstLoad, setIsFirstLoad] = useState(true)
-  const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [isTyping, setIsTyping] = useState(false)
   const [sentTempIds, setSentTempIds] = useState<Set<string>>(new Set())
-  // Xóa localMessages
-  // const [localMessages, setLocalMessages] = useState<any[]>([])
+  const [friendStatus, setFriendStatus] = useState<FRIEND_REQUEST_STATUS | 'RECEIVED' | null>(null)
+  const [otherUserId, setOtherUserId] = useState<string | null>(null)
+  const [isFriend, setIsFriend] = useState(false)
+  const [userStatus, setUserStatus] = useState<{
+    isOnline: boolean
+    lastActive: string | null
+  }>({
+    isOnline: false,
+    lastActive: null
+  })
+  const [isAtBottom, setIsAtBottom] = useState(true)
+  const [showScrollButton, setShowScrollButton] = useState(false)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null)
+  // Thêm state để lưu trữ thông tin người dùng
+  const [userInfoMap, setUserInfoMap] = useState<Record<string, { name: string; avatar: string }>>({})
+  // Thêm state để theo dõi việc hiển thị popover reactions
+  const [openReactionPopover, setOpenReactionPopover] = useState<string | null>(null)
+
+  // Define scrollToBottom function
+  const scrollToBottom = useCallback(() => {
+    const scrollContainer = document.getElementById('messageScrollableDiv')
+    if (scrollContainer) {
+      scrollContainer.scrollTo({
+        top: scrollContainer.scrollHeight,
+        behavior: 'smooth'
+      })
+    }
+  }, [])
+
+  // Friend request mutations
+  const sendFriendRequest = useSendFriendRequestMutation()
+  const cancelFriendRequest = useCancelFriendRequestMutation()
+  const acceptFriendRequest = useAcceptFriendRequestMutation()
+  const removeFriend = useRemoveFriendMutation()
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const typingDebounceRef = useRef<NodeJS.Timeout | null>(null)
 
   const { socket } = useSocket()
-  const { data, isLoading, isError, fetchNextPage, hasNextPage } = useMessages(chatId)
+  const { data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage } = useMessages(chatId)
   const { mutate: markAsRead } = useMarkChatAsRead()
   const queryClient = useQueryClient()
   const { data: session } = useSession()
@@ -122,12 +174,6 @@ function ChatDetail({ params }: Props) {
     return [...messages].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
   }, [data])
 
-  // 3. Tất cả các useEffect
-  // Reset localMessages khi chatId thay đổi
-  // useEffect(() => {
-  //   setLocalMessages([])
-  // }, [chatId])
-
   // Đánh dấu chat đã đọc và revalidate query khi component mount
   useEffect(() => {
     if (chatId) {
@@ -145,23 +191,24 @@ function ChatDetail({ params }: Props) {
 
   // Scroll to bottom on first load or when new message arrives
   useEffect(() => {
-    if (messagesEndRef.current && (isFirstLoad || data)) {
+    // Nếu đang tải tin nhắn cũ, không cuộn xuống
+    if (isFetchingNextPage) {
+      console.log('Skip scrolling because loading old messages')
+      return
+    }
+
+    if (messagesEndRef.current && isFirstLoad) {
       // Đặt timeout dài hơn để đảm bảo tất cả tin nhắn đã được render
       setTimeout(() => {
-        // Đảm bảo cuộn xuống cuối cùng mà không bị ảnh hưởng bởi fetch message cũ
-        if (messagesEndRef.current) {
-          messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
-          // Đặt scrollTop để đảm bảo cuộn xuống cuối cùng
-          const scrollableDiv = document.getElementById('messageScrollableDiv')
-          if (scrollableDiv) {
-            scrollableDiv.scrollTop = scrollableDiv.scrollHeight
-          }
+        // Thay vì sử dụng scrollIntoView, chỉ cuộn container tin nhắn
+        const scrollableDiv = document.getElementById('messageScrollableDiv')
+        if (scrollableDiv) {
+          scrollableDiv.scrollTop = scrollableDiv.scrollHeight
         }
+        setIsFirstLoad(false)
       }, 500) // Tăng timeout lên 500ms
-
-      if (isFirstLoad) setIsFirstLoad(false)
     }
-  }, [data, isFirstLoad])
+  }, [isFirstLoad, isFetchingNextPage, data]) // Thêm data để đảm bảo cuộn xuống khi data đã sẵn sàng
 
   // Thêm useEffect để đảm bảo socket đã kết nối và tham gia vào room
   useEffect(() => {
@@ -264,12 +311,19 @@ function ChatDetail({ params }: Props) {
         }
       })
 
-      // Cuộn xuống sau khi nhận tin nhắn mới
-      setTimeout(() => {
-        if (messagesEndRef.current) {
-          messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
-        }
-      }, 300)
+      // Chỉ cuộn xuống khi không đang tải tin nhắn cũ và người dùng đang ở gần cuối
+      const scrollableDiv = document.getElementById('messageScrollableDiv')
+      const isAtBottom = scrollableDiv
+        ? scrollableDiv.scrollHeight - scrollableDiv.scrollTop - scrollableDiv.clientHeight < 200
+        : false
+
+      if (!isFetchingNextPage && isAtBottom) {
+        setTimeout(() => {
+          if (scrollableDiv) {
+            scrollableDiv.scrollTop = scrollableDiv.scrollHeight
+          }
+        }, 300)
+      }
     }
 
     socket.on(SOCKET_EVENTS.RECEIVE_MESSAGE, handleReceiveMessage)
@@ -314,54 +368,285 @@ function ChatDetail({ params }: Props) {
 
   const handleFetchNextPage = useCallback(() => {
     console.log('InfiniteScroll triggered next function')
-    console.log('Current state:', { isLoadingMore, hasNextPage })
 
-    if (isLoadingMore || !hasNextPage) {
-      console.log('Skipping fetch due to:', { isLoadingMore, hasNextPage })
+    if (!hasNextPage || isFetchingNextPage) {
+      console.log('Skipping fetch due to:', { hasNextPage, isFetchingNextPage })
       return
     }
 
     console.log('Fetching next page...')
-    setIsLoadingMore(true)
+
+    // Lưu vị trí cuộn hiện tại
+    const scrollableDiv = document.getElementById('messageScrollableDiv')
+    const scrollPosition = scrollableDiv?.scrollTop || 0
+    const scrollHeight = scrollableDiv?.scrollHeight || 0
 
     fetchNextPage()
       .then(() => {
         console.log('Fetch completed successfully')
+        // Đặt timeout để đảm bảo DOM đã được cập nhật
+        setTimeout(() => {
+          if (scrollableDiv) {
+            // Tính toán vị trí cuộn mới để giữ nguyên vị trí người dùng đang xem
+            const newScrollHeight = scrollableDiv.scrollHeight
+            const scrollDiff = newScrollHeight - scrollHeight
+            scrollableDiv.scrollTop = scrollPosition + scrollDiff
+          }
+        }, 100)
       })
       .catch((error) => {
         console.error('Error fetching next page:', error)
       })
-      .finally(() => {
-        setIsLoadingMore(false)
-        console.log('Loading state reset')
-      })
-  }, [fetchNextPage, hasNextPage, isLoadingMore])
-
-  // Thêm xử lý sự kiện wheel để bắt sự kiện lăn chuột
-  const handleWheel = useCallback(
-    (e: WheelEvent) => {
-      const scrollableDiv = document.getElementById('messageScrollableDiv')
-      if (!scrollableDiv) return
-
-      // Nếu đang ở gần đầu và lăn lên trên (deltaY < 0)
-      if (scrollableDiv.scrollTop < 100 && e.deltaY < 0 && hasNextPage && !isLoadingMore) {
-        handleFetchNextPage()
-      }
-    },
-    [handleFetchNextPage, hasNextPage, isLoadingMore]
-  )
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage])
 
   // Thêm useEffect để đăng ký sự kiện wheel
   useEffect(() => {
     const scrollableDiv = document.getElementById('messageScrollableDiv')
     if (!scrollableDiv) return
 
-    scrollableDiv.addEventListener('wheel', handleWheel, { passive: true })
+    // Thêm biến để theo dõi thời gian cuối cùng fetch
+    let lastFetchTime = 0
+    const FETCH_COOLDOWN = 1000 // 1 giây cooldown
+
+    const handleWheelWithThrottle = (e: WheelEvent) => {
+      const now = Date.now()
+      if (scrollableDiv.scrollTop < 100 && e.deltaY < 0 && hasNextPage && !isFetchingNextPage) {
+        // Chỉ fetch nếu đã qua thời gian cooldown
+        if (now - lastFetchTime > FETCH_COOLDOWN) {
+          lastFetchTime = now
+          handleFetchNextPage()
+        }
+      }
+    }
+
+    scrollableDiv.addEventListener('wheel', handleWheelWithThrottle, { passive: true })
 
     return () => {
-      scrollableDiv.removeEventListener('wheel', handleWheel)
+      scrollableDiv.removeEventListener('wheel', handleWheelWithThrottle)
     }
-  }, [handleWheel])
+  }, [handleFetchNextPage, hasNextPage, isFetchingNextPage])
+
+  // Thêm useEffect để theo dõi trạng thái isFetchingNextPage và cập nhật thuộc tính trên body
+  useEffect(() => {
+    if (isFetchingNextPage) {
+      document.body.setAttribute('data-fetching-old-messages', 'true')
+    } else {
+      document.body.setAttribute('data-fetching-old-messages', 'false')
+    }
+  }, [isFetchingNextPage])
+
+  // Thêm useEffect để lấy trạng thái kết bạn
+  useEffect(() => {
+    const fetchFriendStatus = async () => {
+      if (!otherUserId) return
+
+      try {
+        const response = await friendService.getFriendStatus(otherUserId)
+        const status = response.data.data.status
+
+        console.log('Friend status fetched:', status)
+
+        setFriendStatus(status as FRIEND_REQUEST_STATUS)
+        setIsFriend(status === FRIEND_REQUEST_STATUS.ACCEPTED)
+      } catch (error) {
+        console.error('Error fetching friend status:', error)
+      }
+    }
+
+    if (otherUserId) {
+      fetchFriendStatus()
+    }
+  }, [otherUserId])
+
+  // Thêm useEffect để lấy ID người dùng khác từ cuộc trò chuyện
+  useEffect(() => {
+    if (data?.pages[0]?.conversation?.type === CHAT_TYPE.PRIVATE) {
+      const otherParticipant = data.pages[0].conversation.participants.find((p: any) => p._id !== session?.user?._id)
+
+      if (otherParticipant) {
+        setOtherUserId(otherParticipant._id)
+      }
+    }
+  }, [data?.pages, session?.user?._id])
+
+  // Thêm useEffect để lắng nghe sự kiện online/offline
+  useEffect(() => {
+    if (!socket || !chatId) return
+
+    const otherUser = data?.pages[0]?.conversation?.participants?.find((p: any) => p._id !== session?.user?._id)
+
+    if (!otherUser) return
+
+    // Lắng nghe sự kiện online
+    socket.on(SOCKET_EVENTS.USER_ONLINE, (userId: string) => {
+      if (userId === otherUser._id) {
+        setUserStatus({
+          isOnline: true,
+          lastActive: new Date().toISOString()
+        })
+      }
+    })
+
+    // Lắng nghe sự kiện offline
+    socket.on(SOCKET_EVENTS.USER_OFFLINE, (userId: string, lastActiveTime: string) => {
+      if (userId === otherUser._id) {
+        setUserStatus({
+          isOnline: false,
+          lastActive: lastActiveTime
+        })
+      }
+    })
+
+    // Kiểm tra trạng thái online ban đầu
+    socket.emit(SOCKET_EVENTS.CHECK_ONLINE, otherUser._id, (isUserOnline: boolean, lastActiveTime: string) => {
+      setUserStatus({
+        isOnline: isUserOnline,
+        lastActive: lastActiveTime
+      })
+    })
+
+    return () => {
+      socket.off(SOCKET_EVENTS.USER_ONLINE)
+      socket.off(SOCKET_EVENTS.USER_OFFLINE)
+    }
+  }, [socket, chatId, data])
+
+  // Thêm useEffect để theo dõi thay đổi của isOnline và lastActive
+  useEffect(() => {
+    console.log('Online status changed:', userStatus.isOnline, 'Last active:', userStatus.lastActive)
+  }, [userStatus.isOnline, userStatus.lastActive])
+
+  // Thêm useEffect để đánh dấu tin nhắn đã đọc khi người dùng xem
+  useEffect(() => {
+    if (!socket || !chatId || !allMessages.length || !isAtBottom) return
+
+    // Lấy các tin nhắn chưa đọc từ người khác
+    const unreadMessages = allMessages.filter(
+      (msg) => !isMessageFromCurrentUser(msg) && msg.status !== MESSAGE_STATUS.SEEN
+    )
+
+    if (unreadMessages.length > 0) {
+      // Gửi sự kiện đánh dấu đã đọc
+      socket.emit(SOCKET_EVENTS.MARK_AS_READ, {
+        chatId,
+        messageIds: unreadMessages.map((msg) => msg._id)
+      })
+
+      // Cập nhật cache để đánh dấu tin nhắn đã đọc
+      queryClient.setQueryData(['MESSAGES', chatId], (oldData: any) => {
+        if (!oldData) return oldData
+
+        const updatedPages = oldData.pages.map((page: any) => {
+          if (!page.messages) return page
+
+          const updatedMessages = page.messages.map((msg: any) => {
+            if (!isMessageFromCurrentUser(msg) && msg.status !== MESSAGE_STATUS.SEEN) {
+              return {
+                ...msg,
+                status: MESSAGE_STATUS.SEEN
+              }
+            }
+            return msg
+          })
+
+          return {
+            ...page,
+            messages: updatedMessages
+          }
+        })
+
+        return {
+          ...oldData,
+          pages: updatedPages
+        }
+      })
+    }
+  }, [socket, chatId, allMessages, isAtBottom, queryClient])
+
+  // Thêm useEffect để lắng nghe sự kiện tin nhắn đã đọc
+  useEffect(() => {
+    if (!socket || !chatId) return
+
+    const handleMessageRead = (data: { chatId: string; messageIds: string[] }) => {
+      if (data.chatId !== chatId) return
+
+      // Cập nhật cache để đánh dấu tin nhắn đã đọc
+      queryClient.setQueryData(['MESSAGES', chatId], (oldData: any) => {
+        if (!oldData) return oldData
+
+        const updatedPages = oldData.pages.map((page: any) => {
+          if (!page.messages) return page
+
+          const updatedMessages = page.messages.map((msg: any) => {
+            if (data.messageIds.includes(msg._id)) {
+              return {
+                ...msg,
+                status: MESSAGE_STATUS.SEEN
+              }
+            }
+            return msg
+          })
+
+          return {
+            ...page,
+            messages: updatedMessages
+          }
+        })
+
+        return {
+          ...oldData,
+          pages: updatedPages
+        }
+      })
+    }
+
+    socket.on(SOCKET_EVENTS.MESSAGE_READ, handleMessageRead)
+
+    return () => {
+      socket.off(SOCKET_EVENTS.MESSAGE_READ, handleMessageRead)
+    }
+  }, [socket, chatId, queryClient])
+
+  // Thêm useEffect để lắng nghe sự kiện cập nhật reaction
+  useEffect(() => {
+    if (!socket || !chatId) return
+
+    const handleReactionUpdated = (data: { messageId: string; reactions: any[] }) => {
+      queryClient.setQueryData(['MESSAGES', chatId], (oldData: any) => {
+        if (!oldData) return oldData
+
+        const updatedPages = oldData.pages.map((page: any) => {
+          if (!page.messages) return page
+
+          const updatedMessages = page.messages.map((msg: any) => {
+            if (msg._id === data.messageId) {
+              return {
+                ...msg,
+                reactions: data.reactions
+              }
+            }
+            return msg
+          })
+
+          return {
+            ...page,
+            messages: updatedMessages
+          }
+        })
+
+        return {
+          ...oldData,
+          pages: updatedPages
+        }
+      })
+    }
+
+    socket.on(SOCKET_EVENTS.MESSAGE_REACTION_UPDATED, handleReactionUpdated)
+
+    return () => {
+      socket.off(SOCKET_EVENTS.MESSAGE_REACTION_UPDATED, handleReactionUpdated)
+    }
+  }, [socket, chatId, queryClient])
 
   // 4. Tất cả các hàm xử lý sự kiện
   // Hàm kiểm tra xem tin nhắn có phải do người dùng hiện tại gửi không
@@ -439,13 +724,12 @@ function ChatDetail({ params }: Props) {
     })
 
     setMessage('')
+    setShowScrollButton(false) // Hide the button when sending a message
 
     // Cuộn xuống
     setTimeout(() => {
-      if (messagesEndRef.current) {
-        messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
-      }
-    }, 300)
+      scrollToBottom()
+    }, 100)
   }
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -476,8 +760,211 @@ function ChatDetail({ params }: Props) {
     }
   }
 
+  // Hàm định dạng thời gian hoạt động gần nhất
+  const formatLastActive = (lastActiveTime: string | null) => {
+    if (!lastActiveTime) return 'now'
+
+    const lastActive = new Date(lastActiveTime)
+    const now = new Date()
+    const diffInMinutes = Math.floor((now.getTime() - lastActive.getTime()) / (1000 * 60))
+
+    if (diffInMinutes < 1) return 'now'
+    if (diffInMinutes < 60) return `${diffInMinutes} mins ago`
+
+    const diffInHours = Math.floor(diffInMinutes / 60)
+    if (diffInHours < 24) return `${diffInHours} hours ago`
+
+    const diffInDays = Math.floor(diffInHours / 24)
+    if (diffInDays === 1) return 'yesterday'
+
+    return `${diffInDays} days ago`
+  }
+
+  // Thêm biến otherUser để lưu thông tin người dùng khác
+  const otherUser = useMemo(() => {
+    if (!data?.pages[0]?.conversation?.participants) return null
+    return data.pages[0].conversation.participants.find((p: { _id: string }) => p._id !== session?.user?._id) || null
+  }, [data?.pages[0]?.conversation?.participants, session?.user?._id])
+
+  // Thêm biến friendIconElement để hiển thị trạng thái bạn bè
+  const friendIconElement = useMemo(() => {
+    if (!otherUser) return null
+
+    // Logic hiển thị icon trạng thái bạn bè
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className='ml-2'>
+            <UserPlus className='text-muted-foreground h-3.5 w-3.5' />
+          </div>
+        </TooltipTrigger>
+        <TooltipContent>Thêm bạn bè</TooltipContent>
+      </Tooltip>
+    )
+  }, [otherUser, friendStatus, isFriend])
+
+  // Thêm hàm xử lý thả tim với log để debug
+  const handleAddReaction = (messageId: string) => {
+    console.log('Sending reaction for message:', messageId)
+
+    if (!socket) {
+      console.error('Socket not connected')
+      return
+    }
+
+    socket.emit(SOCKET_EVENTS.ADD_REACTION, {
+      messageId,
+      reactionType: '❤️'
+    })
+  }
+
+  // Thêm hàm xử lý xóa tim với log để debug
+  const handleRemoveReaction = (messageId: string) => {
+    console.log('Removing reaction for message:', messageId)
+
+    if (!socket) {
+      console.error('Socket not connected')
+      return
+    }
+
+    socket.emit(SOCKET_EVENTS.REMOVE_REACTION, {
+      messageId
+    })
+  }
+
+  // Hàm kiểm tra xem người dùng hiện tại đã thả tim chưa
+  const hasUserReacted = (message: any) => {
+    if (!message.reactions || !Array.isArray(message.reactions)) return false
+
+    return message.reactions.some(
+      (reaction: any) =>
+        (typeof reaction.userId === 'object' && reaction.userId._id === session?.user?._id) ||
+        reaction.userId === session?.user?._id
+    )
+  }
+
+  // Thêm listener cho lỗi socket
+  useEffect(() => {
+    if (!socket) return
+
+    const handleError = (error: any) => {
+      console.error('Socket error:', error)
+      toast.error(error.message || 'Có lỗi xảy ra')
+    }
+
+    socket.on(SOCKET_EVENTS.ERROR, handleError)
+
+    return () => {
+      socket.off(SOCKET_EVENTS.ERROR, handleError)
+    }
+  }, [socket])
+
   if (isError) {
     return <div className='flex h-full items-center justify-center p-4'>Failed to fetch messages</div>
+  }
+
+  // Thêm useEffect để lấy thông tin người dùng khi có reaction mới
+  useEffect(() => {
+    const fetchUserInfo = async (userId: string) => {
+      if (userInfoMap[userId]) return // Đã có thông tin rồi
+
+      try {
+        // Sử dụng httpRequest từ config thay vì fetch trực tiếp
+        const response = await httpRequest.get(`/user/${userId}`)
+        const userData = response.data.data
+
+        setUserInfoMap((prev) => ({
+          ...prev,
+          [userId]: {
+            name: userData?.name || 'User',
+            avatar: userData?.avatar || ''
+          }
+        }))
+      } catch (error) {
+        console.error('Error fetching user info:', error)
+        // Fallback nếu không lấy được thông tin
+        setUserInfoMap((prev) => ({
+          ...prev,
+          [userId]: {
+            name: 'User',
+            avatar: ''
+          }
+        }))
+      }
+    }
+
+    // Lấy danh sách userId từ tất cả các tin nhắn và reaction
+    const allMessages = data?.pages?.flatMap((page) => page.messages) || []
+    const allUserIds = new Set<string>()
+
+    allMessages.forEach((msg) => {
+      if (msg.reactions && Array.isArray(msg.reactions)) {
+        msg.reactions.forEach((reaction: { userId: string | { _id: string }; type: string }) => {
+          if (typeof reaction.userId === 'string') {
+            allUserIds.add(reaction.userId)
+          } else if (typeof reaction.userId === 'object' && reaction.userId._id) {
+            allUserIds.add(reaction.userId._id)
+          }
+        })
+      }
+    })
+
+    // Fetch thông tin cho mỗi userId
+    allUserIds.forEach((userId) => {
+      if (userId !== session?.user?._id) {
+        // Bỏ qua người dùng hiện tại vì đã có thông tin
+        fetchUserInfo(userId)
+      }
+    })
+  }, [data?.pages, session?.user?._id, userInfoMap])
+
+  // Thay thế useEffect cũ bằng hàm fetch theo yêu cầu
+  const fetchUserInfoForReactions = async (messageId: string, reactions: any[]) => {
+    if (!reactions || reactions.length === 0) return
+
+    // Chỉ fetch thông tin cho các userId chưa có trong userInfoMap
+    const userIdsToFetch = reactions
+      .filter((reaction) => {
+        // Lấy userId (dù là string hay object._id)
+        const userId = typeof reaction.userId === 'string' ? reaction.userId : reaction.userId?._id || ''
+
+        // Bỏ qua userId của người dùng hiện tại và userId đã có trong map
+        return userId && userId !== session?.user?._id && !userInfoMap[userId]
+      })
+      .map((reaction) => (typeof reaction.userId === 'string' ? reaction.userId : reaction.userId?._id))
+
+    // Loại bỏ các userId trùng lặp
+    const uniqueUserIds = [...new Set(userIdsToFetch)]
+
+    // Fetch thông tin cho từng userId
+    const fetchPromises = uniqueUserIds.map(async (userId) => {
+      try {
+        const response = await httpRequest.get(`/user/${userId}`)
+        const userData = response.data.data
+
+        // Cập nhật userInfoMap
+        setUserInfoMap((prev) => ({
+          ...prev,
+          [userId]: {
+            name: userData?.name || 'User',
+            avatar: userData?.avatar || DEFAULT_AVATAR
+          }
+        }))
+      } catch (error) {
+        console.error(`Error fetching info for user ${userId}:`, error)
+        // Fallback
+        setUserInfoMap((prev) => ({
+          ...prev,
+          [userId]: {
+            name: 'User',
+            avatar: DEFAULT_AVATAR
+          }
+        }))
+      }
+    })
+
+    // Chờ tất cả các request hoàn thành
+    await Promise.all(fetchPromises)
   }
 
   return (
@@ -496,103 +983,17 @@ function ChatDetail({ params }: Props) {
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant='ghost' size='icon' disabled={!chatId}>
-                <ArchiveX className='h-4 w-4' />
-                <span className='sr-only'>Move to junk</span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Move to junk</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant='ghost' size='icon' disabled={!chatId}>
                 <Trash2 className='h-4 w-4' />
                 <span className='sr-only'>Move to trash</span>
               </Button>
             </TooltipTrigger>
             <TooltipContent>Move to trash</TooltipContent>
-          </Tooltip>
-          <Separator orientation='vertical' className='mx-1 h-6' />
-          <Tooltip>
-            <Popover>
-              <PopoverTrigger asChild>
-                <TooltipTrigger asChild>
-                  <Button variant='ghost' size='icon' disabled={!chatId}>
-                    <Clock className='h-4 w-4' />
-                    <span className='sr-only'>Snooze</span>
-                  </Button>
-                </TooltipTrigger>
-              </PopoverTrigger>
-              <PopoverContent className='flex w-[535px] p-0'>
-                <div className='flex flex-col gap-2 border-r px-2 py-4'>
-                  <div className='px-4 text-sm font-medium'>Snooze until</div>
-                  <div className='grid min-w-[250px] gap-1'>
-                    <Button variant='ghost' className='justify-start font-normal'>
-                      Later today{' '}
-                      <span className='text-muted-foreground ml-auto'>
-                        {format(addHours(new Date(), 4), 'E, h:m b')}
-                      </span>
-                    </Button>
-                    <Button variant='ghost' className='justify-start font-normal'>
-                      Tomorrow
-                      <span className='text-muted-foreground ml-auto'>
-                        {format(addDays(new Date(), 1), 'E, h:m b')}
-                      </span>
-                    </Button>
-                    <Button variant='ghost' className='justify-start font-normal'>
-                      This weekend
-                      <span className='text-muted-foreground ml-auto'>
-                        {format(nextSaturday(new Date()), 'E, h:m b')}
-                      </span>
-                    </Button>
-                    <Button variant='ghost' className='justify-start font-normal'>
-                      Next week
-                      <span className='text-muted-foreground ml-auto'>
-                        {format(addDays(new Date(), 7), 'E, h:m b')}
-                      </span>
-                    </Button>
-                  </div>
-                </div>
-                <div className='p-2'>
-                  <Calendar />
-                </div>
-              </PopoverContent>
-            </Popover>
-            <TooltipContent>Snooze</TooltipContent>
-          </Tooltip>
-        </div>
-        <div className='ml-auto flex items-center gap-2'>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant='ghost' size='icon' disabled={!chatId}>
-                <Reply className='h-4 w-4' />
-                <span className='sr-only'>Reply</span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Reply</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant='ghost' size='icon' disabled={!chatId}>
-                <ReplyAll className='h-4 w-4' />
-                <span className='sr-only'>Reply all</span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Reply all</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant='ghost' size='icon' disabled={!chatId}>
-                <Forward className='h-4 w-4' />
-                <span className='sr-only'>Forward</span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Forward</TooltipContent>
-          </Tooltip>
+          </Tooltip>{' '}
         </div>
         <Separator orientation='vertical' className='mx-2 h-6' />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant='ghost' size='icon' disabled={!chatId}>
+            <Button variant='ghost' size='icon' disabled={!chatId} className='ml-auto'>
               <MoreVertical className='h-4 w-4' />
               <span className='sr-only'>More</span>
             </Button>
@@ -625,7 +1026,7 @@ function ChatDetail({ params }: Props) {
       ) : (
         <div className='flex flex-1 flex-col'>
           <div className='flex items-start p-4'>
-            <div className='flex items-start gap-4 text-sm'>
+            <div className='flex flex-1 items-start gap-4 text-sm'>
               <Avatar>
                 {/* Đối với chat riêng tư, hiển thị avatar của người còn lại */}
                 <AvatarImage
@@ -642,101 +1043,306 @@ function ChatDetail({ params }: Props) {
                     .join('') || '?'}
                 </AvatarFallback>
               </Avatar>
-              <div className='grid gap-1'>
-                <div className='font-semibold'>
-                  {data?.pages[0]?.conversation?.participants?.find((p: any) => p._id !== session?.user?._id)?.name ||
-                    'Cuộc trò chuyện'}
-                </div>
-                {data?.pages[0]?.conversation?.createdAt && (
-                  <div className='text-muted-foreground ml-auto text-xs'>
-                    {format(new Date(data.pages[0].conversation.createdAt), 'PPpp', { locale: vi })}
+              <div className='flex flex-1 items-center'>
+                <div className='grid gap-1'>
+                  <div className='flex items-center font-semibold'>
+                    <div className='flex items-center gap-2'>
+                      {data?.pages[0]?.conversation?.participants?.find((p: any) => p._id !== session?.user?._id)
+                        ?.name || 'Cuộc trò chuyện'}
+
+                      {/* Friend status icon - close to username */}
+                      {friendIconElement}
+                    </div>
                   </div>
-                )}
+                  <div className='text-muted-foreground flex items-center text-xs'>
+                    <div
+                      className={`mr-2 h-2 w-2 rounded-full ${userStatus.isOnline ? 'bg-green-500' : 'bg-gray-400'}`}
+                    ></div>
+                    {userStatus.isOnline ? 'Active now' : `Last active ${formatLastActive(userStatus.lastActive)}`}
+                  </div>
+                </div>
+                {/* Action buttons - pushed to the right */}
+                <div className='ml-auto flex items-center gap-2'>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant='ghost' size='icon' className='h-6 w-6 p-4'>
+                        <Phone className='h-4 w-4' />
+                        <span className='sr-only'>Gọi điện</span>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Gọi điện</TooltipContent>
+                  </Tooltip>
+
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant='ghost' size='icon' className='h-6 w-6 p-4'>
+                        <Video className='h-4 w-4' />
+                        <span className='sr-only'>Gọi video</span>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Gọi video</TooltipContent>
+                  </Tooltip>
+                </div>
               </div>
             </div>
           </div>
           <Separator />
-          <div
-            className='h-[calc(100vh-250px)] flex-1 overflow-y-auto'
-            id='messageScrollableDiv'
-            style={{ maxHeight: 'calc(100vh - 250px)', overflowY: 'auto' }}
-            onScroll={(e) => {
-              const { scrollTop } = e.currentTarget
+          <div className='relative'>
+            <div
+              className='h-[calc(100vh-250px)] flex-1 overflow-y-auto'
+              id='messageScrollableDiv'
+              style={{ maxHeight: 'calc(100vh - 250px)', overflowY: 'auto' }}
+              onScroll={(e) => {
+                const { scrollTop, scrollHeight, clientHeight } = e.currentTarget
 
-              // Nếu cuộn gần đến đầu và có thêm dữ liệu, tải thêm
-              if (scrollTop < 100 && hasNextPage && !isLoadingMore) {
-                handleFetchNextPage()
-              }
-            }}
-          >
-            <div className='flex flex-col gap-4 p-4'>
-              {isLoadingMore && (
-                <div className='flex justify-center p-4'>
-                  <Skeleton className='h-10 w-10 rounded-full' />
-                </div>
-              )}
+                // Check if user is at bottom (within 100px)
+                const isNearBottom = scrollHeight - scrollTop - clientHeight < 100
+                setIsAtBottom(isNearBottom)
 
-              {!hasNextPage && (
-                <div className='text-muted-foreground p-2 text-center text-xs'>Không còn tin nhắn cũ nào nữa</div>
-              )}
+                // Show scroll button when not near bottom
+                setShowScrollButton(!isNearBottom)
 
-              {/* Danh sách tin nhắn */}
-              {allMessages?.map((msg, index) => {
-                // Kiểm tra chính xác hơn xem tin nhắn có phải do người dùng hiện tại gửi không
-                const isSentByMe = isMessageFromCurrentUser(msg)
+                // Existing scroll logic for loading older messages
+                const now = Date.now()
+                // @ts-ignore - Thêm thuộc tính tạm thời vào element
+                const lastFetchTime = e.currentTarget.lastFetchTime || 0
+                const FETCH_COOLDOWN = 1000 // 1 giây cooldown
 
-                // Kiểm tra xem đây có phải là tin nhắn cuối cùng trong một chuỗi tin nhắn từ cùng một người
-                const isLastMessageInGroup =
-                  index === allMessages.length - 1 || !isSameUser(msg, allMessages[index + 1])
+                // Nếu cuộn gần đến đầu và có thêm dữ liệu, tải thêm
+                if (scrollTop < 100 && hasNextPage && !isFetchingNextPage) {
+                  // Chỉ fetch nếu đã qua thời gian cooldown
+                  if (now - lastFetchTime > FETCH_COOLDOWN) {
+                    // @ts-ignore - Cập nhật thời gian fetch cuối cùng
+                    e.currentTarget.lastFetchTime = now
+                    handleFetchNextPage()
+                  }
+                }
+              }}
+            >
+              <div className='flex flex-col gap-2 p-4'>
+                {isFetchingNextPage && (
+                  <div className='flex justify-center p-4'>
+                    <Skeleton className='h-10 w-10 rounded-full' />
+                  </div>
+                )}
 
-                // Tạo key duy nhất bằng cách kết hợp ID tin nhắn và index
-                const uniqueKey = `${msg._id}-${index}`
+                {!hasNextPage && (
+                  <div className='text-muted-foreground p-2 text-center text-xs'>Không còn tin nhắn cũ nào nữa</div>
+                )}
 
-                // Xác định variant dựa trên người gửi
-                const bubbleVariant = isSentByMe ? 'sent' : 'received'
+                {/* Danh sách tin nhắn */}
+                {allMessages?.map((msg, index) => {
+                  const isSentByMe = msg.senderId._id === session?.user?._id
 
-                return (
-                  <ChatBubble key={uniqueKey} variant={bubbleVariant}>
-                    {!isSentByMe && (
-                      <ChatBubbleAvatar
-                        src={typeof msg.senderId === 'object' ? msg.senderId.avatar : undefined}
-                        fallback={typeof msg.senderId === 'object' ? msg.senderId.name?.[0] || '' : '?'}
-                      />
-                    )}
-                    <ChatBubbleMessage variant={bubbleVariant}>
-                      <div>{typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)}</div>
-                      {isLastMessageInGroup && (
-                        <div
-                          className={`text-muted-foreground mt-1 text-xs ${isSentByMe ? 'text-right' : 'text-left'}`}
-                        >
-                          {formatTime(msg.createdAt)}
+                  // Kiểm tra xem tin nhắn có phải là tin nhắn đầu tiên trong nhóm không
+                  const isFirstMessageInGroup = index === 0 || allMessages[index - 1]?.senderId._id !== msg.senderId._id
+
+                  // Kiểm tra xem tin nhắn có phải là tin nhắn cuối cùng trong nhóm không
+                  const isLastMessageInGroup =
+                    index === allMessages.length - 1 || allMessages[index + 1]?.senderId._id !== msg.senderId._id
+
+                  // Tính toán margin bottom - giảm khoảng cách giữa các tin nhắn
+                  const marginBottom = isLastMessageInGroup ? 'mb-2' : 'mb-0.5'
+
+                  return (
+                    <div
+                      key={msg._id}
+                      className={`${marginBottom} flex ${isSentByMe ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div className='group relative max-w-[70%]'>
+                        <div className={`flex items-end gap-2 ${isSentByMe ? 'flex-row-reverse' : 'flex-row'}`}>
+                          {/* Chỉ hiển thị avatar cho tin nhắn đầu tiên trong nhóm */}
+                          {isFirstMessageInGroup && !isSentByMe ? (
+                            <Avatar className='h-8 w-8 flex-shrink-0'>
+                              <AvatarImage
+                                src={msg.senderId.avatar || DEFAULT_AVATAR}
+                                alt={msg.senderId.name || 'User'}
+                              />
+                              <AvatarFallback>{msg.senderId.name?.[0] || 'U'}</AvatarFallback>
+                            </Avatar>
+                          ) : (
+                            // Thêm div trống để giữ căn chỉnh khi không hiển thị avatar
+                            !isSentByMe && <div className='w-8 flex-shrink-0'></div>
+                          )}
+
+                          <div
+                            className={`rounded-xl px-3 py-2 text-sm ${
+                              isSentByMe ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground'
+                            } ${isFirstMessageInGroup ? (isSentByMe ? 'rounded-tr-xl' : 'rounded-tl-xl') : isSentByMe ? 'rounded-r-xl' : 'rounded-l-xl'} relative`}
+                          >
+                            <div style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{msg.content}</div>
+
+                            {/* Hiển thị reactions kiểu Instagram */}
+                            {msg.reactions && msg.reactions.length > 0 && (
+                              <div className='absolute right-0 bottom-0 translate-x-1/3 translate-y-1/2 transform'>
+                                <Popover
+                                  open={openReactionPopover === msg._id}
+                                  onOpenChange={(open) => {
+                                    if (open) {
+                                      setOpenReactionPopover(msg._id)
+                                      // Fetch thông tin người dùng khi mở popover
+                                      fetchUserInfoForReactions(msg._id, msg.reactions)
+                                    } else {
+                                      setOpenReactionPopover(null)
+                                    }
+                                  }}
+                                >
+                                  <PopoverTrigger asChild>
+                                    <div className='bg-background border-border flex cursor-pointer items-center rounded-full border px-2 py-0.5 text-xs shadow-sm'>
+                                      <Heart className='mr-1 h-3 w-3 fill-red-500 text-red-500' />
+                                      <span className='text-foreground font-medium'>{msg.reactions.length}</span>
+                                    </div>
+                                  </PopoverTrigger>
+                                  <PopoverContent className='w-60 p-0' side='top'>
+                                    <div className='py-2'>
+                                      <h4 className='px-3 py-1 text-sm font-medium'>
+                                        Reactions ({msg.reactions.length})
+                                      </h4>
+                                      <div className='max-h-40 overflow-y-auto'>
+                                        {msg.reactions.map((reaction: any, index: number) => {
+                                          // Xác định thông tin người dùng từ reaction
+                                          let user
+                                          let isCurrentUser = false
+                                          let userId = ''
+
+                                          if (typeof reaction.userId === 'object' && reaction.userId._id) {
+                                            userId = reaction.userId._id
+                                            user = reaction.userId
+                                            isCurrentUser = userId === session?.user?._id
+                                          } else if (typeof reaction.userId === 'string') {
+                                            userId = reaction.userId
+                                            isCurrentUser = userId === session?.user?._id
+
+                                            if (isCurrentUser) {
+                                              user = {
+                                                name: session?.user?.name || 'You',
+                                                avatar: session?.user?.avatar || DEFAULT_AVATAR
+                                              }
+                                            } else if (userInfoMap[userId]) {
+                                              user = userInfoMap[userId]
+                                            } else {
+                                              user = { name: 'User', avatar: DEFAULT_AVATAR }
+                                            }
+                                          } else {
+                                            user = { name: 'User', avatar: DEFAULT_AVATAR }
+                                          }
+
+                                          return (
+                                            <div key={index} className='hover:bg-muted flex items-center px-3 py-2'>
+                                              <Avatar className='mr-2 h-6 w-6'>
+                                                <AvatarImage src={user.avatar || DEFAULT_AVATAR} />
+                                                <AvatarFallback>{user.name?.[0] || '?'}</AvatarFallback>
+                                              </Avatar>
+                                              <span className='text-sm'>
+                                                {isCurrentUser ? 'You' : user.name || 'User'}
+                                              </span>
+                                              <span className='ml-auto'>{reaction.type || '❤️'}</span>
+                                            </div>
+                                          )
+                                        })}
+                                      </div>
+                                    </div>
+                                  </PopoverContent>
+                                </Popover>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      )}
-                    </ChatBubbleMessage>
-                  </ChatBubble>
-                )
-              })}
 
-              {/* Hiển thị hiệu ứng typing nếu có người đang nhập - đặt ở cuối danh sách tin nhắn */}
-              {isAnyoneTyping && (
-                <ChatBubble variant='received'>
-                  <ChatBubbleAvatar
-                    src={
-                      data?.pages[0]?.conversation?.participants?.find((p: any) => p._id !== session?.user?._id)?.avatar
-                    }
-                    fallback={
-                      data?.pages[0]?.conversation?.participants?.find((p: any) => p._id !== session?.user?._id)
-                        ?.name?.[0] || '?'
-                    }
-                  />
-                  <ChatBubbleMessage variant='received' isLoading={true}>
-                    <MessageLoading />
-                  </ChatBubbleMessage>
-                </ChatBubble>
-              )}
+                        {/* Hiển thị thời gian và trạng thái tin nhắn */}
+                        {isLastMessageInGroup && (
+                          <div
+                            className={`text-muted-foreground mt-1.5 text-xs ${isSentByMe ? 'mr-1 text-end' : 'text-end'}`}
+                          >
+                            {formatTime(msg.createdAt)}
+                            {isSentByMe && (
+                              <span className='ml-2'>
+                                {msg.status === MESSAGE_STATUS.SENT && <Check className='inline h-3 w-3' />}
+                                {msg.status === MESSAGE_STATUS.DELIVERED && <Check className='inline h-3 w-3' />}
+                                {msg.status === MESSAGE_STATUS.SEEN && (
+                                  <CheckCheck className='inline h-3 w-3 text-blue-500' />
+                                )}
+                              </span>
+                            )}
+                          </div>
+                        )}
 
-              <div ref={messagesEndRef} />
+                        {/* Hiển thị nút copy và reaction khi hover */}
+                        <HoverCard openDelay={100} closeDelay={100}>
+                          <HoverCardTrigger asChild>
+                            <div className='absolute inset-0 cursor-pointer' />
+                          </HoverCardTrigger>
+                          <HoverCardContent
+                            className={`w-auto border-none bg-transparent p-0 shadow-none ${isSentByMe ? 'data-[side=top]:translate-x-1/2' : 'data-[side=top]:-translate-x-1/2'}`}
+                            side={isSentByMe ? 'left' : 'right'}
+                          >
+                            <div className='flex gap-2'>
+                              <Button
+                                variant='ghost'
+                                size='icon'
+                                className='h-8 w-8 rounded-full bg-transparent hover:bg-black/10 dark:hover:bg-white/10'
+                                onClick={() => {
+                                  navigator.clipboard.writeText(msg.content)
+                                  toast.success('Đã sao chép tin nhắn', {
+                                    duration: 2000
+                                  })
+                                }}
+                              >
+                                <Copy className='h-4 w-4' />
+                              </Button>
+                              <Button
+                                variant='ghost'
+                                size='icon'
+                                className='h-8 w-8 rounded-full bg-transparent hover:bg-black/10 dark:hover:bg-white/10'
+                                onClick={() => {
+                                  if (hasUserReacted(msg)) {
+                                    handleRemoveReaction(msg._id)
+                                  } else {
+                                    handleAddReaction(msg._id)
+                                  }
+                                }}
+                              >
+                                <Heart
+                                  className={`h-6 w-6 ${hasUserReacted(msg) ? 'fill-red-500 text-red-500' : ''}`}
+                                />
+                              </Button>
+                            </div>
+                          </HoverCardContent>
+                        </HoverCard>
+                      </div>
+                    </div>
+                  )
+                })}
+
+                {/* Hiển thị hiệu ứng typing nếu có người đang nhập - đặt ở cuối danh sách tin nhắn */}
+                {isAnyoneTyping && (
+                  <div className={`flex gap-2 ${!otherUser ? 'flex-row-reverse' : 'flex-row'}`}>
+                    <Avatar className='h-8 w-8 flex-shrink-0'>
+                      <AvatarImage src={otherUser?.avatar || DEFAULT_AVATAR} alt={otherUser?.name || 'User'} />
+                      <AvatarFallback>{otherUser?.name?.[0] || 'U'}</AvatarFallback>
+                    </Avatar>
+                    <div className='bg-muted flex cursor-pointer items-center rounded-full px-2 py-0.5 text-xs'>
+                      <span>...</span>
+                    </div>
+                  </div>
+                )}
+
+                <div ref={messagesEndRef} />
+              </div>
             </div>
+
+            {/* Scroll to bottom button - đặt bên ngoài container scroll nhưng vẫn trong container relative */}
+            {showScrollButton && (
+              <Button
+                onClick={scrollToBottom}
+                size='icon'
+                variant='secondary'
+                className='absolute right-4 bottom-4 z-10 rounded-full shadow-md'
+                aria-label='Scroll to new messages'
+              >
+                <ArrowDown className='h-4 w-4' />
+              </Button>
+            )}
           </div>
           <Separator className='mt-auto' />
           <div className='p-4'>

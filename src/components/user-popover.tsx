@@ -3,51 +3,54 @@
 import { ChevronDown, LogOut, Settings } from 'lucide-react'
 import { signOut, useSession } from 'next-auth/react'
 
-import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
-import { Popover, PopoverContent, PopoverTrigger } from '~/components/ui/popover'
-import { Button } from '~/components/ui/button'
-import { Link } from '~/i18n/navigation'
 import { useState } from 'react'
+import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
+import { Button } from '~/components/ui/button'
+import { Popover, PopoverContent, PopoverTrigger } from '~/components/ui/popover'
+import { Link, useRouter } from '~/i18n/navigation'
 
 function UserPopover() {
-  const session = useSession()
+  const { data: session } = useSession()
   const [open, setOpen] = useState(false)
+  const router = useRouter()
 
   const handleLogout = () => {
     setOpen(false)
     signOut()
   }
-
+  console.log({ session, a: session?.user?.avatar })
+  const handleRedirectToMyProfile = () => {
+    router.push(`/profile/${session?.user?.username}`)
+    setOpen(false)
+  }
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button variant='ghost' className='relative h-auto p-0 hover:bg-transparent focus-visible:ring-0'>
           <div className='relative flex items-center'>
             <Avatar className='h-8 w-8 rounded-full'>
-              <AvatarImage src={(session.data?.user as any)?.image || ''} alt='Avatar' />
-              <AvatarFallback className='rounded-lg'>{session.data?.user?.name?.[0]}</AvatarFallback>
+              <AvatarImage src={session?.user?.avatar} alt='Avatar' />
+              <AvatarFallback className='rounded-lg'>{session?.user?.name?.[0]}</AvatarFallback>
             </Avatar>
             <ChevronDown className='bg-secondary border-background absolute -right-1 -bottom-1 size-4 rounded-full border-2' />
           </div>
         </Button>
       </PopoverTrigger>
       <PopoverContent align='end' className='w-64 min-w-56 rounded-lg p-0 shadow-md' sideOffset={8}>
-        <Link href='/profile' onClick={() => setOpen(false)}>
+        <div onClick={handleRedirectToMyProfile} role='button'>
           <div className='hover:bg-accent rounded-t-md p-3'>
             <div className='flex items-center gap-3'>
               <Avatar className='h-8 w-8 rounded-full'>
-                <AvatarImage src={(session.data?.user as any)?.image || ''} alt={session.data?.user?.name || ''} />
-                <AvatarFallback className='rounded-lg'>{session.data?.user?.name?.[0]}</AvatarFallback>
+                <AvatarImage src={(session?.user as any)?.image || ''} alt={session?.user?.name || ''} />
+                <AvatarFallback className='rounded-lg'>{session?.user?.name?.[0]}</AvatarFallback>
               </Avatar>
               <div className='flex flex-col overflow-hidden text-sm leading-tight'>
-                <span className='max-w-[150px] truncate font-semibold'>{session.data?.user?.name}</span>
-                <span className='text-muted-foreground max-w-[150px] truncate text-xs'>
-                  {session.data?.user?.email}
-                </span>
+                <span className='max-w-[150px] truncate font-semibold'>{session?.user?.name}</span>
+                <span className='text-muted-foreground max-w-[150px] truncate text-xs'>{session?.user?.email}</span>
               </div>
             </div>
           </div>
-        </Link>
+        </div>
         <div className='border-border border-t' />
         <div className='p-1'>
           <Link href='/settings' onClick={() => setOpen(false)}>
