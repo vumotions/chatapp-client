@@ -27,7 +27,10 @@ function SocketProvider({ children }: Props) {
     const accessToken = session?.accessToken
     if (!accessToken) return
 
-    const socketInstance = io(nextEnv.NEXT_PUBLIC_SERVER_URL, {
+    const socketUrl = nextEnv.NEXT_PUBLIC_SERVER_URL
+    console.log('Connecting to socket at URL:', socketUrl)
+
+    const socketInstance = io(socketUrl, {
       auth: {
         Authorization: `Bearer ${accessToken}`
       }
@@ -55,6 +58,33 @@ function SocketProvider({ children }: Props) {
       socketInstance.disconnect()
     }
   }, [session?.accessToken])
+
+  useEffect(() => {
+    if (!socket) return;
+    
+    // Lắng nghe tất cả các sự kiện
+    const onAnyEvent = (eventName: string, ...args: any[]) => {
+      console.log(`Socket event received: ${eventName}`, args);
+    };
+    
+    socket.onAny(onAnyEvent);
+    
+    // Lắng nghe sự kiện MESSAGE_DELETED cụ thể
+    socket.on('MESSAGE_DELETED', (data) => {
+      console.log('MESSAGE_DELETED event received in provider:', data);
+    });
+    
+    // Lắng nghe sự kiện MESSAGE_UPDATED cụ thể
+    socket.on('MESSAGE_UPDATED', (data) => {
+      console.log('MESSAGE_UPDATED event received in provider:', data);
+    });
+    
+    return () => {
+      socket.offAny(onAnyEvent);
+      socket.off('MESSAGE_DELETED');
+      socket.off('MESSAGE_UPDATED');
+    };
+  }, [socket]);
 
   return <SocketContext.Provider value={{ socket }}>{children}</SocketContext.Provider>
 }

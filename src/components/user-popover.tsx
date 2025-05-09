@@ -29,7 +29,7 @@ function UserPopover() {
         <Button variant='ghost' className='relative h-auto p-0 hover:bg-transparent focus-visible:ring-0'>
           <div className='relative flex items-center'>
             <Avatar className='h-8 w-8 rounded-full'>
-              <AvatarImage src={session?.user?.avatar} alt='Avatar' />
+              <AvatarImage src={session?.user?.avatar || undefined} alt={session?.user?.name || ''} />
               <AvatarFallback className='rounded-lg'>{session?.user?.name?.[0]}</AvatarFallback>
             </Avatar>
             <ChevronDown className='bg-secondary border-background absolute -right-1 -bottom-1 size-4 rounded-full border-2' />
@@ -41,7 +41,7 @@ function UserPopover() {
           <div className='hover:bg-accent rounded-t-md p-3'>
             <div className='flex items-center gap-3'>
               <Avatar className='h-8 w-8 rounded-full'>
-                <AvatarImage src={(session?.user as any)?.image || ''} alt={session?.user?.name || ''} />
+                <AvatarImage src={session?.user?.avatar} alt={session?.user?.name || ''} />
                 <AvatarFallback className='rounded-lg'>{session?.user?.name?.[0]}</AvatarFallback>
               </Avatar>
               <div className='flex flex-col overflow-hidden text-sm leading-tight'>

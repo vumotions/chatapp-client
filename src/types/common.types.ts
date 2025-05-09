@@ -1,4 +1,4 @@
-import { CHAT_TYPE } from '~/constants/enums'
+import { CHAT_TYPE, MESSAGE_TYPE } from '~/constants/enums'
 
 export type Chat = {
   _id: string
@@ -21,4 +21,5 @@ export type Message = {
   createdAt: string
   updatedAt: string
   readBy: string[]
+  type: MESSAGE_TYPE
 }

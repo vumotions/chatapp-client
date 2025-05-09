@@ -2,14 +2,22 @@
 
 import { format } from 'date-fns'
 import { vi } from 'date-fns/locale'
-import { Bell } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { Bell, Check, MoreVertical, Trash } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import InfiniteScroll from 'react-infinite-scroll-component'
 
 import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
 import { Popover, PopoverContent, PopoverTrigger } from '~/components/ui/popover'
 import { NOTIFICATION_TYPE } from '~/constants/enums'
-import { useMarkNotificationAsRead, useNotifications } from '~/hooks/data/notification.hooks'
+import SOCKET_EVENTS from '~/constants/socket-events'
+import {
+  useDeleteAllNotificationsMutation,
+  useDeleteNotificationMutation,
+  useMarkAllNotificationsAsRead,
+  useMarkNotificationAsRead,
+  useNotifications
+} from '~/hooks/data/notification.hooks'
+import { useSocket } from '~/hooks/use-socket'
 import { useRouter } from '~/i18n/navigation'
 import { cn } from '~/lib/utils'
 import { Button } from './ui/button'
@@ -17,34 +25,67 @@ import { Skeleton } from './ui/skeleton'
 
 function NotificationPopover() {
   const [open, setOpen] = useState(false)
+  const [optionsOpen, setOptionsOpen] = useState(false)
   const [tab, setTab] = useState<'all' | 'unread'>('all')
   const router = useRouter()
 
-  // Fetch notifications
-  const { data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage } = useNotifications()
+  // Fetch notifications with filter
+  const { data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage } = useNotifications(tab)
 
   const { mutate: markAsRead } = useMarkNotificationAsRead()
+  const { mutate: markAllAsRead } = useMarkAllNotificationsAsRead()
+  const { mutate: deleteNotification } = useDeleteNotificationMutation()
+  const { mutate: deleteAllNotifications } = useDeleteAllNotificationsMutation()
 
   // Extract notifications from the data
   const notifications = useMemo(() => {
     return data?.pages.flatMap((page) => page?.notifications || []) || []
   }, [data])
 
+  // Filter out NEW_MESSAGE notifications
+  const filteredNotifications = useMemo(() => {
+    return notifications.filter((notification) => notification.type !== NOTIFICATION_TYPE.NEW_MESSAGE) || []
+  }, [notifications])
+
   // Handle notification click
   const handleNotificationClick = (notification: any) => {
-    // Mark as read
-    if (notification && notification.read === false) {
-      markAsRead(notification._id)
-    }
+    try {
+      // Mark as read
+      if (notification && notification.read === false) {
+        markAsRead(notification._id)
+      }
 
-    // Navigate based on notification type
-    if (notification?.type === NOTIFICATION_TYPE.FRIEND_REQUEST) {
-      router.push('/friends/requests')
-    } else if (notification?.type === NOTIFICATION_TYPE.NEW_MESSAGE && notification?.chatId) {
-      router.push(`/messages/${notification.chatId}`)
-    }
+      // Navigate based on notification type
+      if (notification?.type === NOTIFICATION_TYPE.FRIEND_REQUEST) {
+        router.push('/friends/requests')
+      } else if (notification?.type === NOTIFICATION_TYPE.FRIEND_ACCEPTED) {
+        router.push('/friends')
+      }
 
-    setOpen(false)
+      setOpen(false)
+    } catch (error) {
+      console.error('Error handling notification click:', error)
+      // Keep the UI working even if there's an error
+      setOpen(false)
+    }
+  }
+
+  // Handle delete notification
+  const handleDeleteNotification = (e: React.MouseEvent, notificationId: string) => {
+    e.stopPropagation() // Prevent triggering the notification click
+    deleteNotification(notificationId)
+  }
+
+  // Handle delete all notifications
+  const handleDeleteAllNotifications = () => {
+    deleteAllNotifications()
+    setOptionsOpen(false)
+  }
+
+  // Handle mark all as read
+  const handleMarkAllAsRead = () => {
+    markAllAsRead()
+    setOptionsOpen(false)
   }
 
   // Format time
@@ -63,19 +104,39 @@ function NotificationPopover() {
     }
   }
 
-  // Filter notifications based on tab
-  const filteredNotifications = useMemo(() => {
-    return notifications?.filter((notification) => {
-      if (!notification) return false;
-      if (tab === 'all') return true;
-      return notification.read === false;
-    }) || []
-  }, [notifications, tab])
-
-  // Check if there are any unread notifications
+  // Check if there are any unread notifications (excluding NEW_MESSAGE)
   const hasUnread = useMemo(() => {
-    return notifications?.some((notification) => notification && notification.read === false) || false
+    return (
+      notifications?.some(
+        (notification) =>
+          notification && notification.read === false && notification.type !== NOTIFICATION_TYPE.NEW_MESSAGE
+      ) || false
+    )
   }, [notifications])
+
+  // Thêm useEffect để lắng nghe sự kiện socket
+  const { socket } = useSocket()
+
+  useEffect(() => {
+    if (!socket) return
+
+    const handleNewNotification = (notification: any) => {
+      // Khi có thông báo mới (không phải NEW_MESSAGE), cập nhật UI
+      if (notification.type !== NOTIFICATION_TYPE.NEW_MESSAGE) {
+        // Không cần làm gì đặc biệt vì NotificationListener đã cập nhật cache
+        // Chỉ cần hiển thị chỉ báo mới nếu popover đang đóng
+        if (!open) {
+          // Đã có chỉ báo hasUnread
+        }
+      }
+    }
+
+    socket?.on(SOCKET_EVENTS.NOTIFICATION_NEW, handleNewNotification)
+
+    return () => {
+      socket?.off(SOCKET_EVENTS.NOTIFICATION_NEW, handleNewNotification)
+    }
+  }, [socket, open, hasUnread])
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -88,25 +149,55 @@ function NotificationPopover() {
       <PopoverContent className='w-96 p-0' align='end'>
         <div className='flex items-center justify-between border-b px-4 py-3'>
           <h3 className='text-sm font-medium'>Thông báo</h3>
-          <div className='space-x-2 text-sm'>
-            <Button
-              variant='outline'
-              onClick={() => setTab('all')}
-              className={cn('rounded-full !bg-transparent px-3 py-1 text-sm', {
-                '!bg-muted': tab === 'all'
-              })}
-            >
-              Tất cả
-            </Button>
-            <Button
-              variant='outline'
-              onClick={() => setTab('unread')}
-              className={cn('rounded-full !bg-transparent px-3 py-1 text-sm', {
-                '!bg-muted': tab === 'unread'
-              })}
-            >
-              Chưa đọc
-            </Button>
+          <div className='flex items-center space-x-2'>
+            <div className='space-x-2 text-sm'>
+              <Button
+                variant='outline'
+                onClick={() => setTab('all')}
+                className={cn('rounded-full !bg-transparent px-3 py-1 text-sm', {
+                  '!bg-muted': tab === 'all'
+                })}
+              >
+                Tất cả
+              </Button>
+              <Button
+                variant='outline'
+                onClick={() => setTab('unread')}
+                className={cn('rounded-full !bg-transparent px-3 py-1 text-sm', {
+                  '!bg-muted': tab === 'unread'
+                })}
+              >
+                Chưa đọc
+              </Button>
+            </div>
+
+            <Popover open={optionsOpen} onOpenChange={setOptionsOpen}>
+              <PopoverTrigger asChild>
+                <Button variant='ghost' size='icon'>
+                  <MoreVertical className='h-4 w-4' />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className='w-56 p-0' side='bottom' align='end'>
+                <div className='flex flex-col'>
+                  <Button
+                    variant='ghost'
+                    className='flex items-center justify-start gap-2 rounded-none px-3 py-2 text-sm'
+                    onClick={handleMarkAllAsRead}
+                  >
+                    <Check className='h-4 w-4' />
+                    Đánh dấu tất cả đã đọc
+                  </Button>
+                  <Button
+                    variant='ghost'
+                    className='text-destructive hover:text-destructive flex items-center justify-start gap-2 rounded-none px-3 py-2 text-sm'
+                    onClick={handleDeleteAllNotifications}
+                  >
+                    <Trash className='h-4 w-4' />
+                    Xóa tất cả thông báo
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
         </div>
 
@@ -164,7 +255,17 @@ function NotificationPopover() {
                     <p className='text-muted-foreground text-sm'>{getNotificationContent(item)}</p>
                     <span className='text-xs text-gray-500 dark:text-gray-400'>{formatTime(item.createdAt)}</span>
                   </div>
-                  {!item.read && <div className='mt-2 h-2 w-2 rounded-full bg-blue-500' />}
+                  <div className='flex items-center'>
+                    {!item.read && <div className='mx-2 h-2 w-2 rounded-full bg-blue-500' />}
+                    <Button
+                      variant='destructive'
+                      size='icon'
+                      className='ml-2 h-8 w-8 cursor-pointer rounded-full hover:opacity-70'
+                      onClick={(e) => handleDeleteNotification(e, item._id)}
+                    >
+                      <Trash className='h-4 w-4' />
+                    </Button>
+                  </div>
                 </div>
               ))}
             </InfiniteScroll>

@@ -1,12 +1,11 @@
 'use client'
 
-import { Archive, ArchiveX, File, Home, Inbox, Search, Send, Settings, Trash2, Users2 } from 'lucide-react'
+import { Archive, ArchiveX, File, Home, Inbox, Send, Settings, Trash2 } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 import { useEffect, useState } from 'react'
 import { ChatList } from '~/app/[locale]/(main)/messages/components/chat-list'
 import { Nav } from '~/components/nav'
-import { Input } from '~/components/ui/input'
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '~/components/ui/resizable'
 import { ScrollArea } from '~/components/ui/scroll-area'
 import { Separator } from '~/components/ui/separator'
@@ -24,6 +23,9 @@ function MessageLayout({ children }: LayoutProps) {
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [minLayout, setMinLayout] = useState<number[]>([20, 32, 48])
   const isSmallScreen = useMediaQuery('(max-width: 1024px)')
+  
+  // Lấy filter từ URL hoặc mặc định là 'all'
+  const currentFilter = searchParams.get('filter') || 'all'
 
   useEffect(() => {
     if (isSmallScreen) {
@@ -131,7 +133,7 @@ function MessageLayout({ children }: LayoutProps) {
         </ResizablePanel>
         <ResizableHandle withHandle={!isSmallScreen} />
         <ResizablePanel defaultSize={minLayout[1]} minSize={40}>
-          <Tabs defaultValue='all' onValueChange={handleChangeTab}>
+          <Tabs defaultValue={currentFilter} onValueChange={handleChangeTab}>
             <div className='flex items-center px-4 py-2'>
               <h1 className='text-xl font-bold'>Inbox</h1>
               <TabsList className='ml-auto'>
@@ -150,14 +152,6 @@ function MessageLayout({ children }: LayoutProps) {
               </TabsList>
             </div>
             <Separator />
-            <div className='bg-background/95 supports-[backdrop-filter]:bg-background/60 p-4 backdrop-blur'>
-              <form>
-                <div className='relative'>
-                  <Search className='text-muted-foreground absolute top-2.5 left-2 h-4 w-4' />
-                  <Input placeholder='Search' className='pl-8' />
-                </div>
-              </form>
-            </div>
             <TabsContent value='all' className='m-0'>
               <ChatList />
             </TabsContent>

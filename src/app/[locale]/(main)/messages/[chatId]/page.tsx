@@ -10,6 +10,8 @@ import {
   MoreVertical,
   Phone,
   Trash2,
+  UserCheck,
+  UserMinus,
   UserPlus,
   Video
 } from 'lucide-react'
@@ -30,22 +32,21 @@ import { Skeleton } from '~/components/ui/skeleton'
 import { useMarkChatAsRead, useMessages } from '~/hooks/data/chat.hooks'
 import { useSocket } from '~/hooks/use-socket'
 
-import { useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { vi } from 'date-fns/locale'
 import { useSession } from 'next-auth/react'
 import { toast } from 'sonner'
+import MessageLoading from '~/components/ui/chat/message-loading'
 import httpRequest from '~/config/http-request'
 import { CHAT_TYPE, FRIEND_REQUEST_STATUS, MEDIA_TYPE, MESSAGE_STATUS, MESSAGE_TYPE } from '~/constants/enums'
 import SOCKET_EVENTS from '~/constants/socket-events'
 import {
   useAcceptFriendRequestMutation,
   useCancelFriendRequestMutation,
-  useRemoveFriendMutation,
-  useSendFriendRequestMutation
+  useRemoveFriendMutation
 } from '~/hooks/data/friends.hook'
 import friendService from '~/services/friend.service'
-
-const DEFAULT_AVATAR = '/images/default-avatar.png'
+import { MessageActions } from '~/components/ui/chat/message-actions'
 
 type Props = {
   params: Promise<{ chatId: string }>
@@ -124,6 +125,16 @@ function ChatDetail({ params }: Props) {
   const [userInfoMap, setUserInfoMap] = useState<Record<string, { name: string; avatar: string }>>({})
   // Thêm state để theo dõi việc hiển thị popover reactions
   const [openReactionPopover, setOpenReactionPopover] = useState<string | null>(null)
+  // Thêm state để theo dõi trạng thái loading
+  const [isLoadingFriendAction, setIsLoadingFriendAction] = useState(false)
+  // Thêm state để theo dõi các tin nhắn đã thả tim localy trước khi server phản hồi
+  const [localReactions, setLocalReactions] = useState<Record<string, boolean>>({})
+  // Trong component, thêm state để theo dõi tin nhắn đã xóa
+  const [deletedMessageIds, setDeletedMessageIds] = useState<string[]>([]);
+  // Thêm state để theo dõi tin nhắn đã xóa
+  const [processedDeletedMessages, setProcessedDeletedMessages] = useState<Set<string>>(new Set());
+  // Thêm state để theo dõi tin nhắn đã cập nhật
+  const [processedUpdatedMessages, setProcessedUpdatedMessages] = useState<Map<string, string>>(new Map());
 
   // Define scrollToBottom function
   const scrollToBottom = useCallback(() => {
@@ -137,7 +148,19 @@ function ChatDetail({ params }: Props) {
   }, [])
 
   // Friend request mutations
-  const sendFriendRequest = useSendFriendRequestMutation()
+  const sendFriendRequest = useMutation({
+    mutationFn: (userId: string) => friendService.sendFriendRequest(userId),
+    onSuccess: () => {
+      toast.success('Đã gửi lời mời kết bạn')
+      // Cập nhật trạng thái sau khi gửi thành công
+      setFriendStatus(FRIEND_REQUEST_STATUS.PENDING)
+    },
+    onError: (error: any) => {
+      // Hiển thị thông báo lỗi từ server
+      const errorMessage = error?.response?.data?.message || 'Không thể gửi lời mời kết bạn'
+      toast.error(errorMessage)
+    }
+  })
   const cancelFriendRequest = useCancelFriendRequestMutation()
   const acceptFriendRequest = useAcceptFriendRequestMutation()
   const removeFriend = useRemoveFriendMutation()
@@ -155,15 +178,6 @@ function ChatDetail({ params }: Props) {
   const isAnyoneTyping = useMemo(() => {
     return Object.values(typingUsers).some(Boolean)
   }, [typingUsers])
-
-  // Kiểm tra xem hai tin nhắn có phải từ cùng một người gửi không
-  const isSameUser = (message1: any, message2: any) => {
-    // Kiểm tra cấu trúc của senderId
-    const senderId1 = typeof message1.senderId === 'object' ? message1.senderId._id : message1.senderId
-    const senderId2 = typeof message2.senderId === 'object' ? message2.senderId._id : message2.senderId
-
-    return String(senderId1) === String(senderId2)
-  }
 
   // Lấy tất cả tin nhắn từ cache - Không cần localMessages nữa
   const allMessages = useMemo(() => {
@@ -212,15 +226,18 @@ function ChatDetail({ params }: Props) {
 
   // Thêm useEffect để đảm bảo socket đã kết nối và tham gia vào room
   useEffect(() => {
-    if (!socket || !chatId) return
-
-    // Kiểm tra trạng thái kết nối
-    console.log('Socket connection status:', socket.connected)
-
+    if (!socket || !chatId) return;
+    
     // Tham gia vào room chat
-    socket.emit(SOCKET_EVENTS.JOIN_ROOM, { chatId })
-    console.log('Joining room:', chatId)
-  }, [socket, chatId])
+    socket.emit('JOIN_ROOM', chatId);
+    console.log('Joining room:', chatId);
+    
+    return () => {
+      // Rời khỏi room khi unmount
+      socket.emit('LEAVE_ROOM', chatId);
+      console.log('Leaving room:', chatId);
+    };
+  }, [socket, chatId]);
 
   // Cập nhật useEffect lắng nghe sự kiện nhận tin nhắn mới
   useEffect(() => {
@@ -337,8 +354,6 @@ function ChatDetail({ params }: Props) {
   useEffect(() => {
     if (!socket || !chatId) return
 
-    console.log('Setting up typing event listeners for chatId:', chatId)
-
     const handleTypingStart = (data: { userId: string; chatId: string }) => {
       console.log('TYPING_START received:', data)
       if (data.chatId === chatId && data.userId !== session?.user?._id) {
@@ -441,15 +456,18 @@ function ChatDetail({ params }: Props) {
       if (!otherUserId) return
 
       try {
+        setIsLoadingFriendAction(true)
         const response = await friendService.getFriendStatus(otherUserId)
         const status = response.data.data.status
 
         console.log('Friend status fetched:', status)
 
-        setFriendStatus(status as FRIEND_REQUEST_STATUS)
+        setFriendStatus(status as FRIEND_REQUEST_STATUS | 'RECEIVED' | null)
         setIsFriend(status === FRIEND_REQUEST_STATUS.ACCEPTED)
+        setIsLoadingFriendAction(false)
       } catch (error) {
         console.error('Error fetching friend status:', error)
+        setIsLoadingFriendAction(false)
       }
     }
 
@@ -648,6 +666,101 @@ function ChatDetail({ params }: Props) {
     }
   }, [socket, chatId, queryClient])
 
+  // Add socket listener for friend status changes
+  useEffect(() => {
+    if (!socket || !otherUserId) return
+
+    const handleFriendStatusChange = (data: { userId: string; status: string }) => {
+      if (data.userId === otherUserId) {
+        setFriendStatus(data.status as FRIEND_REQUEST_STATUS | 'RECEIVED' | null)
+        setIsFriend(data.status === FRIEND_REQUEST_STATUS.ACCEPTED)
+      }
+    }
+
+    socket.on(SOCKET_EVENTS.FRIEND_STATUS_CHANGED, handleFriendStatusChange)
+
+    return () => {
+      socket.off(SOCKET_EVENTS.FRIEND_STATUS_CHANGED, handleFriendStatusChange)
+    }
+  }, [socket, otherUserId])
+
+  // Thêm log để kiểm tra xem socket đã kết nối chưa
+  useEffect(() => {
+    console.log('Chat component mounted with chatId:', chatId);
+    console.log('Socket connected:', socket ? 'Yes' : 'No');
+    if (socket) {
+      console.log('Socket ID:', socket.id);
+      console.log('Socket connected status:', socket.connected);
+    }
+  }, [socket, chatId]);
+
+  // Thêm useEffect để đồng bộ tin nhắn khi mở cuộc trò chuyện
+  useEffect(() => {
+    if (!socket || !chatId || !data) return;
+    
+    // Khi dữ liệu tin nhắn đã được tải, kiểm tra xem có tin nhắn mới không
+    console.log('Checking for missed messages');
+    
+    // Lấy ID tin nhắn mới nhất đã có
+    const latestMessageId = data.pages[0]?.messages?.[0]?._id;
+    
+    if (latestMessageId) {
+      // Gửi yêu cầu kiểm tra tin nhắn mới
+      socket.emit('CHECK_NEW_MESSAGES', {
+        chatId,
+        latestMessageId
+      });
+    }
+  }, [socket, chatId, data]);
+
+  // Thêm listener cho sự kiện SYNC_MESSAGES
+  useEffect(() => {
+    if (!socket) return;
+    
+    const handleSyncMessages = (data: { messages: any[], chatId: string }) => {
+      console.log('Received SYNC_MESSAGES event:', data);
+      
+      if (data.chatId === chatId && data.messages.length > 0) {
+        // Cập nhật cache với tin nhắn mới
+        queryClient.setQueryData(['MESSAGES', chatId], (oldData: any) => {
+          if (!oldData) return oldData;
+          
+          // Thêm tin nhắn mới vào đầu trang đầu tiên
+          const updatedPages = [...oldData.pages];
+          if (updatedPages[0] && updatedPages[0].messages) {
+            // Lọc ra các tin nhắn chưa có
+            const newMessages = data.messages.filter(
+              newMsg => !updatedPages[0].messages.some((msg: any) => msg._id === newMsg._id)
+            );
+            
+            if (newMessages.length > 0) {
+              updatedPages[0] = {
+                ...updatedPages[0],
+                messages: [...newMessages, ...updatedPages[0].messages]
+              };
+            }
+          }
+          
+          return {
+            ...oldData,
+            pages: updatedPages
+          };
+        });
+      }
+    };
+    
+    socket.on('SYNC_MESSAGES', handleSyncMessages);
+    
+    return () => {
+      socket.off('SYNC_MESSAGES', handleSyncMessages);
+    };
+  }, [socket, chatId, queryClient]);
+
+  // Lọc tin nhắn đã xóa khỏi danh sách hiển thị
+  const filteredMessages = useMemo(() => {
+    return allMessages.filter(msg => !deletedMessageIds.includes(msg._id));
+  }, [allMessages, deletedMessageIds]);
+
   // 4. Tất cả các hàm xử lý sự kiện
   // Hàm kiểm tra xem tin nhắn có phải do người dùng hiện tại gửi không
   const isMessageFromCurrentUser = (message: any) => {
@@ -665,7 +778,7 @@ function ChatDetail({ params }: Props) {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setMessage(e.target.value)
 
-    // Nếu người dùng chưa đang trong trạng thái typing, gửi sự kiện typing start
+    // Tối ưu xử lý typing event với throttling thay vì debouncing
     if (!isTyping) {
       setIsTyping(true)
       socket?.emit(SOCKET_EVENTS.TYPING, {
@@ -674,20 +787,19 @@ function ChatDetail({ params }: Props) {
       })
     }
 
-    // Clear timeout trước đó nếu có
+    // Clear timeout trước đó
     if (typingDebounceRef.current) {
       clearTimeout(typingDebounceRef.current)
     }
 
-    // Đặt timeout mới để debounce việc gửi sự kiện typing
+    // Đặt timeout mới với thời gian dài hơn để giảm số lần gửi event
     typingDebounceRef.current = setTimeout(() => {
-      // Sau khi người dùng ngừng gõ trong 1 khoảng thời gian, gửi sự kiện typing stop
       setIsTyping(false)
       socket?.emit(SOCKET_EVENTS.TYPING, {
         chatId,
         isTyping: false
       })
-    }, 2000)
+    }, 3000) // Tăng lên 3 giây
   }
 
   const handleSendMessage = () => {
@@ -790,57 +902,131 @@ function ChatDetail({ params }: Props) {
   const friendIconElement = useMemo(() => {
     if (!otherUser) return null
 
-    // Logic hiển thị icon trạng thái bạn bè
+    // Thêm xử lý sự kiện click
+    const handleFriendAction = async () => {
+      if (!otherUserId || isLoadingFriendAction) return
+
+      setIsLoadingFriendAction(true)
+
+      try {
+        // Sử dụng đúng các trạng thái từ API trả về
+        if (friendStatus === null) {
+          // Chưa có mối quan hệ bạn bè
+          await sendFriendRequest.mutateAsync(otherUserId)
+          setFriendStatus(FRIEND_REQUEST_STATUS.PENDING)
+        } else if (friendStatus === 'RECEIVED') {
+          // Đã nhận được lời mời kết bạn
+          await acceptFriendRequest.mutateAsync(otherUserId)
+          setFriendStatus(FRIEND_REQUEST_STATUS.ACCEPTED)
+          setIsFriend(true)
+        } else if (friendStatus === FRIEND_REQUEST_STATUS.PENDING) {
+          // Đã gửi lời mời kết bạn
+          await cancelFriendRequest.mutateAsync(otherUserId)
+          setFriendStatus(null)
+        } else if (friendStatus === FRIEND_REQUEST_STATUS.ACCEPTED) {
+          // Đã là bạn bè
+          await removeFriend.mutateAsync(otherUserId)
+          setFriendStatus(null)
+          setIsFriend(false)
+        }
+      } catch (error) {
+        console.error('Friend action error:', error)
+        toast.error('Có lỗi xảy ra. Vui lòng thử lại sau.')
+      } finally {
+        setIsLoadingFriendAction(false)
+      }
+    }
+
+    // Hiển thị icon và tooltip phù hợp với trạng thái
+    let icon = <UserPlus className='text-muted-foreground h-3.5 w-3.5' />
+    let tooltipText = 'Thêm bạn bè'
+
+    if (isLoadingFriendAction) {
+      // Hiển thị spinner khi đang loading
+      return (
+        <div className='ml-2'>
+          <div className='h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600'></div>
+        </div>
+      )
+    }
+
+    if (friendStatus === FRIEND_REQUEST_STATUS.PENDING) {
+      icon = <UserMinus className='text-muted-foreground h-3.5 w-3.5' />
+      tooltipText = 'Hủy lời mời kết bạn'
+    } else if (friendStatus === 'RECEIVED') {
+      icon = <UserCheck className='text-muted-foreground h-3.5 w-3.5' />
+      tooltipText = 'Chấp nhận lời mời kết bạn'
+    } else if (friendStatus === FRIEND_REQUEST_STATUS.ACCEPTED) {
+      icon = <UserMinus className='text-muted-foreground h-3.5 w-3.5' />
+      tooltipText = 'Hủy kết bạn'
+    }
+
+    // Logic hiển thị icon trạng thái bạn bè với xử lý sự kiện click
     return (
       <Tooltip>
         <TooltipTrigger asChild>
-          <div className='ml-2'>
-            <UserPlus className='text-muted-foreground h-3.5 w-3.5' />
+          <div className='ml-2 cursor-pointer' onClick={handleFriendAction}>
+            {icon}
           </div>
         </TooltipTrigger>
-        <TooltipContent>Thêm bạn bè</TooltipContent>
+        <TooltipContent>{tooltipText}</TooltipContent>
       </Tooltip>
     )
-  }, [otherUser, friendStatus, isFriend])
+  }, [otherUser, friendStatus, isLoadingFriendAction, otherUserId, sendFriendRequest, acceptFriendRequest, cancelFriendRequest, removeFriend])
 
   // Thêm hàm xử lý thả tim với log để debug
   const handleAddReaction = (messageId: string) => {
-    console.log('Sending reaction for message:', messageId)
-
+    console.log('Sending reaction for message:', messageId);
     if (!socket) {
-      console.error('Socket not connected')
-      return
+      console.error('Socket not connected');
+      return;
     }
-
+    
+    // Cập nhật UI ngay lập tức
+    setLocalReactions(prev => ({
+      ...prev,
+      [messageId]: true
+    }));
+    
     socket.emit(SOCKET_EVENTS.ADD_REACTION, {
       messageId,
       reactionType: '❤️'
-    })
+    });
   }
 
   // Thêm hàm xử lý xóa tim với log để debug
   const handleRemoveReaction = (messageId: string) => {
-    console.log('Removing reaction for message:', messageId)
-
+    console.log('Removing reaction for message:', messageId);
     if (!socket) {
-      console.error('Socket not connected')
-      return
+      console.error('Socket not connected');
+      return;
     }
-
+    
+    // Cập nhật UI ngay lập tức
+    setLocalReactions(prev => ({
+      ...prev,
+      [messageId]: false
+    }));
+    
     socket.emit(SOCKET_EVENTS.REMOVE_REACTION, {
       messageId
-    })
+    });
   }
 
   // Hàm kiểm tra xem người dùng hiện tại đã thả tim chưa
   const hasUserReacted = (message: any) => {
-    if (!message.reactions || !Array.isArray(message.reactions)) return false
-
+    // Nếu có trong localReactions, ưu tiên giá trị đó
+    if (message._id in localReactions) {
+      return localReactions[message._id];
+    }
+    
+    // Nếu không, kiểm tra từ dữ liệu server
+    if (!message.reactions || !Array.isArray(message.reactions)) return false;
     return message.reactions.some(
       (reaction: any) =>
         (typeof reaction.userId === 'object' && reaction.userId._id === session?.user?._id) ||
         reaction.userId === session?.user?._id
-    )
+    );
   }
 
   // Thêm listener cho lỗi socket
@@ -947,7 +1133,7 @@ function ChatDetail({ params }: Props) {
           ...prev,
           [userId]: {
             name: userData?.name || 'User',
-            avatar: userData?.avatar || DEFAULT_AVATAR
+            avatar: userData?.avatar
           }
         }))
       } catch (error) {
@@ -957,7 +1143,7 @@ function ChatDetail({ params }: Props) {
           ...prev,
           [userId]: {
             name: 'User',
-            avatar: DEFAULT_AVATAR
+            avatar: ''
           }
         }))
       }
@@ -966,6 +1152,161 @@ function ChatDetail({ params }: Props) {
     // Chờ tất cả các request hoàn thành
     await Promise.all(fetchPromises)
   }
+
+  // Thêm log khi component mount
+  useEffect(() => {
+    console.log('Chat component mounted, chatId:', chatId)
+    console.log('Socket connected:', socket ? 'yes' : 'no')
+    
+    return () => {
+      console.log('Chat component unmounted')
+    }
+  }, [chatId, socket])
+
+  // Thêm một hàm test để gửi sự kiện xóa tin nhắn
+  const testDeleteMessage = (messageId: string) => {
+    if (!socket) {
+      console.log('Socket not available for test');
+      return;
+    }
+    
+    console.log('Emitting test MESSAGE_DELETED event');
+    
+    // Gửi sự kiện trực tiếp đến server
+    socket.emit('TEST_DELETE_MESSAGE', {
+      messageId,
+      chatId
+    });
+  };
+
+  // Sửa lại useEffect để xử lý sự kiện MESSAGE_DELETED
+  useEffect(() => {
+    if (!socket) return;
+    
+    console.log('Setting up MESSAGE_DELETED listener for chat:', chatId);
+    
+    const handleMessageDeleted = (data: { messageId: string, chatId: string, deletedBy?: string }) => {
+      console.log('Received MESSAGE_DELETED event:', data);
+      
+      // Chỉ xử lý nếu tin nhắn thuộc về chat hiện tại và chưa được xử lý
+      if (data.chatId === chatId && !processedDeletedMessages.has(data.messageId)) {
+        console.log('Processing message deletion for current chat');
+        
+        // Đánh dấu tin nhắn đã được xử lý
+        setProcessedDeletedMessages(prev => {
+          const newSet = new Set(prev);
+          newSet.add(data.messageId);
+          return newSet;
+        });
+        
+        // Cập nhật cache để xóa tin nhắn
+        queryClient.setQueryData(['MESSAGES', chatId], (oldData: any) => {
+          if (!oldData) return oldData;
+          
+          // Lọc tin nhắn đã xóa khỏi tất cả các trang
+          const updatedPages = oldData.pages.map((page: any) => {
+            if (!page.messages) return page;
+            
+            const filteredMessages = page.messages.filter((msg: any) => 
+              msg._id !== data.messageId
+            );
+            
+            console.log(`Filtered messages: ${page.messages.length} -> ${filteredMessages.length}`);
+            
+            return {
+              ...page,
+              messages: filteredMessages
+            };
+          });
+          
+          return {
+            ...oldData,
+            pages: updatedPages
+          };
+        });
+        
+        // Cập nhật danh sách chat vì tin nhắn cuối cùng có thể đã thay đổi
+        queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] });
+        
+        // Hiển thị thông báo - CHỈ HIỂN THỊ KHI KHÔNG PHẢI NGƯỜI XÓA
+        const currentUserId = session?.user?.id;
+        if (data.deletedBy !== currentUserId) {
+          toast.success('Tin nhắn đã được xóa');
+        }
+      }
+    };
+    
+    // CHỈ ĐĂNG KÝ LẮNG NGHE MỘT LẦN
+    socket.on('MESSAGE_DELETED', handleMessageDeleted);
+    
+    return () => {
+      socket.off('MESSAGE_DELETED', handleMessageDeleted);
+    };
+  }, [socket, chatId, queryClient, session?.user?.id, processedDeletedMessages]);
+
+  // Thêm useEffect để xử lý sự kiện MESSAGE_UPDATED
+  useEffect(() => {
+    if (!socket) return;
+    
+    console.log('Setting up MESSAGE_UPDATED listener for chat:', chatId);
+    
+    const handleMessageUpdated = (data: { messageId: string, content: string, isEdited: boolean, chatId: string, updatedBy?: string }) => {
+      console.log('Received MESSAGE_UPDATED event:', data);
+      
+      // Chỉ xử lý nếu tin nhắn thuộc về chat hiện tại
+      if (data.chatId === chatId) {
+        console.log('Processing message update for current chat');
+        
+        // Cập nhật cache để cập nhật tin nhắn
+        queryClient.setQueryData(['MESSAGES', chatId], (oldData: any) => {
+          if (!oldData) return oldData;
+          
+          // Tìm và cập nhật tin nhắn trong tất cả các trang
+          const updatedPages = oldData.pages.map((page: any) => {
+            if (!page.messages) return page;
+            
+            const updatedMessages = page.messages.map((msg: any) => {
+              if (msg._id === data.messageId) {
+                console.log('Updating message in cache:', data.messageId);
+                return {
+                  ...msg,
+                  content: data.content,
+                  isEdited: data.isEdited
+                };
+              }
+              return msg;
+            });
+            
+            return {
+              ...page,
+              messages: updatedMessages
+            };
+          });
+          
+          return {
+            ...oldData,
+            pages: updatedPages
+          };
+        });
+        
+        // Cập nhật danh sách chat nếu tin nhắn được cập nhật là tin nhắn cuối cùng
+        queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] });
+        
+        // Hiển thị thông báo - CHỈ HIỂN THỊ KHI KHÔNG PHẢI NGƯỜI CẬP NHẬT
+        const currentUserId = session?.user?.id;
+        if (data.updatedBy !== currentUserId) {
+          toast.success('Tin nhắn đã được cập nhật');
+        }
+      }
+    };
+    
+    // CHỈ ĐĂNG KÝ LẮNG NGHE MỘT LẦN
+    socket.on('MESSAGE_UPDATED', handleMessageUpdated);
+    
+    return () => {
+      socket.off('MESSAGE_UPDATED', handleMessageUpdated);
+    };
+  }, [socket, chatId, queryClient, session?.user?.id]);
 
   return (
     <div className='sticky top-0 flex h-full max-h-[calc(100vh-64px)] flex-col'>
@@ -1131,15 +1472,15 @@ function ChatDetail({ params }: Props) {
                 )}
 
                 {/* Danh sách tin nhắn */}
-                {allMessages?.map((msg, index) => {
+                {filteredMessages?.map((msg, index) => {
                   const isSentByMe = msg.senderId._id === session?.user?._id
 
                   // Kiểm tra xem tin nhắn có phải là tin nhắn đầu tiên trong nhóm không
-                  const isFirstMessageInGroup = index === 0 || allMessages[index - 1]?.senderId._id !== msg.senderId._id
+                  const isFirstMessageInGroup = index === 0 || filteredMessages[index - 1]?.senderId._id !== msg.senderId._id
 
                   // Kiểm tra xem tin nhắn có phải là tin nhắn cuối cùng trong nhóm không
                   const isLastMessageInGroup =
-                    index === allMessages.length - 1 || allMessages[index + 1]?.senderId._id !== msg.senderId._id
+                    index === filteredMessages.length - 1 || filteredMessages[index + 1]?.senderId._id !== msg.senderId._id
 
                   // Tính toán margin bottom - giảm khoảng cách giữa các tin nhắn
                   const marginBottom = isLastMessageInGroup ? 'mb-2' : 'mb-0.5'
@@ -1154,10 +1495,7 @@ function ChatDetail({ params }: Props) {
                           {/* Chỉ hiển thị avatar cho tin nhắn đầu tiên trong nhóm */}
                           {isFirstMessageInGroup && !isSentByMe ? (
                             <Avatar className='h-8 w-8 flex-shrink-0'>
-                              <AvatarImage
-                                src={msg.senderId.avatar || DEFAULT_AVATAR}
-                                alt={msg.senderId.name || 'User'}
-                              />
+                              <AvatarImage src={msg.senderId.avatar} alt={msg.senderId.name || 'User'} />
                               <AvatarFallback>{msg.senderId.name?.[0] || 'U'}</AvatarFallback>
                             </Avatar>
                           ) : (
@@ -1216,21 +1554,21 @@ function ChatDetail({ params }: Props) {
                                             if (isCurrentUser) {
                                               user = {
                                                 name: session?.user?.name || 'You',
-                                                avatar: session?.user?.avatar || DEFAULT_AVATAR
+                                                avatar: session?.user?.avatar
                                               }
                                             } else if (userInfoMap[userId]) {
                                               user = userInfoMap[userId]
                                             } else {
-                                              user = { name: 'User', avatar: DEFAULT_AVATAR }
+                                              user = { name: 'User', avatar: '' }
                                             }
                                           } else {
-                                            user = { name: 'User', avatar: DEFAULT_AVATAR }
+                                            user = { name: 'User', avatar: '' }
                                           }
 
                                           return (
                                             <div key={index} className='hover:bg-muted flex items-center px-3 py-2'>
                                               <Avatar className='mr-2 h-6 w-6'>
-                                                <AvatarImage src={user.avatar || DEFAULT_AVATAR} />
+                                                <AvatarImage src={user.avatar} />
                                                 <AvatarFallback>{user.name?.[0] || '?'}</AvatarFallback>
                                               </Avatar>
                                               <span className='text-sm'>
@@ -1289,26 +1627,46 @@ function ChatDetail({ params }: Props) {
                                 }}
                               >
                                 <Copy className='h-4 w-4' />
+                                <span className='sr-only'>Copy</span>
                               </Button>
-                              <Button
-                                variant='ghost'
-                                size='icon'
-                                className='h-8 w-8 rounded-full bg-transparent hover:bg-black/10 dark:hover:bg-white/10'
-                                onClick={() => {
-                                  if (hasUserReacted(msg)) {
-                                    handleRemoveReaction(msg._id)
-                                  } else {
-                                    handleAddReaction(msg._id)
-                                  }
-                                }}
-                              >
-                                <Heart
-                                  className={`h-6 w-6 ${hasUserReacted(msg) ? 'fill-red-500 text-red-500' : ''}`}
-                                />
-                              </Button>
+                              
+                              {/* Thêm nút reaction */}
+                              {hasUserReacted(msg) ? (
+                                <Button
+                                  variant='ghost'
+                                  size='icon'
+                                  className='h-8 w-8 rounded-full bg-transparent hover:bg-black/10 dark:hover:bg-white/10'
+                                  onClick={() => handleRemoveReaction(msg._id)}
+                                >
+                                  <Heart className='h-4 w-4 fill-red-500 text-red-500' />
+                                  <span className='sr-only'>Unlike</span>
+                                </Button>
+                              ) : (
+                                <Button
+                                  variant='ghost'
+                                  size='icon'
+                                  className='h-8 w-8 rounded-full bg-transparent hover:bg-black/10 dark:hover:bg-white/10'
+                                  onClick={() => handleAddReaction(msg._id)}
+                                >
+                                  <Heart className='h-4 w-4' />
+                                  <span className='sr-only'>Like</span>
+                                </Button>
+                              )}
+                              
+                              {/* Thêm MessageActions component */}
+                              <MessageActions 
+                                message={msg} 
+                                chatId={chatId} 
+                                isSentByMe={isSentByMe} 
+                              />
                             </div>
                           </HoverCardContent>
                         </HoverCard>
+
+                        {/* Hiển thị chỉ báo đã chỉnh sửa nếu tin nhắn đã được chỉnh sửa */}
+                        {msg.isEdited && (
+                          <span className="text-xs text-muted-foreground ml-2">(đã chỉnh sửa)</span>
+                        )}
                       </div>
                     </div>
                   )
@@ -1318,11 +1676,11 @@ function ChatDetail({ params }: Props) {
                 {isAnyoneTyping && (
                   <div className={`flex gap-2 ${!otherUser ? 'flex-row-reverse' : 'flex-row'}`}>
                     <Avatar className='h-8 w-8 flex-shrink-0'>
-                      <AvatarImage src={otherUser?.avatar || DEFAULT_AVATAR} alt={otherUser?.name || 'User'} />
+                      <AvatarImage src={otherUser?.avatar} alt={otherUser?.name || 'User'} />
                       <AvatarFallback>{otherUser?.name?.[0] || 'U'}</AvatarFallback>
                     </Avatar>
                     <div className='bg-muted flex cursor-pointer items-center rounded-full px-2 py-0.5 text-xs'>
-                      <span>...</span>
+                      <MessageLoading />
                     </div>
                   </div>
                 )}

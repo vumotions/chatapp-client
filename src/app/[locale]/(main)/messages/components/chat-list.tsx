@@ -1,166 +1,172 @@
 'use client'
 
-import { formatDistanceToNow } from 'date-fns'
-import { useParams, useSearchParams } from 'next/navigation'
-import { Fragment, useMemo } from 'react'
-import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
-import { ScrollArea } from '~/components/ui/scroll-area'
-import { Skeleton } from '~/components/ui/skeleton'
-import { useChatList } from '~/hooks/data/chat.hooks'
-import { Link } from '~/i18n/navigation'
-import { cn } from '~/lib/utils'
 import { useQueryClient } from '@tanstack/react-query'
-import { useRouter } from 'next/navigation'
+import { Search } from 'lucide-react'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
+import { Input } from '~/components/ui/input'
+import { Skeleton } from '~/components/ui/skeleton'
+
+import { debounce } from 'lodash'
+import { useChatList } from '~/hooks/data/chat.hooks'
+import { cn } from '~/lib/utils'
+import { useSession } from 'next-auth/react'
 
 export function ChatList() {
-  const queryClient = useQueryClient();
-  const router = useRouter();
-  const params = useParams();
-  const searchParams = useSearchParams();
-  const { data, isLoading, isError, fetchNextPage, hasNextPage } = useChatList();
-  const chatId = params?.chatId as string;
-  
-  // Lấy filter từ searchParams
-  const filter = searchParams.get('filter') || 'all';
+  const queryClient = useQueryClient()
+  const router = useRouter()
+  const params = useParams()
+  const searchParams = useSearchParams()
+  const { data: session } = useSession()
+  const chatId = params?.chatId as string
+  const [inputValue, setInputValue] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
+
+  // Lấy filter từ URL hoặc mặc định là 'all'
+  const currentFilter = searchParams.get('filter') || 'all'
+
+  // Tạo hàm debounced để cập nhật searchQuery
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const debouncedSetSearchQuery = useCallback(
+    debounce((value: string) => {
+      setSearchQuery(value)
+    }, 700),
+    []
+  )
+
+  // Xử lý khi input thay đổi
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    setInputValue(value)
+    debouncedSetSearchQuery(value)
+  }
+
+  // Cleanup debounce khi component unmount
+  useEffect(() => {
+    return () => {
+      debouncedSetSearchQuery.cancel()
+    }
+  }, [debouncedSetSearchQuery])
+
+  // Sử dụng filter từ URL và searchQuery để fetch dữ liệu
+  const { data, isLoading, isError, fetchNextPage, hasNextPage, isFetching } = useChatList(currentFilter, searchQuery)
 
   // Hàm xử lý khi click vào chat
   const handleChatClick = (selectedChatId: string) => {
     // Nếu đang ở chat khác, invalidate query để lấy tin nhắn mới
     if (selectedChatId !== chatId) {
-      queryClient.invalidateQueries({ 
-        queryKey: ['MESSAGES', selectedChatId] 
-      });
-      console.log('Invalidating query for chat:', selectedChatId);
+      queryClient.invalidateQueries({
+        queryKey: ['MESSAGES', selectedChatId]
+      })
     }
-  };
+
+    // Giữ nguyên filter khi chuyển đến chat cụ thể
+    const newParams = new URLSearchParams(searchParams.toString())
+    router.push(`/messages/${selectedChatId}?${newParams.toString()}`)
+  }
 
   const items = useMemo(() => {
     return data?.pages.flatMap((page) => page?.conversations) || []
   }, [data])
-  
-  if (isLoading)
-    return (
-      <div className='px-4'>
-        {Array(5)
-          .fill(0)
-          .map((_, index) => (
-            <div key={index} className='flex flex-col items-start gap-2 rounded-lg p-3'>
-              <div className='flex w-full flex-col gap-1'>
-                <div className='flex items-center'>
-                  <div className='flex items-center gap-2'>
-                    {/* Skeleton Avatar */}
-                    <Skeleton className='h-10 w-10 shrink-0 rounded-full' />
-                    <div className='flex w-full flex-col'>
-                      {/* Skeleton for Name */}
-                      <Skeleton className='mb-1 h-4 w-32' />
-                      {/* Skeleton for Last Message */}
-                      <Skeleton className='h-3 w-48' />
-                    </div>
-                  </div>
-                  <div className='ml-auto'>
-                    {/* Skeleton for Date */}
-                    <Skeleton className='h-3 w-16' />
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-      </div>
-    )
-  if (isError) return <div>Error loading chat list</div>
+
+  // Render chat skeleton
+  const renderChatSkeletons = () => {
+    return Array(5)
+      .fill(0)
+      .map((_, index) => (
+        <div key={`skeleton-${index}`} className='flex items-center gap-3 rounded-lg p-3'>
+          <Skeleton className='h-10 w-10 rounded-full' />
+          <div className='flex-1 space-y-2'>
+            <Skeleton className='h-4 w-1/3' />
+            <Skeleton className='h-3 w-2/3' />
+          </div>
+        </div>
+      ))
+  }
 
   return (
-    <ScrollArea className='h-[calc(100vh-120px)]'>
-      <div className='flex flex-col gap-2 p-4 pt-0'>
-        {items.map((item) => (
-          <Link
-            href={`/messages/${item._id}`}
-            key={item._id}
-            onClick={() => handleChatClick(item._id)}
-            className={cn(
-              'hover:bg-accent flex flex-col items-start gap-2 rounded-lg border p-3 text-left text-sm transition-all',
-              {
-                'bg-muted': chatId === item._id
-              }
-            )}
-          >
-            <div className='flex w-full flex-col gap-1'>
-              <div className='flex items-center'>
-                <div className='flex items-center gap-2'>
-                  <Avatar>
-                    {/* Kiểm tra cấu trúc của item để lấy đúng avatar */}
-                    <AvatarImage 
-                      src={
-                        item.avatar || 
-                        (item.type === 'PRIVATE' && item.participants?.[0]?.avatar) || 
-                        ''
-                      } 
-                      alt={
-                        item.name || 
-                        (item.type === 'PRIVATE' && item.participants?.[0]?.name) || 
-                        'User'
-                      } 
-                    />
-                    <AvatarFallback>
-                      {/* Lấy chữ cái đầu của tên để hiển thị fallback */}
-                      {(item.name || 
-                        (item.type === 'PRIVATE' && item.participants?.[0]?.name) || 
-                        'U')
-                        ?.split(' ')
-                        .map((chunk: any) => chunk?.[0])
-                        .join('')}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <div className='flex items-center gap-2'>
-                      {/* Hiển thị tên */}
-                      <div className='font-semibold'>
-                        {item.name || 
-                         (item.type === 'PRIVATE' && item.participants?.[0]?.name) || 
-                         'Unknown User'}
-                      </div>
-                      <div className='text-muted-foreground text-xs font-medium'>
-                        {item.type === 'GROUP' && <span>{item.participants?.length || 0} members</span>}
-                      </div>
-                      {!item.read && <span className='flex h-2 w-2 rounded-full bg-blue-600' />}{' '}
-                    </div>
-                    <span
-                      className={cn('inline-block max-w-[200px] truncate', {
-                        'text-muted-foreground': item.read
-                      })}
-                    >
-                      {/* Hiển thị lastMessage */}
-                      {typeof item.lastMessage === 'string' 
-                        ? item.lastMessage 
-                        : item.lastMessage?.content || 'No message'}
-                    </span>
+    <div className='flex h-full flex-col'>
+      {/* Thêm thanh tìm kiếm */}
+      <div className='p-2'>
+        <div className='relative'>
+          <Search className='text-muted-foreground absolute top-1/2 left-2 h-4 w-4 -translate-y-1/2' />
+          <Input placeholder='Tìm kiếm tin nhắn' className='pl-8' value={inputValue} onChange={handleInputChange} />
+        </div>
+      </div>
+
+      {/* Phần hiển thị danh sách chat */}
+      <div className='flex-1 overflow-auto p-2'>
+        {isLoading ? (
+          renderChatSkeletons()
+        ) : isError ? (
+          <div className='text-muted-foreground p-4 text-center'>Không thể tải tin nhắn. Vui lòng thử lại sau.</div>
+        ) : items.length === 0 ? (
+          <div className='text-muted-foreground p-4 text-center'>
+            {searchQuery
+              ? 'Không tìm thấy kết quả phù hợp.'
+              : currentFilter === 'all'
+                ? 'Bạn chưa có cuộc trò chuyện nào.'
+                : 'Không có tin nhắn chưa đọc.'}
+          </div>
+        ) : (
+          items.map((chat) => {
+            // Xác định avatar và tên hiển thị trực tiếp
+            const displayName = chat.type !== 'PRIVATE' 
+              ? chat.name 
+              : chat.participants?.find((p: any) => p._id !== session?.user?._id)?.name || 'Người dùng';
+            
+            const avatarSrc = chat.type !== 'PRIVATE'
+              ? chat.avatar
+              : chat.participants?.find((p: any) => p._id !== session?.user?._id)?.avatar;
+            
+            return (
+              <div
+                key={chat._id}
+                className={cn('hover:bg-muted/50 flex cursor-pointer items-center gap-3 rounded-lg p-3', {
+                  'bg-muted': chat._id === chatId
+                })}
+                onClick={() => handleChatClick(chat._id)}
+              >
+                <Avatar className='h-10 w-10'>
+                  <AvatarImage
+                    src={avatarSrc || undefined}
+                    alt={displayName}
+                  />
+                  <AvatarFallback>{displayName?.[0] || '?'}</AvatarFallback>
+                </Avatar>
+                <div className='flex-1 overflow-hidden'>
+                  <div className='flex items-center justify-between'>
+                    <p className='truncate font-medium'>{displayName}</p>
+                    {chat.lastMessage && (
+                      <span className='text-muted-foreground text-xs'>
+                        {new Date(chat.lastMessage.createdAt).toLocaleTimeString([], {
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </span>
+                    )}
                   </div>
-                </div>
-                <div
-                  className={cn(
-                    'ml-auto pl-2 text-xs',
-                    chatId === item._id ? 'text-foreground' : 'text-muted-foreground'
+                  {chat.lastMessage && (
+                    <p className='text-muted-foreground truncate text-sm'>
+                      {chat.lastMessage.senderId._id === session?.user?._id
+                        ? 'Bạn: '
+                        : ''}
+                      {chat.lastMessage.content}
+                    </p>
                   )}
-                >
-                  {/* Sử dụng thời gian của lastMessage thay vì createdAt của conversation */}
-                  {formatDistanceToNow(new Date(item.lastMessage?.createdAt || item.createdAt), {
-                    addSuffix: true
-                  })}
                 </div>
+                {!chat.read && <div className='h-2 w-2 rounded-full bg-blue-500' />}
               </div>
-            </div>
-          </Link>
-        ))}
-        {/* Nếu còn trang tiếp theo, hiển thị nút load more */}
-        {hasNextPage && (
-          <button onClick={() => fetchNextPage()} className='mt-4 text-blue-600'>
-            Load more
-          </button>
+            );
+          })
         )}
       </div>
-    </ScrollArea>
+    </div>
   )
 }
+
+
 
 
 

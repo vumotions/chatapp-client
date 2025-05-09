@@ -2,11 +2,11 @@ import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-q
 import { toast } from 'sonner'
 import notificationService from '~/services/notifications.service'
 
-export const useNotifications = () => {
+export const useNotifications = (filter = 'all') => {
   return useInfiniteQuery({
-    queryKey: ['NOTIFICATIONS'],
+    queryKey: ['NOTIFICATIONS', filter],
     queryFn: async ({ pageParam = 1 }) => {
-      const response = await notificationService.getNotifications(pageParam, 10)
+      const response = await notificationService.getNotifications(pageParam, 10, filter)
       return response.data.data
     },
     initialPageParam: 1,
@@ -17,13 +17,10 @@ export const useNotifications = () => {
       return undefined
     },
     select: (data) => {
-      // Đảm bảo dữ liệu trả về luôn có cấu trúc đúng
       return {
         pages: data.pages.map(page => ({
           notifications: page?.notifications || [],
-          hasMore: page?.hasMore || false,
-          totalPages: page?.totalPages || 0,
-          currentPage: page?.currentPage || 0
+          hasMore: page?.hasMore || false
         })),
         pageParams: data.pageParams
       }
@@ -56,6 +53,35 @@ export const useMarkAllNotificationsAsRead = () => {
     },
     onError: () => {
       toast.error('Không thể đánh dấu tất cả thông báo đã đọc')
+    }
+  })
+}
+
+export const useDeleteNotificationMutation = () => {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: (notificationId: string) => notificationService.deleteNotification(notificationId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['NOTIFICATIONS'] })
+    },
+    onError: () => {
+      toast.error('Không thể xóa thông báo')
+    }
+  })
+}
+
+export const useDeleteAllNotificationsMutation = () => {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: () => notificationService.deleteAllNotifications(),
+    onSuccess: () => {
+      toast.success('Đã xóa tất cả thông báo')
+      queryClient.invalidateQueries({ queryKey: ['NOTIFICATIONS'] })
+    },
+    onError: () => {
+      toast.error('Không thể xóa tất cả thông báo')
     }
   })
 }
