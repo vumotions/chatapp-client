@@ -77,3 +77,9 @@ export async function refreshToken(refreshToken: string) {
     accessTokenExpiresAt: data.tokens.accessTokenExpiresAt
   }
 }
+
+export const formatMessageContent = (content: string) => {
+  // Basic implementation to handle message content formatting
+  return content || 'Empty message'
+}
+

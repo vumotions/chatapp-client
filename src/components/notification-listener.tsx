@@ -91,7 +91,6 @@ export default function NotificationListener() {
     socket.on(SOCKET_EVENTS.NOTIFICATION_NEW, handleNewNotification)
     
     // Thêm log để kiểm tra socket đã kết nối
-    console.log('NotificationListener initialized with socket ID:', socket.id)
 
     return () => {
       socket.off(SOCKET_EVENTS.NOTIFICATION_NEW, handleNewNotification)

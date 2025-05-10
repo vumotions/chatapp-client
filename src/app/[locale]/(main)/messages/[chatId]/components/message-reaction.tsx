@@ -1,6 +1,6 @@
 import { Heart } from 'lucide-react'
-import { cn } from '~/lib/utils'
 import { Button } from '~/components/ui/button'
+import { cn } from '~/lib/utils'
 
 interface MessageReactionProps {
   isLiked: boolean
@@ -9,7 +9,6 @@ interface MessageReactionProps {
 }
 
 export function MessageReaction({ isLiked, onToggleLike, className }: MessageReactionProps) {
-  console.log('MessageReaction rendered with isLiked:', isLiked); // Thêm log để debug
   
   return (
     <Button

@@ -18,7 +18,6 @@ function UserPopover() {
     setOpen(false)
     signOut()
   }
-  console.log({ session, a: session?.user?.avatar })
   const handleRedirectToMyProfile = () => {
     router.push(`/profile/${session?.user?.username}`)
     setOpen(false)

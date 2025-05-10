@@ -62,27 +62,46 @@ function SocketProvider({ children }: Props) {
   useEffect(() => {
     if (!socket) return;
     
-    // Lắng nghe tất cả các sự kiện
-    const onAnyEvent = (eventName: string, ...args: any[]) => {
-      console.log(`Socket event received: ${eventName}`, args);
-    };
+    // Lắng nghe sự kiện RECEIVE_MESSAGE để cập nhật tin nhắn cuối cùng
+    socket.on(SOCKET_EVENTS.RECEIVE_MESSAGE, (message) => {
+      console.log('RECEIVE_MESSAGE event received in provider:', message);
+      // Tin nhắn mới đã được xử lý trong chat-list.tsx
+    });
     
-    socket.onAny(onAnyEvent);
+    // Lắng nghe sự kiện USER_ONLINE để cập nhật trạng thái online
+    socket.on(SOCKET_EVENTS.USER_ONLINE, (userId) => {
+      console.log('USER_ONLINE event received in provider:', userId);
+      // Trạng thái online đã được xử lý trong chat-list.tsx
+    });
     
-    // Lắng nghe sự kiện MESSAGE_DELETED cụ thể
-    socket.on('MESSAGE_DELETED', (data) => {
+    // Lắng nghe sự kiện USER_OFFLINE để cập nhật trạng thái offline
+    socket.on(SOCKET_EVENTS.USER_OFFLINE, (userId, lastActive) => {
+      console.log('USER_OFFLINE event received in provider:', userId, lastActive);
+      // Trạng thái offline đã được xử lý trong chat-list.tsx
+    });
+    
+    // Lắng nghe sự kiện MESSAGE_DELETED
+    socket.on(SOCKET_EVENTS.MESSAGE_DELETED, (data) => {
       console.log('MESSAGE_DELETED event received in provider:', data);
     });
     
-    // Lắng nghe sự kiện MESSAGE_UPDATED cụ thể
-    socket.on('MESSAGE_UPDATED', (data) => {
-      console.log('MESSAGE_UPDATED event received in provider:', data);
+    // Lắng nghe sự kiện MESSAGE_UPDATED
+    socket.on('MESSAGE_UPDATED', () => {
+      console.log('MESSAGE_UPDATED event received in provider');
+    });
+    
+    // Lắng nghe sự kiện CONVERSATION_DELETED
+    socket.on(SOCKET_EVENTS.CONVERSATION_DELETED, (data) => {
+      console.log('CONVERSATION_DELETED event received in provider:', data);
     });
     
     return () => {
-      socket.offAny(onAnyEvent);
-      socket.off('MESSAGE_DELETED');
+      socket.off(SOCKET_EVENTS.RECEIVE_MESSAGE);
+      socket.off(SOCKET_EVENTS.USER_ONLINE);
+      socket.off(SOCKET_EVENTS.USER_OFFLINE);
+      socket.off(SOCKET_EVENTS.MESSAGE_DELETED);
       socket.off('MESSAGE_UPDATED');
+      socket.off(SOCKET_EVENTS.CONVERSATION_DELETED);
     };
   }, [socket]);
 

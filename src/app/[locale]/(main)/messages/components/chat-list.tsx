@@ -1,175 +1,251 @@
-'use client'
-
-import { useQueryClient } from '@tanstack/react-query'
-import { Search } from 'lucide-react'
-import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
+import React, { useEffect, useState, useCallback } from 'react'
+import { v4 as uuidv4 } from 'uuid'
+import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
+import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import { Input } from '~/components/ui/input'
 import { Skeleton } from '~/components/ui/skeleton'
-
+import ConversationItem from '~/components/ui/chat/conversation-item'
+import conversationsService from '~/services/conversations.service'
+import { Search } from 'lucide-react'
 import { debounce } from 'lodash'
-import { useChatList } from '~/hooks/data/chat.hooks'
-import { cn } from '~/lib/utils'
+import { useSocket } from '~/hooks/use-socket'
+import SOCKET_EVENTS from '~/constants/socket-events'
 import { useSession } from 'next-auth/react'
+import { useArchiveChat } from '~/hooks/data/chat.hooks'
+
+// Tạo component MemoizedConversationItem
+const MemoizedConversationItem = React.memo<{
+  conversation: any
+  isActive: boolean
+  onClick: () => void
+  isArchived?: boolean
+  onArchive?: () => void
+}>(
+  ({ conversation, isActive, onClick, isArchived = false, onArchive }) => {
+    return (
+      <ConversationItem
+        conversation={conversation}
+        isActive={isActive}
+        onClick={onClick}
+        isArchived={isArchived}
+        onArchive={onArchive}
+      />
+    )
+  },
+  (prevProps, nextProps) => {
+    // Chỉ re-render khi các props quan trọng thay đổi
+    return (
+      prevProps.conversation._id === nextProps.conversation._id &&
+      prevProps.isActive === nextProps.isActive &&
+      prevProps.isArchived === nextProps.isArchived &&
+      prevProps.conversation.lastMessage?._id === nextProps.conversation.lastMessage?._id
+    )
+  }
+)
 
 export function ChatList() {
-  const queryClient = useQueryClient()
   const router = useRouter()
   const params = useParams()
   const searchParams = useSearchParams()
-  const { data: session } = useSession()
-  const chatId = params?.chatId as string
-  const [inputValue, setInputValue] = useState('')
+  const chatId = params.chatId as string
   const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedQuery, setDebouncedQuery] = useState('')
+  const queryClient = useQueryClient()
+  const { socket } = useSocket()
+  const { data: session } = useSession()
+  const { unarchiveChat } = useArchiveChat()
 
-  // Lấy filter từ URL hoặc mặc định là 'all'
-  const currentFilter = searchParams.get('filter') || 'all'
+  // Tạo một ID duy nhất cho mỗi lần render sử dụng uuid
+  const [renderUniqueId] = useState(() => uuidv4())
 
-  // Tạo hàm debounced để cập nhật searchQuery
+  // Lấy view từ URL
+  const activeView = (searchParams.get('view') as 'inbox' | 'archived') || 'inbox'
+  // Lấy filter từ URL
+  const filter = (searchParams.get('filter') as 'all' | 'unread') || 'all'
+
+  // Tạo hàm debounced để cập nhật debouncedQuery
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const debouncedSetSearchQuery = useCallback(
+  const debouncedSetQuery = useCallback(
     debounce((value: string) => {
-      setSearchQuery(value)
-    }, 700),
+      setDebouncedQuery(value)
+    }, 500),
     []
   )
 
-  // Xử lý khi input thay đổi
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Cập nhật searchQuery và gọi hàm debounced
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
-    setInputValue(value)
-    debouncedSetSearchQuery(value)
+    setSearchQuery(value)
+    debouncedSetQuery(value)
   }
 
-  // Cleanup debounce khi component unmount
+  // Cleanup debounce khi unmount
   useEffect(() => {
     return () => {
-      debouncedSetSearchQuery.cancel()
+      debouncedSetQuery.cancel()
     }
-  }, [debouncedSetSearchQuery])
+  }, [debouncedSetQuery])
 
-  // Sử dụng filter từ URL và searchQuery để fetch dữ liệu
-  const { data, isLoading, isError, fetchNextPage, hasNextPage, isFetching } = useChatList(currentFilter, searchQuery)
+  // Fetch danh sách cuộc trò chuyện
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, isError } = useInfiniteQuery({
+    queryKey: ['CHAT_LIST', debouncedQuery, filter],
+    queryFn: ({ pageParam = 1 }) => conversationsService.getConversations(pageParam, 10, filter, debouncedQuery),
+    getNextPageParam: (lastPage) => {
+      if (lastPage.hasMore) {
+        return lastPage.currentPage + 1
+      }
+      return undefined
+    },
+    initialPageParam: 1,
+    enabled: activeView === 'inbox' // Chỉ fetch khi đang ở chế độ xem inbox
+  })
 
-  // Hàm xử lý khi click vào chat
-  const handleChatClick = (selectedChatId: string) => {
-    // Nếu đang ở chat khác, invalidate query để lấy tin nhắn mới
-    if (selectedChatId !== chatId) {
-      queryClient.invalidateQueries({
-        queryKey: ['MESSAGES', selectedChatId]
-      })
-    }
+  // Fetch danh sách cuộc trò chuyện đã lưu trữ
+  const archivedChats = useInfiniteQuery({
+    queryKey: ['ARCHIVED_CHAT_LIST', debouncedQuery, filter],
+    queryFn: ({ pageParam = 1 }) => conversationsService.getArchivedChats(pageParam, 10),
+    getNextPageParam: (lastPage) => {
+      if (lastPage.hasMore) {
+        return lastPage.currentPage + 1
+      }
+      return undefined
+    },
+    initialPageParam: 1,
+    enabled: activeView === 'archived' // Chỉ fetch khi đang ở chế độ xem archived
+  })
 
-    // Giữ nguyên filter khi chuyển đến chat cụ thể
-    const newParams = new URLSearchParams(searchParams.toString())
-    router.push(`/messages/${selectedChatId}?${newParams.toString()}`)
+  // Xử lý khi click vào cuộc trò chuyện
+  const handleChatClick = (id: string) => {
+    // Lấy các search params hiện tại
+    const params = new URLSearchParams(searchParams.toString())
+    // Tạo URL mới với chatId và giữ nguyên các params
+    router.push(`/messages/${id}?${params.toString()}`)
   }
 
-  const items = useMemo(() => {
-    return data?.pages.flatMap((page) => page?.conversations) || []
-  }, [data])
-
-  // Render chat skeleton
+  // Render skeleton khi đang tải
   const renderChatSkeletons = () => {
     return Array(5)
       .fill(0)
       .map((_, index) => (
-        <div key={`skeleton-${index}`} className='flex items-center gap-3 rounded-lg p-3'>
+        <div key={index} className='flex items-center space-x-4 p-2'>
           <Skeleton className='h-10 w-10 rounded-full' />
           <div className='flex-1 space-y-2'>
-            <Skeleton className='h-4 w-1/3' />
-            <Skeleton className='h-3 w-2/3' />
+            <Skeleton className='h-4 w-[200px]' />
+            <Skeleton className='h-4 w-[160px]' />
           </div>
         </div>
       ))
   }
 
+  // Tổng hợp danh sách cuộc trò chuyện từ tất cả các trang và loại bỏ trùng lặp
+  const items = data?.pages.flatMap((page) => page.conversations) || []
+  const uniqueItems = Array.from(new Map(items.map((item) => [item._id, item])).values())
+
+  const archivedItems = archivedChats.data?.pages.flatMap((page) => page.conversations) || []
+  const uniqueArchivedItems = Array.from(new Map(archivedItems.map((item) => [item._id, item])).values())
+
+  // Log để kiểm tra trùng lặp
+  useEffect(() => {
+    if (items.length !== uniqueItems.length) {
+      console.warn('Phát hiện ID trùng lặp trong danh sách chat:', items.length, uniqueItems.length)
+    }
+  }, [items, uniqueItems])
+
+  // Thêm state để theo dõi khi nào cần render lại danh sách
+  const [refreshKey, setRefreshKey] = useState(0)
+
+  // Cập nhật refreshKey khi nhận tin nhắn mới
+  useEffect(() => {
+    if (!socket) return
+
+    const handleReceiveMessage = (message: any) => {
+      console.log('Received new message in chat list:', message)
+
+      // Invalidate query để React Query tự refetch
+      queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] })
+
+      // Cập nhật refreshKey để force re-render
+      setRefreshKey((prev) => prev + 1)
+    }
+
+    socket.on(SOCKET_EVENTS.RECEIVE_MESSAGE, handleReceiveMessage)
+
+    return () => {
+      socket.off(SOCKET_EVENTS.RECEIVE_MESSAGE, handleReceiveMessage)
+    }
+  }, [socket, queryClient])
+
+  // Xử lý khi bỏ lưu trữ cuộc trò chuyện
+  const handleUnarchive = (chatId: string) => {
+    console.log('Unarchiving chat', chatId)
+    unarchiveChat.mutate(chatId)
+  }
+
   return (
     <div className='flex h-full flex-col'>
-      {/* Thêm thanh tìm kiếm */}
+      {/* Thanh tìm kiếm */}
       <div className='p-2'>
         <div className='relative'>
-          <Search className='text-muted-foreground absolute top-1/2 left-2 h-4 w-4 -translate-y-1/2' />
-          <Input placeholder='Tìm kiếm tin nhắn' className='pl-8' value={inputValue} onChange={handleInputChange} />
+          <Search className='text-muted-foreground absolute top-2.5 left-2 h-4 w-4' />
+          <Input placeholder='Tìm kiếm tin nhắn' value={searchQuery} onChange={handleSearchChange} className='pl-8' />
         </div>
       </div>
 
-      {/* Phần hiển thị danh sách chat */}
-      <div className='flex-1 overflow-auto p-2'>
-        {isLoading ? (
-          renderChatSkeletons()
-        ) : isError ? (
-          <div className='text-muted-foreground p-4 text-center'>Không thể tải tin nhắn. Vui lòng thử lại sau.</div>
-        ) : items.length === 0 ? (
-          <div className='text-muted-foreground p-4 text-center'>
-            {searchQuery
-              ? 'Không tìm thấy kết quả phù hợp.'
-              : currentFilter === 'all'
-                ? 'Bạn chưa có cuộc trò chuyện nào.'
-                : 'Không có tin nhắn chưa đọc.'}
+      {/* Hiển thị danh sách cuộc trò chuyện dựa trên chế độ xem hiện tại */}
+      <div className='flex-1 overflow-auto'>
+        {activeView === 'inbox' ? (
+          // Hiển thị hộp thư đến
+          <div className='flex-1 overflow-auto p-2'>
+            {isLoading ? (
+              renderChatSkeletons()
+            ) : isError ? (
+              <div className='text-muted-foreground p-4 text-center'>Không thể tải tin nhắn.</div>
+            ) : items.length === 0 ? (
+              <div className='text-muted-foreground p-4 text-center'>
+                {searchQuery ? 'Không tìm thấy kết quả phù hợp.' : 'Không có cuộc trò chuyện nào.'}
+              </div>
+            ) : (
+              uniqueItems.map((chat, index) => (
+                <MemoizedConversationItem
+                  key={`${chat._id}-${index}`}
+                  conversation={chat}
+                  isActive={chat._id === chatId}
+                  onClick={() => handleChatClick(chat._id)}
+                />
+              ))
+            )}
           </div>
         ) : (
-          items.map((chat) => {
-            // Xác định avatar và tên hiển thị trực tiếp
-            const displayName = chat.type !== 'PRIVATE' 
-              ? chat.name 
-              : chat.participants?.find((p: any) => p._id !== session?.user?._id)?.name || 'Người dùng';
-            
-            const avatarSrc = chat.type !== 'PRIVATE'
-              ? chat.avatar
-              : chat.participants?.find((p: any) => p._id !== session?.user?._id)?.avatar;
-            
-            return (
-              <div
-                key={chat._id}
-                className={cn('hover:bg-muted/50 flex cursor-pointer items-center gap-3 rounded-lg p-3', {
-                  'bg-muted': chat._id === chatId
-                })}
-                onClick={() => handleChatClick(chat._id)}
-              >
-                <Avatar className='h-10 w-10'>
-                  <AvatarImage
-                    src={avatarSrc || undefined}
-                    alt={displayName}
-                  />
-                  <AvatarFallback>{displayName?.[0] || '?'}</AvatarFallback>
-                </Avatar>
-                <div className='flex-1 overflow-hidden'>
-                  <div className='flex items-center justify-between'>
-                    <p className='truncate font-medium'>{displayName}</p>
-                    {chat.lastMessage && (
-                      <span className='text-muted-foreground text-xs'>
-                        {new Date(chat.lastMessage.createdAt).toLocaleTimeString([], {
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
-                      </span>
-                    )}
-                  </div>
-                  {chat.lastMessage && (
-                    <p className='text-muted-foreground truncate text-sm'>
-                      {chat.lastMessage.senderId._id === session?.user?._id
-                        ? 'Bạn: '
-                        : ''}
-                      {chat.lastMessage.content}
-                    </p>
-                  )}
-                </div>
-                {!chat.read && <div className='h-2 w-2 rounded-full bg-blue-500' />}
+          // Hiển thị đã lưu trữ
+          <div className='flex-1 overflow-auto p-2'>
+            {archivedChats.isLoading ? (
+              renderChatSkeletons()
+            ) : archivedChats.isError ? (
+              <div className='text-muted-foreground p-4 text-center'>Không thể tải tin nhắn đã lưu trữ.</div>
+            ) : archivedItems.length === 0 ? (
+              <div className='text-muted-foreground p-4 text-center'>
+                {searchQuery ? 'Không tìm thấy kết quả phù hợp.' : 'Không có cuộc trò chuyện nào đã lưu trữ.'}
               </div>
-            );
-          })
+            ) : (
+              uniqueArchivedItems.map((chat, index) => (
+                <MemoizedConversationItem
+                  key={`archived-${chat._id}-${index}`}
+                  conversation={chat}
+                  isActive={chat._id === chatId}
+                  onClick={() => handleChatClick(chat._id)}
+                  isArchived={true}
+                  onArchive={() => handleUnarchive(chat._id)}
+                />
+              ))
+            )}
+          </div>
         )}
       </div>
     </div>
   )
 }
 
-
-
-
-
-
+// Thêm export default để hỗ trợ cả hai cách import
+export default ChatList
 
 

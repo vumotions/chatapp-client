@@ -9,8 +9,16 @@ class ConversationsService {
 
   // Lấy danh sách cuộc trò chuyện
   async getConversations(page = 1, limit = 10, filter = 'all', searchQuery = '') {
-    const res = await httpRequest.get(`/chat?page=${page}&limit=${limit}&filter=${filter}&search=${searchQuery}`);
-    return res.data.data;
+    console.log('Calling getConversations API with:', { page, limit, filter, searchQuery })
+    const res = await httpRequest.get(`/chat?page=${page}&limit=${limit}&filter=${filter}&search=${searchQuery}`)
+    console.log('API response for getConversations:', res.data)
+    return res.data.data
+  }
+
+  // Lấy thông tin cuộc trò chuyện theo ID
+  async getConversation(conversationId: string) {
+    const res = await httpRequest.get(`/chat/${conversationId}`)
+    return res.data.data
   }
 
   // Lấy tin nhắn của một cuộc trò chuyện
@@ -39,6 +47,53 @@ class ConversationsService {
   // Sử dụng editMessage thay vì updateMessage
   async updateMessage(messageId: string, content: string) {
     return this.editMessage(messageId, content);
+  }
+
+  // Xóa cuộc trò chuyện
+  async deleteConversation(conversationId: string) {
+    const res = await httpRequest.delete(`/chat/${conversationId}`);
+    return res.data.data;
+  }
+
+  // Thêm các phương thức để quản lý archive
+  // Lấy danh sách cuộc trò chuyện đã lưu trữ
+  async getArchivedChats(page = 1, limit = 10, searchQuery = '') {
+    console.log('Calling getArchivedChats API with:', { page, limit, searchQuery })
+    const res = await httpRequest.get(`/chat/archived?page=${page}&limit=${limit}&search=${searchQuery}`)
+    console.log('API response:', res.data)
+    return res.data.data
+  }
+
+  // Lưu trữ cuộc trò chuyện
+  async archiveChat(chatId: string) {
+    console.log('Calling archiveChat API for:', chatId)
+    const res = await httpRequest.put(`/chat/${chatId}/archive`)
+    console.log('API response for archiveChat:', res.data)
+    return res.data.data
+  }
+
+  // Bỏ lưu trữ cuộc trò chuyện
+  async unarchiveChat(chatId: string) {
+    console.log('Calling unarchiveChat API for:', chatId)
+    const res = await httpRequest.put(`/chat/${chatId}/unarchive`)
+    console.log('API response for unarchiveChat:', res.data)
+    return res.data.data
+  }
+
+  // Ghim/bỏ ghim tin nhắn
+  async pinMessage(messageId: string) {
+    console.log('Calling pinMessage API for:', messageId)
+    const res = await httpRequest.put(`/chat/messages/${messageId}/pin`)
+    console.log('API response for pinMessage:', res.data)
+    return res.data.data
+  }
+
+  // Lấy tin nhắn đã ghim
+  async getPinnedMessages(chatId: string) {
+    console.log('Calling getPinnedMessages API for:', chatId)
+    const res = await httpRequest.get(`/chat/${chatId}/pinned-messages`)
+    console.log('API response for getPinnedMessages:', res.data)
+    return res.data.data
   }
 }
 

@@ -22,4 +22,5 @@ export type Message = {
   updatedAt: string
   readBy: string[]
   type: MESSAGE_TYPE
+  isPinned?: boolean
 }
