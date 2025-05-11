@@ -22,10 +22,10 @@ export const useDraftMessage = (chatId: string) => {
       if (data) {
         setDraftContent(data.content || '');
         setDraftAttachments(data.attachments || []);
-        setDraftId(data._id);
+        setDraftId(data._id as string); // Cast to string type
       }
       setIsLoading(false);
-    return response;
+      return response;
     },
   })
 
@@ -43,8 +43,11 @@ export const useDraftMessage = (chatId: string) => {
         })
       }
     },
-    onSuccess: (data) => {
-      setDraftId(data._id)
+    onSuccess: (response) => {
+      console.log('Draft save response:', response)
+      // Truy cập đúng cấu trúc dữ liệu
+      const id = response.data?._id || response._id
+      setDraftId(id as string)
       queryClient.invalidateQueries({ queryKey: ['DRAFT', chatId] })
     }
   })
@@ -110,5 +113,9 @@ export const useAllDrafts = () => {
     queryFn: () => draftService.getAllDrafts()
   })
 }
+
+
+
+
 
 

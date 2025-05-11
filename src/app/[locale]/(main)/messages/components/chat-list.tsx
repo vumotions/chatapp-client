@@ -1,17 +1,19 @@
-import React, { useEffect, useState, useCallback } from 'react'
-import { v4 as uuidv4 } from 'uuid'
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
-import { useRouter, useParams, useSearchParams } from 'next/navigation'
+import { debounce } from 'lodash'
+import { Search } from 'lucide-react'
+import { useSession } from 'next-auth/react'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import React, { useCallback, useEffect, useState } from 'react'
+import { v4 as uuidv4 } from 'uuid'
+import CreateGroupChatDialog from '~/components/create-group-chat-dialog'
+import ConversationItem from '~/components/ui/chat/conversation-item'
 import { Input } from '~/components/ui/input'
 import { Skeleton } from '~/components/ui/skeleton'
-import ConversationItem from '~/components/ui/chat/conversation-item'
-import conversationsService from '~/services/conversations.service'
-import { Search } from 'lucide-react'
-import { debounce } from 'lodash'
-import { useSocket } from '~/hooks/use-socket'
 import SOCKET_EVENTS from '~/constants/socket-events'
-import { useSession } from 'next-auth/react'
 import { useArchiveChat } from '~/hooks/data/chat.hooks'
+import { useSocket } from '~/hooks/use-socket'
+import conversationsService from '~/services/conversations.service'
+import { AnimatePresence, motion } from 'framer-motion'
 
 // Tạo component MemoizedConversationItem
 const MemoizedConversationItem = React.memo<{
@@ -23,13 +25,26 @@ const MemoizedConversationItem = React.memo<{
 }>(
   ({ conversation, isActive, onClick, isArchived = false, onArchive }) => {
     return (
-      <ConversationItem
-        conversation={conversation}
-        isActive={isActive}
-        onClick={onClick}
-        isArchived={isArchived}
-        onArchive={onArchive}
-      />
+      <motion.div
+        layout
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+        transition={{ 
+          type: "spring", 
+          stiffness: 500, 
+          damping: 30,
+          layout: { type: "spring", stiffness: 300, damping: 30 }
+        }}
+      >
+        <ConversationItem
+          conversation={conversation}
+          isActive={isActive}
+          onClick={onClick}
+          isArchived={isArchived}
+          onArchive={onArchive}
+        />
+      </motion.div>
     )
   },
   (prevProps, nextProps) => {
@@ -163,15 +178,26 @@ export function ChatList() {
 
       // Invalidate query để React Query tự refetch
       queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] })
+      
+      // Thêm invalidate cho ARCHIVED_CHAT_LIST nếu tin nhắn có thể thuộc về chat đã lưu trữ
+      queryClient.invalidateQueries({ queryKey: ['ARCHIVED_CHAT_LIST'] })
 
       // Cập nhật refreshKey để force re-render
       setRefreshKey((prev) => prev + 1)
     }
 
+    // Lắng nghe cả sự kiện tin nhắn mới và tin nhắn được cập nhật
     socket.on(SOCKET_EVENTS.RECEIVE_MESSAGE, handleReceiveMessage)
+    socket.on('MESSAGE_UPDATED', (data) => {
+      console.log('Message updated in chat list:', data)
+      queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] })
+      queryClient.invalidateQueries({ queryKey: ['ARCHIVED_CHAT_LIST'] })
+      setRefreshKey((prev) => prev + 1)
+    })
 
     return () => {
       socket.off(SOCKET_EVENTS.RECEIVE_MESSAGE, handleReceiveMessage)
+      socket.off('MESSAGE_UPDATED')
     }
   }, [socket, queryClient])
 
@@ -183,12 +209,13 @@ export function ChatList() {
 
   return (
     <div className='flex h-full flex-col'>
-      {/* Thanh tìm kiếm */}
-      <div className='p-2'>
-        <div className='relative'>
+      {/* Thanh tìm kiếm và tạo nhóm */}
+      <div className='p-2 flex items-center gap-2'>
+        <div className='relative flex-1'>
           <Search className='text-muted-foreground absolute top-2.5 left-2 h-4 w-4' />
           <Input placeholder='Tìm kiếm tin nhắn' value={searchQuery} onChange={handleSearchChange} className='pl-8' />
         </div>
+        <CreateGroupChatDialog variant="icon" />
       </div>
 
       {/* Hiển thị danh sách cuộc trò chuyện dựa trên chế độ xem hiện tại */}
@@ -205,14 +232,16 @@ export function ChatList() {
                 {searchQuery ? 'Không tìm thấy kết quả phù hợp.' : 'Không có cuộc trò chuyện nào.'}
               </div>
             ) : (
-              uniqueItems.map((chat, index) => (
-                <MemoizedConversationItem
-                  key={`${chat._id}-${index}`}
-                  conversation={chat}
-                  isActive={chat._id === chatId}
-                  onClick={() => handleChatClick(chat._id)}
-                />
-              ))
+              <AnimatePresence initial={false}>
+                {uniqueItems.map((chat, index) => (
+                  <MemoizedConversationItem
+                    key={`${chat._id}`}
+                    conversation={chat}
+                    isActive={chat._id === chatId}
+                    onClick={() => handleChatClick(chat._id)}
+                  />
+                ))}
+              </AnimatePresence>
             )}
           </div>
         ) : (
@@ -227,16 +256,18 @@ export function ChatList() {
                 {searchQuery ? 'Không tìm thấy kết quả phù hợp.' : 'Không có cuộc trò chuyện nào đã lưu trữ.'}
               </div>
             ) : (
-              uniqueArchivedItems.map((chat, index) => (
-                <MemoizedConversationItem
-                  key={`archived-${chat._id}-${index}`}
-                  conversation={chat}
-                  isActive={chat._id === chatId}
-                  onClick={() => handleChatClick(chat._id)}
-                  isArchived={true}
-                  onArchive={() => handleUnarchive(chat._id)}
-                />
-              ))
+              <AnimatePresence initial={false}>
+                {uniqueArchivedItems.map((chat, index) => (
+                  <MemoizedConversationItem
+                    key={`archived-${chat._id}`}
+                    conversation={chat}
+                    isActive={chat._id === chatId}
+                    onClick={() => handleChatClick(chat._id)}
+                    isArchived={true}
+                    onArchive={() => handleUnarchive(chat._id)}
+                  />
+                ))}
+              </AnimatePresence>
             )}
           </div>
         )}
@@ -247,5 +278,11 @@ export function ChatList() {
 
 // Thêm export default để hỗ trợ cả hai cách import
 export default ChatList
+
+
+
+
+
+
 
 

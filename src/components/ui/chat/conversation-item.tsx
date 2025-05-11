@@ -146,34 +146,27 @@ export default function ConversationItem({
   }
 
   // Xác định nếu tin nhắn chưa đọc - nếu người dùng đang ở trong cuộc trò chuyện, coi như đã đọc
-  const isUnread = !conversation.read && !isArchived && !isUserInConversation
+  // Thêm kiểm tra: nếu tin nhắn cuối cùng do chính người dùng hiện tại gửi, coi như đã đọc
+  const isUnread = !conversation.read && !isArchived && !isUserInConversation && 
+    conversation.lastMessage?.senderId?._id !== session?.user?._id && 
+    conversation.lastMessage?.senderId !== session?.user?._id;
 
   // Tự động đánh dấu đã đọc khi người dùng đang ở trong cuộc trò chuyện
   useEffect(() => {
     if (isUserInConversation && !conversation.read && socket) {
       // Chỉ đánh dấu đã đọc nếu tin nhắn cuối cùng KHÔNG phải do người dùng hiện tại gửi
-      const lastMessageSenderId = conversation.lastMessage?.senderId?._id || conversation.lastMessage?.senderId
-      const currentUserId = session?.user?._id
+      const lastMessageSenderId = conversation.lastMessage?.senderId?._id || conversation.lastMessage?.senderId;
+      const currentUserId = session?.user?._id;
       
       if (lastMessageSenderId !== currentUserId) {
         // Gửi sự kiện đánh dấu đã đọc
         socket.emit(SOCKET_EVENTS.MARK_AS_READ, {
           chatId: conversation._id,
           messageIds: conversation.lastMessage ? [conversation.lastMessage._id] : []
-        })
-      } else {
-        // Nếu tin nhắn cuối cùng là do người dùng hiện tại gửi, đánh dấu là đã đọc ngay lập tức
-        // mà không cần gửi sự kiện socket
-        conversationsService.markChatAsRead(conversation._id)
-          .then(() => {
-            console.log('Marked own message as read')
-          })
-          .catch(error => {
-            console.error('Failed to mark own message as read:', error)
-          })
+        });
       }
     }
-  }, [isUserInConversation, conversation.read, conversation._id, conversation.lastMessage, socket, session])
+  }, [isUserInConversation, conversation.read, conversation._id, conversation.lastMessage, socket, session]);
 
   return (
     <div
@@ -224,6 +217,9 @@ export default function ConversationItem({
     </div>
   )
 }
+
+
+
 
 
 

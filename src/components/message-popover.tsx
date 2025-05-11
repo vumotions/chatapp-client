@@ -15,12 +15,18 @@ import { Link } from '~/i18n/navigation'
 import { Input } from './ui/input'
 import { Skeleton } from './ui/skeleton'
 import { Button } from './ui/button'
+import { cn } from '~/lib/utils'
+import SOCKET_EVENTS from '~/constants/socket-events'
+import { useQueryClient } from '@tanstack/react-query'
+import { useSocket } from '~/hooks/use-socket'
 
 function MessagePopover() {
   const [open, setOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [inputValue, setInputValue] = useState('')
   const { data: session } = useSession()
+  const queryClient = useQueryClient()
+  const { socket } = useSocket()
 
   // Fetch chats using the existing hook with search query
   const { data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage, refetch } = useChatList(
@@ -74,8 +80,30 @@ function MessagePopover() {
 
   // Check if there are any unread messages
   const hasUnread = useMemo(() => {
-    return chats?.some((chat: any) => !chat.read)
-  }, [chats])
+    return chats?.some((chat: any) => {
+      // Kiểm tra nếu tin nhắn cuối cùng do chính người dùng gửi, coi như đã đọc
+      const lastMessageSenderId = chat.lastMessage?.senderId?._id || chat.lastMessage?.senderId;
+      const currentUserId = session?.user?._id;
+      
+      return !chat.read && lastMessageSenderId !== currentUserId;
+    });
+  }, [chats, session?.user?._id]);
+
+  // Lắng nghe sự kiện tin nhắn đã đọc từ socket
+  useEffect(() => {
+    if (!socket) return;
+    
+    const handleMessageRead = (data: { chatId: string; messageIds: string[] }) => {
+      // Cập nhật cache để đánh dấu tin nhắn đã đọc
+      queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] });
+    };
+    
+    socket.on(SOCKET_EVENTS.MESSAGE_READ, handleMessageRead);
+    
+    return () => {
+      socket.off(SOCKET_EVENTS.MESSAGE_READ, handleMessageRead);
+    };
+  }, [socket, queryClient]);
 
   // Get chat name and avatar
   const getChatInfo = (chat: any) => {
@@ -149,7 +177,11 @@ function MessagePopover() {
               }
             >
               {chats?.map((chat: any) => {
-                const chatInfo = getChatInfo(chat)
+                const chatInfo = getChatInfo(chat);
+                // Kiểm tra nếu tin nhắn cuối cùng do chính người dùng gửi, coi như đã đọc
+                const lastMessageSenderId = chat.lastMessage?.senderId?._id || chat.lastMessage?.senderId;
+                const currentUserId = session?.user?._id;
+                const isUnread = !chat.read && lastMessageSenderId !== currentUserId;
 
                 return (
                   <Link
@@ -163,17 +195,23 @@ function MessagePopover() {
                       <AvatarFallback>{chatInfo.name?.[0] || '?'}</AvatarFallback>
                     </Avatar>
                     <div className='ml-3 flex-1'>
-                      <div className='text-sm font-medium'>{chatInfo.name}</div>
-                      <div className='text-muted-foreground truncate text-sm'>
+                      <div className={cn('text-sm', isUnread ? 'font-bold' : 'font-medium')}>{chatInfo.name}</div>
+                      <div className={cn(
+                        'truncate text-sm', 
+                        isUnread ? 'font-semibold text-foreground' : 'text-muted-foreground'
+                      )}>
                         {typeof chat.lastMessage === 'string'
                           ? chat.lastMessage
                           : chat.lastMessage?.content || 'Bắt đầu cuộc trò chuyện'}
                       </div>
-                      <div className='text-xs text-gray-500 dark:text-gray-400'>
+                      <div className={cn(
+                        'text-xs', 
+                        isUnread ? 'text-foreground' : 'text-gray-500 dark:text-gray-400'
+                      )}>
                         {chat.updatedAt ? formatTime(chat.updatedAt) : ''}
                       </div>
                     </div>
-                    {!chat.read && <div className='mt-2 ml-2 h-2 w-2 rounded-full bg-blue-500' />}
+                    {isUnread && <div className='mt-2 ml-2 h-2 w-2 rounded-full bg-blue-500' />}
                   </Link>
                 )
               })}

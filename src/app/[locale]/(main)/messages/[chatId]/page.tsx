@@ -728,6 +728,39 @@ function ChatDetail({ params }: Props) {
           pages: updatedPages
         }
       })
+      
+      // Cập nhật cache của danh sách chat để đánh dấu cuộc trò chuyện là đã đọc
+      queryClient.setQueryData(['CHAT_LIST'], (oldData: any) => {
+        if (!oldData) return oldData
+        
+        const updatedPages = oldData.pages.map((page: any) => {
+          if (!page?.conversations) return page
+          
+          const updatedConversations = page.conversations.map((chat: any) => {
+            if (chat._id === chatId) {
+              return {
+                ...chat,
+                read: true,
+                lastMessage: chat.lastMessage ? {
+                  ...chat.lastMessage,
+                  status: MESSAGE_STATUS.SEEN
+                } : null
+              }
+            }
+            return chat
+          })
+          
+          return {
+            ...page,
+            conversations: updatedConversations
+          }
+        })
+        
+        return {
+          ...oldData,
+          pages: updatedPages
+        }
+      })
     }
   }, [socket, chatId, allMessages, isAtBottom, queryClient])
 
