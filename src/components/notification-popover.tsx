@@ -19,10 +19,7 @@ import {
   useMarkNotificationAsRead,
   useNotifications
 } from '~/hooks/data/notification.hooks'
-import {
-  useAcceptFriendRequestMutation,
-  useRejectFriendRequestMutation
-} from '~/hooks/data/friends.hook'
+import { useAcceptFriendRequestMutation, useRejectFriendRequestMutation } from '~/hooks/data/friends.hook'
 import { useSocket } from '~/hooks/use-socket'
 import { useRouter } from '~/i18n/navigation'
 import { cn } from '~/lib/utils'
@@ -41,18 +38,18 @@ function NotificationPopover() {
 
   // Thêm useEffect để lấy processedIds từ localStorage khi component mount
   useEffect(() => {
-    const savedProcessedIds = localStorage.getItem('processedNotificationIds');
+    const savedProcessedIds = localStorage.getItem('processedNotificationIds')
     if (savedProcessedIds) {
-      setProcessedIds(JSON.parse(savedProcessedIds));
+      setProcessedIds(JSON.parse(savedProcessedIds))
     }
-  }, []);
+  }, [])
 
   // Cập nhật localStorage khi processedIds thay đổi
   useEffect(() => {
     if (processedIds.length > 0) {
-      localStorage.setItem('processedNotificationIds', JSON.stringify(processedIds));
+      localStorage.setItem('processedNotificationIds', JSON.stringify(processedIds))
     }
-  }, [processedIds]);
+  }, [processedIds])
 
   // Fetch notifications with filter
   const { data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage, refetch } = useNotifications(tab)
@@ -171,60 +168,60 @@ function NotificationPopover() {
 
   // Xử lý chấp nhận lời mời kết bạn
   const handleAcceptFriendRequest = (e: React.MouseEvent, notificationId: string, senderId: string) => {
-    e.stopPropagation();
-    setIsAccepting(notificationId);
-    
+    e.stopPropagation()
+    setIsAccepting(notificationId)
+
     acceptFriendRequest(senderId, {
       onSuccess: () => {
         // Thêm ID vào danh sách đã xử lý
-        setProcessedIds(prev => [...prev, notificationId]);
-        toast.success('Đã chấp nhận lời mời kết bạn');
+        setProcessedIds((prev) => [...prev, notificationId])
+        toast.success('Đã chấp nhận lời mời kết bạn')
         // Cập nhật lại danh sách bạn bè
-        queryClient.invalidateQueries({ queryKey: ['FRIENDS'] });
+        queryClient.invalidateQueries({ queryKey: ['FRIENDS'] })
       },
       onError: (error: any) => {
-        toast.error(error?.response?.data?.message || 'Có lỗi xảy ra khi chấp nhận lời mời');
+        toast.error(error?.response?.data?.message || 'Có lỗi xảy ra khi chấp nhận lời mời')
       },
       onSettled: () => {
-        setIsAccepting(null);
+        setIsAccepting(null)
       }
-    });
-  };
+    })
+  }
 
   // Xử lý từ chối lời mời kết bạn
   const handleRejectFriendRequest = (e: React.MouseEvent, notificationId: string, senderId: string) => {
-    e.stopPropagation();
-    setIsRejecting(notificationId);
-    
+    e.stopPropagation()
+    setIsRejecting(notificationId)
+
     rejectFriendRequest(senderId, {
       onSuccess: () => {
         // Thêm ID vào danh sách đã xử lý
-        setProcessedIds(prev => [...prev, notificationId]);
-        toast.success('Đã từ chối lời mời kết bạn');
+        setProcessedIds((prev) => [...prev, notificationId])
+        toast.success('Đã từ chối lời mời kết bạn')
       },
       onError: (error: any) => {
-        toast.error(error?.response?.data?.message || 'Có lỗi xảy ra khi từ chối lời mời');
+        toast.error(error?.response?.data?.message || 'Có lỗi xảy ra khi từ chối lời mời')
       },
       onSettled: () => {
-        setIsRejecting(null);
+        setIsRejecting(null)
       }
-    });
-  };
+    })
+  }
 
   // Kiểm tra xem lời mời kết bạn đã được xử lý chưa
   const isFriendRequestProcessed = (item: any) => {
     // Kiểm tra trường processed của thông báo
     if (item.processed === true) {
-      return true;
+      return true
     }
-    
+
     // Kiểm tra thêm trạng thái của lời mời kết bạn nếu có
     if (item.relatedId && item.relatedId.status) {
-      return item.relatedId.status !== FRIEND_REQUEST_STATUS.PENDING;
+      return item.relatedId.status !== FRIEND_REQUEST_STATUS.PENDING
     }
-    
-    return false;
-  };
+
+    return false
+  }
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -240,7 +237,7 @@ function NotificationPopover() {
           }}
         >
           <Bell className='size-5 text-gray-700 dark:text-gray-300' />
-          {hasUnread && <span className='absolute top-1 right-1 h-2 w-2 rounded-full bg-red-500'></span>}
+          {hasUnread && <span className='absolute top-0 right-0 h-2 w-2 rounded-full bg-blue-500'></span>}
         </Button>
       </PopoverTrigger>
       <PopoverContent className='w-96 p-0' align='end'>
@@ -338,9 +335,10 @@ function NotificationPopover() {
             >
               {filteredNotifications?.map((item: any) => {
                 // Tạo biến tạm thời để kiểm tra trạng thái xử lý
-                const isProcessed = item.processed === true || 
-                  (item.relatedId && item.relatedId.status && item.relatedId.status !== FRIEND_REQUEST_STATUS.PENDING);
-                
+                const isProcessed =
+                  item.processed === true ||
+                  (item.relatedId && item.relatedId.status && item.relatedId.status !== FRIEND_REQUEST_STATUS.PENDING)
+
                 return (
                   <div
                     key={item._id}
@@ -356,29 +354,29 @@ function NotificationPopover() {
                     <div className='ml-3 flex-1'>
                       <p className='text-muted-foreground text-sm'>{getNotificationContent(item)}</p>
                       <span className='text-xs text-gray-500 dark:text-gray-400'>{formatTime(item.createdAt)}</span>
-                      
+
                       {/* Hiển thị nút chỉ khi là lời mời kết bạn và chưa được xử lý */}
                       {item.type === NOTIFICATION_TYPE.FRIEND_REQUEST && !processedIds.includes(item._id) && (
                         <div className='mt-2 flex space-x-2'>
-                          <Button 
-                            size='sm' 
-                            variant='default' 
+                          <Button
+                            size='sm'
+                            variant='default'
                             className='h-8 px-3 py-1'
                             onClick={(e) => {
-                              e.stopPropagation();
-                              handleAcceptFriendRequest(e, item._id, item.senderId._id);
+                              e.stopPropagation()
+                              handleAcceptFriendRequest(e, item._id, item.senderId._id)
                             }}
                             disabled={isAccepting === item._id}
                           >
                             {isAccepting === item._id ? 'Đang xử lý...' : 'Chấp nhận'}
                           </Button>
-                          <Button 
-                            size='sm' 
-                            variant='outline' 
+                          <Button
+                            size='sm'
+                            variant='outline'
                             className='h-8 px-3 py-1'
                             onClick={(e) => {
-                              e.stopPropagation();
-                              handleRejectFriendRequest(e, item._id, item.senderId._id);
+                              e.stopPropagation()
+                              handleRejectFriendRequest(e, item._id, item.senderId._id)
                             }}
                             disabled={isRejecting === item._id}
                           >
@@ -386,12 +384,10 @@ function NotificationPopover() {
                           </Button>
                         </div>
                       )}
-                      
+
                       {/* Hiển thị trạng thái đã xử lý */}
                       {item.type === NOTIFICATION_TYPE.FRIEND_REQUEST && processedIds.includes(item._id) && (
-                        <p className='mt-2 text-xs italic text-muted-foreground'>
-                          Đã xử lý lời mời kết bạn này
-                        </p>
+                        <p className='text-muted-foreground mt-2 text-xs italic'>Đã xử lý lời mời kết bạn này</p>
                       )}
                     </div>
                     <div className='flex items-center'>
@@ -406,7 +402,7 @@ function NotificationPopover() {
                       </Button>
                     </div>
                   </div>
-                );
+                )
               })}
             </InfiniteScroll>
           )}
@@ -419,27 +415,27 @@ function NotificationPopover() {
 // Hàm lấy nội dung thông báo
 const getNotificationContent = (notification: any) => {
   // Log để kiểm tra dữ liệu
-  console.log('Getting content for notification:', notification);
-  console.log('Sender info:', notification.senderId);
-  
+  console.log('Getting content for notification:', notification)
+  console.log('Sender info:', notification.senderId)
+
   // Xác định tên người gửi
-  let senderName = 'Ai đó';
-  
+  let senderName = 'Ai đó'
+
   if (notification.senderId && typeof notification.senderId === 'object') {
-    senderName = notification.senderId.name || 'Người dùng';
+    senderName = notification.senderId.name || 'Người dùng'
   }
-  
-  console.log('Using sender name:', senderName);
-  
+
+  console.log('Using sender name:', senderName)
+
   switch (notification.type) {
     case NOTIFICATION_TYPE.FRIEND_REQUEST:
-      return `${senderName} đã gửi cho bạn lời mời kết bạn`;
+      return `${senderName} đã gửi cho bạn lời mời kết bạn`
     case NOTIFICATION_TYPE.FRIEND_ACCEPTED:
-      return `${senderName} đã chấp nhận lời mời kết bạn của bạn`;
+      return `${senderName} đã chấp nhận lời mời kết bạn của bạn`
     case NOTIFICATION_TYPE.NEW_MESSAGE:
-      return `${senderName} đã gửi cho bạn một tin nhắn mới`;
+      return `${senderName} đã gửi cho bạn một tin nhắn mới`
     default:
-      return 'Bạn có một thông báo mới';
+      return 'Bạn có một thông báo mới'
   }
 }
 

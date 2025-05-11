@@ -1,26 +1,19 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { useMutation } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
+import { Settings } from 'lucide-react'
 
 import { Button } from '~/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger
-} from '~/components/ui/dialog'
 import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
-import { Settings } from 'lucide-react'
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '~/components/ui/sheet'
 import conversationsService from '~/services/conversations.service'
+import { Tooltip, TooltipContent, TooltipTrigger } from '~/components/ui/tooltip'
 
-export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: any, onUpdate?: () => void }) {
+export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: any; onUpdate?: () => void }) {
   const [open, setOpen] = useState(false)
   const [groupName, setGroupName] = useState(conversation?.name || '')
   const { data: session } = useSession()
@@ -29,9 +22,15 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
   const queryClient = useQueryClient()
   const router = useRouter()
 
+  // Cập nhật tên nhóm khi conversation thay đổi
+  useEffect(() => {
+    if (conversation?.name) {
+      setGroupName(conversation.name)
+    }
+  }, [conversation])
+
   const updateGroupMutation = useMutation({
-    mutationFn: (data: { name: string }) => 
-      conversationsService.updateGroupConversation(conversation._id, data),
+    mutationFn: (data: { name: string }) => conversationsService.updateGroupConversation(conversation._id, data),
     onSuccess: () => {
       toast.success('Cập nhật nhóm thành công')
       queryClient.invalidateQueries({ queryKey: ['MESSAGES', conversation._id] })
@@ -72,57 +71,58 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
     }
   }
 
+  // Hàm debug để kiểm tra sự kiện click
+  const handleTriggerClick = () => {
+    console.log('Settings button clicked')
+    setOpen(true)
+  }
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="sm">
-          <Settings className="mr-2 h-4 w-4" />
-          Cài đặt nhóm
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
-          <DialogTitle>Cài đặt nhóm</DialogTitle>
-          <DialogDescription>
-            Thay đổi cài đặt cho nhóm chat này
-          </DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-4 py-4">
+    <Sheet open={open} onOpenChange={setOpen}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <SheetTrigger asChild>
+            <Button variant='ghost' size='icon' onClick={handleTriggerClick}>
+              <Settings className='h-5 w-5' />
+              <span className='sr-only'>Cài đặt nhóm</span>
+            </Button>
+          </SheetTrigger>
+        </TooltipTrigger>
+        <TooltipContent>Cài đặt nhóm</TooltipContent>
+      </Tooltip>
+
+      <SheetContent side='right' className='w-full w-screen px-4 py-6'>
+        <SheetHeader className='p-0 pt-2'>
+          <SheetTitle>Cài đặt nhóm</SheetTitle>
+        </SheetHeader>
+        <div className='flex-1 space-y-6 overflow-y-auto py-6'>
           {isAdmin ? (
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="name" className="text-right">
-                Tên nhóm
-              </Label>
-              <Input
-                id="name"
-                value={groupName}
-                onChange={(e) => setGroupName(e.target.value)}
-                className="col-span-3"
-              />
+            <div className='space-y-4'>
+              <div className='space-y-2'>
+                <Label htmlFor='name'>Tên nhóm</Label>
+                <Input id='name' value={groupName} onChange={(e) => setGroupName(e.target.value)} />
+              </div>
+
+              <Button onClick={handleUpdateGroup} disabled={updateGroupMutation.isPending} className='w-full'>
+                {updateGroupMutation.isPending ? 'Đang cập nhật...' : 'Lưu thay đổi'}
+              </Button>
             </div>
           ) : (
-            <p>Chỉ admin mới có thể thay đổi thông tin nhóm</p>
+            <p className='text-muted-foreground'>Chỉ admin mới có thể thay đổi thông tin nhóm</p>
           )}
-        </div>
-        <DialogFooter className="flex justify-between">
-          <Button 
-            variant="destructive" 
-            onClick={handleLeaveGroup}
-            disabled={leaveGroupMutation.isPending}
-          >
-            {leaveGroupMutation.isPending ? 'Đang xử lý...' : 'Rời nhóm'}
-          </Button>
-          
-          {isAdmin && (
-            <Button 
-              onClick={handleUpdateGroup} 
-              disabled={updateGroupMutation.isPending}
+
+          <div className='border-t pt-4'>
+            <Button
+              variant='destructive'
+              onClick={handleLeaveGroup}
+              disabled={leaveGroupMutation.isPending}
+              className='w-full'
             >
-              {updateGroupMutation.isPending ? 'Đang cập nhật...' : 'Lưu thay đổi'}
+              {leaveGroupMutation.isPending ? 'Đang xử lý...' : 'Rời nhóm'}
             </Button>
-          )}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          </div>
+        </div>
+      </SheetContent>
+    </Sheet>
   )
 }

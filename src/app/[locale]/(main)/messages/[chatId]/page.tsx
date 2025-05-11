@@ -3,18 +3,17 @@ import { format, formatDistanceToNow } from 'date-fns'
 import {
   Archive,
   ArrowDown,
+  ArrowLeft,
   Check,
   CheckCheck,
   Copy,
   Heart,
-  MoreVertical,
   Phone,
   Pin,
   PinOff,
   UserCheck,
   UserMinus,
-  UserPlus,
-  Video
+  UserPlus
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
@@ -30,7 +29,6 @@ import {
   DialogTitle,
   DialogTrigger
 } from '~/components/ui/dialog'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '~/components/ui/dropdown-menu'
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '~/components/ui/hover-card'
 import { Popover, PopoverContent, PopoverTrigger } from '~/components/ui/popover'
 import { Separator } from '~/components/ui/separator'
@@ -49,6 +47,8 @@ import { vi } from 'date-fns/locale'
 import { throttle } from 'lodash'
 import { useSession } from 'next-auth/react'
 import { toast } from 'sonner'
+import { AddGroupMembersDialog } from '~/components/add-group-members-dialog'
+import { GroupSettingsDialog } from '~/components/group-settings-dialog'
 import { MessageActions } from '~/components/ui/chat/message-actions'
 import MessageLoading from '~/components/ui/chat/message-loading'
 import httpRequest from '~/config/http-request'
@@ -60,7 +60,10 @@ import {
   useCancelFriendRequestMutation,
   useRemoveFriendMutation
 } from '~/hooks/data/friends.hook'
+import useMediaQuery from '~/hooks/use-media-query'
+import { useRouter } from '~/i18n/navigation'
 import friendService from '~/services/friend.service'
+import { FriendActionButton } from './components/friend-action-button'
 import { PinnedMessages } from './components/pinned-messages'
 
 const PRIMARY_RGB = '14, 165, 233' // Giá trị RGB của màu primary (sky-500)
@@ -120,6 +123,7 @@ interface PageData {
 function ChatDetail({ params }: Props) {
   // 1. Tất cả các state và ref
   const { chatId } = use(params)
+  const router = useRouter()
   const [message, setMessage] = useState('')
   const [typingUsers, setTypingUsers] = useState<Record<string, boolean>>({})
   const [isFirstLoad, setIsFirstLoad] = useState(true)
@@ -147,6 +151,8 @@ function ChatDetail({ params }: Props) {
   const [isLoadingFriendAction, setIsLoadingFriendAction] = useState(false)
   // Thêm state để theo dõi các tin nhắn đã thả tim localy trước khi server phản hồi
   const [localReactions, setLocalReactions] = useState<Record<string, boolean>>({})
+  // Thêm state để theo dõi người dùng online trong nhóm
+  const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set())
   // Trong component, thêm state để theo dõi tin nhắn đã xóa
   const [deletedMessageIds, setDeletedMessageIds] = useState<string[]>([])
   // Thêm state để theo dõi tin nhắn đã xóa
@@ -251,6 +257,7 @@ function ChatDetail({ params }: Props) {
       toast.error(errorMessage)
     }
   })
+  const isMobile = useMediaQuery('(max-width: 768px)')
   const cancelFriendRequest = useCancelFriendRequestMutation()
   const acceptFriendRequest = useAcceptFriendRequestMutation()
   const removeFriend = useRemoveFriendMutation()
@@ -633,50 +640,59 @@ function ChatDetail({ params }: Props) {
   useEffect(() => {
     if (!socket || !chatId) return
 
-    const otherUser = data?.pages[0]?.conversation?.participants?.find((p: any) => p._id !== session?.user?._id)
+    // Nếu là chat nhóm, cập nhật danh sách người dùng online
+    if (data?.pages[0]?.conversation?.type === 'GROUP') {
+      // Kiểm tra trạng thái online của tất cả thành viên
+      const participants = data.pages[0].conversation.participants || []
+      participants.forEach((participant: any) => {
+        if (participant._id !== session?.user?._id) {
+          socket.emit(SOCKET_EVENTS.CHECK_ONLINE, participant._id, (isUserOnline: boolean) => {
+            // Cập nhật trạng thái online cho thành viên này
+            if (isUserOnline) {
+              // Cập nhật state hoặc context để hiển thị số người online
+              setOnlineUsers((prev) => new Set([...prev, participant._id]))
+            }
+          })
+        }
+      })
 
-    if (!otherUser) return
+      // Lắng nghe sự kiện online/offline để cập nhật danh sách
+      const handleUserOnline = (userId: string) => {
+        const isGroupMember = participants.some((p: any) => p._id === userId)
+        if (isGroupMember && userId !== session?.user?._id) {
+          setOnlineUsers((prev) => new Set([...prev, userId]))
+        }
+      }
 
-    // Lắng nghe sự kiện online
-    socket.on(SOCKET_EVENTS.USER_ONLINE, (userId: string) => {
-      if (userId === otherUser._id) {
-        setUserStatus({
-          isOnline: true,
-          lastActive: new Date().toISOString()
+      const handleUserOffline = (userId: string) => {
+        setOnlineUsers((prev) => {
+          const newSet = new Set([...prev])
+          newSet.delete(userId)
+          return newSet
         })
       }
-    })
 
-    // Lắng nghe sự kiện offline
-    socket.on(SOCKET_EVENTS.USER_OFFLINE, (userId: string, lastActiveTime: string) => {
-      if (userId === otherUser._id) {
-        setUserStatus({
-          isOnline: false,
-          lastActive: lastActiveTime
-        })
+      socket.on(SOCKET_EVENTS.USER_ONLINE, handleUserOnline)
+      socket.on(SOCKET_EVENTS.USER_OFFLINE, handleUserOffline)
+
+      return () => {
+        socket.off(SOCKET_EVENTS.USER_ONLINE, handleUserOnline)
+        socket.off(SOCKET_EVENTS.USER_OFFLINE, handleUserOffline)
       }
-    })
+    } else {
+      // Logic cho chat riêng tư (giữ nguyên)
+      const otherUser = data?.pages[0]?.conversation?.participants?.find((p: any) => p._id !== session?.user?._id)
+      if (!otherUser) return
 
-    // Kiểm tra trạng thái online ban đầu
-    socket.emit(SOCKET_EVENTS.CHECK_ONLINE, otherUser._id, (isUserOnline: boolean, lastActiveTime: string) => {
-      // Chỉ cập nhật nếu lastActiveTime là hợp lệ
-      if (lastActiveTime) {
+      // Kiểm tra trạng thái online ban đầu
+      socket.emit(SOCKET_EVENTS.CHECK_ONLINE, otherUser._id, (isUserOnline: boolean, lastActiveTime: string) => {
         setUserStatus({
           isOnline: isUserOnline,
-          lastActive: lastActiveTime
+          lastActive: lastActiveTime || userStatus.lastActive
         })
-      } else {
-        // Nếu không có lastActiveTime, giữ nguyên trạng thái hiện tại
-        setUserStatus((prev) => ({
-          ...prev,
-          isOnline: isUserOnline
-        }))
-      }
-    })
+      })
 
-    return () => {
-      socket.off(SOCKET_EVENTS.USER_ONLINE)
-      socket.off(SOCKET_EVENTS.USER_OFFLINE)
+      // Còn lại giữ nguyên...
     }
   }, [socket, chatId, data])
 
@@ -728,34 +744,36 @@ function ChatDetail({ params }: Props) {
           pages: updatedPages
         }
       })
-      
+
       // Cập nhật cache của danh sách chat để đánh dấu cuộc trò chuyện là đã đọc
       queryClient.setQueryData(['CHAT_LIST'], (oldData: any) => {
         if (!oldData) return oldData
-        
+
         const updatedPages = oldData.pages.map((page: any) => {
           if (!page?.conversations) return page
-          
+
           const updatedConversations = page.conversations.map((chat: any) => {
             if (chat._id === chatId) {
               return {
                 ...chat,
                 read: true,
-                lastMessage: chat.lastMessage ? {
-                  ...chat.lastMessage,
-                  status: MESSAGE_STATUS.SEEN
-                } : null
+                lastMessage: chat.lastMessage
+                  ? {
+                      ...chat.lastMessage,
+                      status: MESSAGE_STATUS.SEEN
+                    }
+                  : null
               }
             }
             return chat
           })
-          
+
           return {
             ...page,
             conversations: updatedConversations
           }
         })
-        
+
         return {
           ...oldData,
           pages: updatedPages
@@ -1645,9 +1663,54 @@ function ChatDetail({ params }: Props) {
   // Thêm logic để xác định loại chat (nhóm hay cá nhân)
   const isGroupChat = data?.pages[0]?.conversation?.type === 'GROUP'
 
+  // Thêm biến để đếm số người online và tổng số thành viên trong nhóm
+  const onlineParticipantsCount = useMemo(() => {
+    if (!data?.pages[0]?.conversation?.participants || data?.pages[0]?.conversation?.type !== 'GROUP') return 0
+    return data.pages[0].conversation.participants.filter((p: any) => p.isOnline && p._id !== session?.user?._id).length
+  }, [data?.pages[0]?.conversation?.participants, session?.user?._id])
+
+  const totalParticipantsCount = useMemo(() => {
+    if (!data?.pages[0]?.conversation?.participants || data?.pages[0]?.conversation?.type !== 'GROUP') return 0
+    return data.pages[0].conversation.participants.filter((p: any) => p._id !== session?.user?._id).length
+  }, [data?.pages[0]?.conversation?.participants, session?.user?._id])
+
+  // Trong phần hiển thị thông tin chat
+  const getChatInfo = useCallback(() => {
+    if (!data?.pages[0]?.conversation) return { name: '', avatar: undefined }
+
+    const conversation = data.pages[0].conversation
+
+    // Nếu là group chat, sử dụng tên và avatar của nhóm
+    if (conversation.type === 'GROUP') {
+      return {
+        name: conversation.name || 'Nhóm chat',
+        avatar: conversation.avatar || undefined
+      }
+    }
+
+    // Nếu là chat 1-1, lấy thông tin người dùng khác
+    const currentUserId = session?.user?._id
+    const otherParticipant = conversation.participants?.find((p: any) => p._id !== currentUserId)
+
+    return {
+      name: otherParticipant?.name || 'Unknown',
+      avatar: otherParticipant?.avatar || undefined
+    }
+  }, [data?.pages, session?.user?._id])
+
   return (
     <div className='sticky top-0 flex h-full max-h-[calc(100vh-64px)] flex-col'>
-      <div className='flex items-center p-2'>
+      <div className='flex items-center border-b p-2'>
+        {isMobile && (
+          <>
+            <Button variant='ghost' size='icon' onClick={() => router.push('/messages')} className='mr-2'>
+              <ArrowLeft className='h-5 w-5' />
+              <span className='sr-only'>Back</span>
+            </Button>
+            <h2 className='text-lg font-semibold'>Tin nhắn</h2>
+          </>
+        )}
+        <div className='flex-1'></div>
         <div className='flex items-center gap-2'>
           <Dialog open={isArchiveDialogOpen} onOpenChange={setIsArchiveDialogOpen}>
             <DialogTrigger asChild>
@@ -1677,27 +1740,13 @@ function ChatDetail({ params }: Props) {
                     setIsArchiveDialogOpen(false)
                   }}
                 >
-                  Xác nhận
+                  {data?.pages[0]?.conversation?.isArchived ? 'Bỏ lưu trữ' : 'Lưu trữ'}
                 </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
+          {/* Các nút khác nếu có */}
         </div>
-        <Separator orientation='vertical' className='mx-2 h-6' />
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant='ghost' size='icon' disabled={!chatId} className='ml-auto'>
-              <MoreVertical className='h-4 w-4' />
-              <span className='sr-only'>More</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align='end'>
-            <DropdownMenuItem>Mark as unread</DropdownMenuItem>
-            <DropdownMenuItem>Star thread</DropdownMenuItem>
-            <DropdownMenuItem>Add label</DropdownMenuItem>
-            <DropdownMenuItem>Mute thread</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
       </div>
       <Separator />
       {isLoading ? (
@@ -1720,61 +1769,85 @@ function ChatDetail({ params }: Props) {
         <div className='flex flex-1 flex-col'>
           <div className='flex items-start p-4'>
             <div className='flex flex-1 items-start gap-4 text-sm'>
-              <Avatar>
-                {/* Đối với chat riêng tư, hiển thị avatar của người còn lại */}
-                <AvatarImage
-                  src={
-                    data?.pages[0]?.conversation?.participants?.find((p: any) => p._id !== session?.user?._id)?.avatar
-                  }
-                  alt={data?.pages[0]?.conversation?.participants?.find((p: any) => p._id !== session?.user?._id)?.name}
-                />
-                <AvatarFallback>
-                  {data?.pages[0]?.conversation?.participants
-                    ?.find((p: any) => p._id !== session?.user?._id)
-                    ?.name?.split(' ')
-                    .map((chunk: string) => chunk[0])
-                    .join('') || '?'}
-                </AvatarFallback>
+              <Avatar className='h-8 w-8'>
+                <AvatarImage src={getChatInfo().avatar} alt={getChatInfo().name} />
+                <AvatarFallback>{getChatInfo().name?.charAt(0) || '?'}</AvatarFallback>
               </Avatar>
               <div className='flex flex-1 items-center'>
                 <div className='grid gap-1'>
                   <div className='flex items-center font-semibold'>
                     <div className='flex items-center gap-2'>
-                      {data?.pages[0]?.conversation?.participants?.find((p: any) => p._id !== session?.user?._id)
-                        ?.name || 'Cuộc trò chuyện'}
+                      {getChatInfo().name || 'Cuộc trò chuyện'}
 
                       {/* Friend status icon - close to username */}
-                      {friendIconElement}
+                      {data?.pages[0]?.conversation?.type !== 'GROUP' && friendIconElement}
                     </div>
                   </div>
                   <div className='text-muted-foreground flex items-center text-xs'>
-                    <div
-                      className={`mr-2 h-2 w-2 rounded-full ${userStatus.isOnline ? 'bg-green-500' : 'bg-gray-400'}`}
-                    ></div>
-                    {userStatus.isOnline ? 'Active now' : `Last active ${formatLastActive(userStatus.lastActive)}`}
+                    {data?.pages[0]?.conversation?.type === 'GROUP' ? (
+                      // Hiển thị thông tin nhóm
+                      <div className='flex items-center'>
+                        <div
+                          className={`mr-2 h-2 w-2 rounded-full ${
+                            onlineUsers.size > 0 ? 'bg-green-500' : 'bg-gray-400'
+                          }`}
+                        ></div>
+                        {onlineUsers.size > 0
+                          ? `${onlineUsers.size} thành viên đang online`
+                          : `${totalParticipantsCount} thành viên`}
+                      </div>
+                    ) : (
+                      // Hiển thị trạng thái online cho chat 1-1
+                      <>
+                        <div
+                          className={`mr-2 h-2 w-2 rounded-full ${userStatus.isOnline ? 'bg-green-500' : 'bg-gray-400'}`}
+                        ></div>
+                        {userStatus.isOnline ? 'Active now' : `Last active ${formatLastActive(userStatus.lastActive)}`}
+                      </>
+                    )}
                   </div>
                 </div>
                 {/* Action buttons - pushed to the right */}
                 <div className='ml-auto flex items-center gap-2'>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant='ghost' size='icon' className='h-6 w-6 p-4'>
-                        <Phone className='h-4 w-4' />
-                        <span className='sr-only'>Gọi điện</span>
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Gọi điện</TooltipContent>
-                  </Tooltip>
-
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant='ghost' size='icon' className='h-6 w-6 p-4'>
-                        <Video className='h-4 w-4' />
-                        <span className='sr-only'>Gọi video</span>
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Gọi video</TooltipContent>
-                  </Tooltip>
+                  <div className='flex items-center gap-2'>
+                    {data?.pages[0]?.conversation?.type === 'GROUP' ? (
+                      // Hiển thị nút cho nhóm chat
+                      <>
+                        <AddGroupMembersDialog
+                          conversation={data?.pages[0]?.conversation}
+                          key={`add-members-${chatId}`}
+                        />
+                        <GroupSettingsDialog
+                          conversation={data?.pages[0]?.conversation}
+                          onUpdate={() => queryClient.invalidateQueries({ queryKey: ['MESSAGES', chatId] })}
+                        />
+                      </>
+                    ) : (
+                      // Hiển thị nút gọi và kết bạn cho chat 1-1
+                      <>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button variant='ghost' size='icon'>
+                              <Phone className='h-5 w-5' />
+                              <span className='sr-only'>Gọi thoại</span>
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Gọi thoại</TooltipContent>
+                        </Tooltip>
+                        {/* Chỉ hiển thị nút kết bạn trong chat 1-1 */}
+                        {!isFriend && otherUserId && (
+                          <FriendActionButton
+                            friendStatus={friendStatus}
+                            otherUserId={otherUserId}
+                            onStatusChange={(newStatus) => {
+                              setFriendStatus(newStatus as FRIEND_REQUEST_STATUS | 'RECEIVED' | null)
+                              setIsFriend(newStatus === FRIEND_REQUEST_STATUS.ACCEPTED)
+                            }}
+                          />
+                        )}
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1815,6 +1888,15 @@ function ChatDetail({ params }: Props) {
 
                 {/* Danh sách tin nhắn */}
                 {filteredMessages?.map((msg, index) => {
+                  // Nếu là tin nhắn hệ thống, hiển thị khác
+                  if (msg.type === MESSAGE_TYPE.SYSTEM) {
+                    return (
+                      <div key={msg._id} className='text-muted-foreground my-4 text-center text-xs'>
+                        {msg.content}
+                      </div>
+                    )
+                  }
+
                   const isSentByMe = msg.senderId._id === session?.user?._id
 
                   // Kiểm tra xem tin nhắn có phải là tin nhắn đầu tiên trong nhóm không
@@ -2024,14 +2106,25 @@ function ChatDetail({ params }: Props) {
 
                 {/* Hiển thị hiệu ứng typing nếu có người đang nhập - đặt ở cuối danh sách tin nhắn */}
                 {isAnyoneTyping && (
-                  <div className={`flex gap-2 ${!otherUser ? 'flex-row-reverse' : 'flex-row'}`}>
-                    <Avatar className='h-8 w-8 flex-shrink-0'>
-                      <AvatarImage src={otherUser?.avatar} alt={otherUser?.name || 'User'} />
-                      <AvatarFallback>{otherUser?.name?.[0] || 'U'}</AvatarFallback>
-                    </Avatar>
-                    <div className='bg-muted flex cursor-pointer items-center rounded-full px-2 py-0.5 text-xs'>
-                      <MessageLoading />
-                    </div>
+                  <div className='flex justify-start gap-2'>
+                    {Object.entries(typingUsers).map(([userId, isTyping]) => {
+                      if (!isTyping) return null
+
+                      // Tìm thông tin người dùng từ danh sách participants
+                      const typingUser = data?.pages[0]?.conversation?.participants?.find((p: any) => p._id === userId)
+
+                      return (
+                        <div key={userId} className='flex items-end gap-2'>
+                          <Avatar className='h-8 w-8 flex-shrink-0'>
+                            <AvatarImage src={typingUser?.avatar} alt={typingUser?.name || 'User'} />
+                            <AvatarFallback>{typingUser?.name?.[0] || 'U'}</AvatarFallback>
+                          </Avatar>
+                          <div className='bg-muted flex cursor-pointer items-center rounded-full px-2 py-0.5 text-xs'>
+                            <MessageLoading />
+                          </div>
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
 

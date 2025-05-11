@@ -59,35 +59,60 @@ export default function ConversationItem({
 
   // Kiểm tra trạng thái online ban đầu và lắng nghe sự kiện online/offline
   useEffect(() => {
-    if (!socket || !otherUserId) return
+    if (!socket) return
+    
+    if (conversation.type === 'PRIVATE' && otherUserId) {
+      console.log('Checking online status for user:', otherUserId)
+      
+      // Kiểm tra trạng thái online ban đầu cho chat riêng tư
+      socket.emit(SOCKET_EVENTS.CHECK_ONLINE, otherUserId, (isUserOnline: boolean, lastActiveTime: string) => {
+        console.log('Online status for user:', otherUserId, isUserOnline)
+        setIsOnline(isUserOnline)
+      })
 
-    // Kiểm tra trạng thái online ban đầu
-    socket.emit(SOCKET_EVENTS.CHECK_ONLINE, otherUserId, (isUserOnline: boolean) => {
-      setIsOnline(isUserOnline)
-    })
-
-    // Lắng nghe sự kiện online
-    const handleUserOnline = (userId: string) => {
-      if (userId === otherUserId) {
-        setIsOnline(true)
+      // Lắng nghe sự kiện online
+      const handleUserOnline = (userId: string) => {
+        console.log('User online event:', userId, otherUserId)
+        if (userId === otherUserId) {
+          setIsOnline(true)
+        }
       }
-    }
 
-    // Lắng nghe sự kiện offline
-    const handleUserOffline = (userId: string) => {
-      if (userId === otherUserId) {
-        setIsOnline(false)
+      // Lắng nghe sự kiện offline
+      const handleUserOffline = (userId: string) => {
+        console.log('User offline event:', userId, otherUserId)
+        if (userId === otherUserId) {
+          setIsOnline(false)
+        }
       }
-    }
 
-    socket.on(SOCKET_EVENTS.USER_ONLINE, handleUserOnline)
-    socket.on(SOCKET_EVENTS.USER_OFFLINE, handleUserOffline)
+      socket.on(SOCKET_EVENTS.USER_ONLINE, handleUserOnline)
+      socket.on(SOCKET_EVENTS.USER_OFFLINE, handleUserOffline)
 
-    return () => {
-      socket.off(SOCKET_EVENTS.USER_ONLINE, handleUserOnline)
-      socket.off(SOCKET_EVENTS.USER_OFFLINE, handleUserOffline)
+      return () => {
+        socket.off(SOCKET_EVENTS.USER_ONLINE, handleUserOnline)
+        socket.off(SOCKET_EVENTS.USER_OFFLINE, handleUserOffline)
+      }
+    } else if (conversation.type === 'GROUP' && conversation.participants) {
+      // Kiểm tra trạng thái online của tất cả thành viên trong nhóm
+      const participants = conversation.participants.filter((p: any) => p._id !== session?.user?._id)
+      
+      // Đếm số người online trong nhóm
+      let onlineCount = 0
+      
+      participants.forEach((participant: any) => {
+        socket.emit(SOCKET_EVENTS.CHECK_ONLINE, participant._id, (isUserOnline: boolean) => {
+          if (isUserOnline) {
+            onlineCount++
+            // Cập nhật state nếu có ít nhất một người online
+            if (onlineCount > 0) {
+              setIsOnline(true)
+            }
+          }
+        })
+      })
     }
-  }, [socket, otherUserId])
+  }, [socket, otherUserId, conversation.type, conversation.participants, session?.user?._id])
 
   // Xử lý khi click vào nút archive/unarchive
   const handleArchiveToggle = (e: React.MouseEvent) => {
@@ -123,6 +148,16 @@ export default function ConversationItem({
       avatar = otherUser.avatar
     }
   }
+  
+  // Đếm số người online trong nhóm (trừ bản thân)
+  const onlineParticipantsCount = conversation.type === 'GROUP' 
+    ? conversation.participants?.filter((p: any) => p.isOnline && p._id !== session?.user?._id).length || 0
+    : 0
+  
+  // Tổng số thành viên trong nhóm (trừ bản thân)
+  const totalParticipantsCount = conversation.type === 'GROUP'
+    ? conversation.participants?.filter((p: any) => p._id !== session?.user?._id).length || 0
+    : 0
 
   // Format thời gian của tin nhắn cuối cùng
   const formatTime = (dateString: string) => {
@@ -181,13 +216,11 @@ export default function ConversationItem({
           <AvatarImage src={avatar} alt={name} />
           <AvatarFallback>{name?.charAt(0)}</AvatarFallback>
         </Avatar>
-        {conversation.type === 'PRIVATE' && (
-          <div
-            className={`border-background absolute right-0 bottom-0 h-3 w-3 rounded-full border-2 ${
-              isOnline ? 'bg-green-500' : 'bg-gray-400'
-            }`}
-          />
-        )}
+        <div
+          className={`border-background absolute right-0 bottom-0 h-3 w-3 rounded-full border-2 ${
+            isOnline ? 'bg-green-500' : 'bg-gray-400'
+          }`}
+        />
       </div>
       <div className='ml-3 flex-1 overflow-hidden'>
         <div className='flex items-center justify-between'>
@@ -217,6 +250,19 @@ export default function ConversationItem({
     </div>
   )
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

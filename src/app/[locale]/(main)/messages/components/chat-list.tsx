@@ -14,6 +14,7 @@ import { useArchiveChat } from '~/hooks/data/chat.hooks'
 import { useSocket } from '~/hooks/use-socket'
 import conversationsService from '~/services/conversations.service'
 import { AnimatePresence, motion } from 'framer-motion'
+import  useMediaQuery  from '~/hooks/use-media-query'
 
 // Tạo component MemoizedConversationItem
 const MemoizedConversationItem = React.memo<{
@@ -69,6 +70,7 @@ export function ChatList() {
   const { socket } = useSocket()
   const { data: session } = useSession()
   const { unarchiveChat } = useArchiveChat()
+  const isMobile = useMediaQuery('(max-width: 768px)')
 
   // Tạo một ID duy nhất cho mỗi lần render sử dụng uuid
   const [renderUniqueId] = useState(() => uuidv4())
@@ -278,6 +280,7 @@ export function ChatList() {
 
 // Thêm export default để hỗ trợ cả hai cách import
 export default ChatList
+
 
 
 

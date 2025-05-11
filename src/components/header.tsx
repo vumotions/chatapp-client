@@ -10,19 +10,24 @@ import NavLink from './nav-link'
 import NotificationPopover from './notification-popover'
 import { Button, buttonVariants } from './ui/button'
 import UserPopover from './user-popover'
+import useMediaQuery from '~/hooks/use-media-query'
 
 function Header() {
   const { data: session } = useSession()
+  const isMobile = useMediaQuery('(max-width: 768px)')
+  
   return (
     <header className='bg-background sticky top-0 z-50 flex h-16 w-full items-center border-b'>
       <div className='flex w-full items-center justify-between gap-2 px-4 py-2'>
-        <div className='flex items-center gap-8'>
+        <div className='flex items-center gap-4 md:gap-8'>
           <Link href={'/'} className='h-8 w-8'>
             Logo
           </Link>
-          <HeaderSearch />
+          {!isMobile && <HeaderSearch />}
         </div>
-        <div className='flex items-center gap-4'>
+        <div className='flex items-center gap-2 md:gap-4'>
+          {isMobile && <HeaderSearch />}
+          
           {session && (
             <Fragment>
               <Tooltip delayDuration={0}>
@@ -46,21 +51,23 @@ function Header() {
 
           {!session && (
             <Fragment>
-              <Link
-                href='/auth/login'
-                className={buttonVariants({
-                  variant: 'outline'
-                })}
-              >
-                Sign in
-              </Link>
+              {!isMobile && (
+                <Link
+                  href='/auth/login'
+                  className={buttonVariants({
+                    variant: 'outline'
+                  })}
+                >
+                  Sign in
+                </Link>
+              )}
               <Link
                 href='/auth/register'
                 className={buttonVariants({
                   variant: 'default'
                 })}
               >
-                Sign Up
+                {isMobile ? 'Sign Up' : 'Sign Up'}
               </Link>
             </Fragment>
           )}
