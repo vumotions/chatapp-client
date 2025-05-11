@@ -14,6 +14,7 @@ import { useChatList } from '~/hooks/data/chat.hooks'
 import { Link } from '~/i18n/navigation'
 import { Input } from './ui/input'
 import { Skeleton } from './ui/skeleton'
+import { Button } from './ui/button'
 
 function MessagePopover() {
   const [open, setOpen] = useState(false)
@@ -87,7 +88,7 @@ function MessagePopover() {
     }
 
     // If it's a private chat, get the other participant
-    const currentUserId = session?.user?._id
+  const currentUserId = session?.user?._id
     const otherParticipant = chat.participants?.find((p: any) => p._id !== currentUserId)
 
     return {
@@ -99,10 +100,10 @@ function MessagePopover() {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <span className='bg-accent relative cursor-pointer rounded-full p-2'>
+        <Button variant='ghost' size='icon' className='bg-accent relative cursor-pointer rounded-full p-2'>
           <MessageCircle className='size-5 text-gray-700 dark:text-gray-300' />
           {hasUnread && <span className='absolute top-0 right-0 h-2 w-2 rounded-full bg-blue-500'></span>}
-        </span>
+        </Button>
       </PopoverTrigger>
       <PopoverContent className='w-96 p-0' align='end'>
         <div className='border-b p-3'>

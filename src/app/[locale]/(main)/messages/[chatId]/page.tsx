@@ -64,6 +64,7 @@ import friendService from '~/services/friend.service'
 import { PinnedMessages } from './components/pinned-messages'
 
 const PRIMARY_RGB = '14, 165, 233' // Giá trị RGB của màu primary (sky-500)
+const SUCCESS_RGB = '34, 197, 94' // Giá trị RGB của màu green-500
 
 type Props = {
   params: Promise<{ chatId: string }>
@@ -183,24 +184,33 @@ function ChatDetail({ params }: Props) {
           block: 'center'
         })
 
-        // Thêm hiệu ứng highlight tạm thời cho tin nhắn
-        messageElement.style.transition = 'background-color 0.5s ease'
-        messageElement.style.backgroundColor = `rgba(${PRIMARY_RGB}, 0.15)`
-
+        // Điều chỉnh vị trí scroll thêm một chút để chính xác hơn
         setTimeout(() => {
-          messageElement.style.backgroundColor = ''
-        }, 2000)
+          const messageRect = messageElement.getBoundingClientRect()
+          const containerRect = scrollContainer.getBoundingClientRect()
+          const offset = messageRect.top - containerRect.top - (containerRect.height / 2 - messageRect.height / 2)
+
+          scrollContainer.scrollTop = scrollContainer.scrollTop + offset
+
+          // Thêm hiệu ứng highlight với màu xanh lá cây
+          messageElement.style.transition = 'background-color 0.5s ease'
+          messageElement.style.backgroundColor = `rgba(${SUCCESS_RGB}, 0.15)`
+
+          setTimeout(() => {
+            messageElement.style.backgroundColor = ''
+          }, 2000)
+        }, 100)
       } else {
         console.log('Không tìm thấy tin nhắn hoặc container:', messageId)
-
         // Nếu không tìm thấy tin nhắn, có thể nó chưa được tải
         // Cần tải thêm tin nhắn cũ và thử lại
         if (hasNextPage && !isFetchingNextPage) {
           fetchNextPage().then(() => {
-            // Thử lại sau khi tải thêm tin nhắn
+            // Thử lại sau khi tải thêm tin nhắn với timeout dài hơn
             setTimeout(() => {
               const messageElement = document.getElementById(`message-${messageId}`)
               if (messageElement) {
+                // Đảm bảo tin nhắn đã được render đầy đủ trước khi scroll
                 messageElement.scrollIntoView({
                   behavior: 'smooth',
                   block: 'center'
@@ -213,8 +223,13 @@ function ChatDetail({ params }: Props) {
                 setTimeout(() => {
                   messageElement.style.backgroundColor = ''
                 }, 2000)
+              } else {
+                // Nếu vẫn không tìm thấy, có thể cần fetch thêm
+                if (hasNextPage) {
+                  fetchNextPage()
+                }
               }
-            }, 500)
+            }, 800) // Tăng timeout để đảm bảo DOM đã cập nhật
           })
         }
       }
@@ -316,6 +331,12 @@ function ChatDetail({ params }: Props) {
     }
   }, [socket, chatId])
 
+  // Lấy thông tin người dùng khác trong cuộc trò chuyện
+  const otherUser = useMemo(() => {
+    if (!data?.pages[0]?.conversation?.participants) return null
+    return data.pages[0].conversation.participants.find((p: { _id: string }) => p._id !== session?.user?._id) || null
+  }, [data?.pages[0]?.conversation?.participants, session?.user?._id])
+
   // Cập nhật useEffect lắng nghe sự kiện nhận tin nhắn mới
   useEffect(() => {
     if (!socket || !chatId) return
@@ -372,23 +393,63 @@ function ChatDetail({ params }: Props) {
         // Cập nhật danh sách chat để hiển thị tin nhắn mới nhất và thời gian
         queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] })
         queryClient.invalidateQueries({ queryKey: ['ARCHIVED_CHAT_LIST'] })
-
         return // Thoát khỏi hàm sau khi thay thế
       }
 
       // Nếu không phải tin nhắn thay thế, thêm tin nhắn mới vào cache
       const isSentByCurrentUser = String(message.senderId) === String(session?.user?._id)
 
+      // Xử lý thông tin người gửi
+      let senderInfo
+
+      // Nếu là người dùng hiện tại
+      if (isSentByCurrentUser) {
+        senderInfo = {
+          _id: session?.user?._id,
+          name: session?.user?.name || 'You',
+          avatar: session?.user?.avatar || ''
+        }
+      }
+      // Nếu là nhóm chat, tìm thông tin người gửi trong danh sách thành viên
+      else if (data?.pages[0]?.conversation?.type === 'GROUP') {
+        const sender = data?.pages[0]?.conversation?.participants?.find((p: any) => p._id === message.senderId)
+
+        if (sender) {
+          senderInfo = {
+            _id: message.senderId,
+            name: sender.name || 'User',
+            avatar: sender.avatar || ''
+          }
+        } else {
+          // Nếu không tìm thấy trong danh sách thành viên, sử dụng thông tin từ message
+          senderInfo = {
+            _id: message.senderId,
+            name: message.senderName || 'User',
+            avatar: message.senderAvatar || ''
+          }
+        }
+      }
+      // Nếu là chat 1-1, sử dụng otherUser
+      else if (otherUser) {
+        senderInfo = {
+          _id: message.senderId,
+          name: otherUser.name || 'User',
+          avatar: otherUser.avatar || ''
+        }
+      }
+      // Fallback
+      else {
+        senderInfo = {
+          _id: message.senderId,
+          name: message.senderName || 'User',
+          avatar: message.senderAvatar || ''
+        }
+      }
+
       // Chuẩn bị tin nhắn với định dạng đúng
       const formattedMessage = {
         ...message,
-        senderId: {
-          _id: message.senderId,
-          name: isSentByCurrentUser ? session?.user?.name : message.senderName || 'User',
-          avatar: isSentByCurrentUser ? session?.user?.avatar : message.senderAvatar
-        },
-        // Nếu tin nhắn từ người dùng hiện tại, đặt trạng thái là DELIVERED
-        // Nếu từ người khác và người dùng đang xem (isAtBottom), đặt trạng thái là SEEN
+        senderId: senderInfo,
         status: isSentByCurrentUser
           ? MESSAGE_STATUS.DELIVERED
           : isAtBottom
@@ -439,7 +500,7 @@ function ChatDetail({ params }: Props) {
     return () => {
       socket.off(SOCKET_EVENTS.RECEIVE_MESSAGE, handleReceiveMessage)
     }
-  }, [socket, chatId, session?.user, sentTempIds, queryClient, isAtBottom])
+  }, [socket, chatId, session?.user, sentTempIds, queryClient, isAtBottom, otherUser, data])
 
   // Lắng nghe sự kiện typing từ người dùng khác
   useEffect(() => {
@@ -1063,12 +1124,6 @@ function ChatDetail({ params }: Props) {
     }
   }
 
-  // Thêm biến otherUser để lưu thông tin người dùng khác
-  const otherUser = useMemo(() => {
-    if (!data?.pages[0]?.conversation?.participants) return null
-    return data.pages[0].conversation.participants.find((p: { _id: string }) => p._id !== session?.user?._id) || null
-  }, [data?.pages[0]?.conversation?.participants, session?.user?._id])
-
   // Thêm biến friendIconElement để hiển thị trạng thái bạn bè
   const friendIconElement = useMemo(() => {
     if (!otherUser) return null
@@ -1369,14 +1424,14 @@ function ChatDetail({ params }: Props) {
         // Cập nhật cache tin nhắn ghim
         queryClient.setQueryData(['PINNED_MESSAGES', chatId], (oldData: any) => {
           if (!oldData) return oldData
-          
+
           // Lọc tin nhắn đã xóa khỏi danh sách tin nhắn ghim
           return oldData.filter((msg: any) => msg._id !== data.messageId)
         })
 
         // Cập nhật danh sách chat vì tin nhắn cuối cùng có thể đã thay đổi
         queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] })
-        
+
         // Cập nhật danh sách tin nhắn ghim
         queryClient.invalidateQueries({ queryKey: ['PINNED_MESSAGES', chatId] })
       }
@@ -1554,6 +1609,9 @@ function ChatDetail({ params }: Props) {
     }
   }, [handleScrollPosition, handleScrollForFetch])
 
+  // Thêm logic để xác định loại chat (nhóm hay cá nhân)
+  const isGroupChat = data?.pages[0]?.conversation?.type === 'GROUP'
+
   return (
     <div className='sticky top-0 flex h-full max-h-[calc(100vh-64px)] flex-col'>
       <div className='flex items-center p-2'>
@@ -1690,8 +1748,8 @@ function ChatDetail({ params }: Props) {
           </div>
           <Separator />
           {data?.pages[0]?.messages && (
-            <PinnedMessages 
-              chatId={chatId as string} 
+            <PinnedMessages
+              chatId={chatId as string}
               onScrollToMessage={scrollToMessage}
               fetchOlderMessages={fetchNextPage}
               hasMoreMessages={!!hasNextPage}
@@ -1914,11 +1972,7 @@ function ChatDetail({ params }: Props) {
                                 className='h-8 w-8 rounded-full bg-transparent hover:bg-black/10 dark:hover:bg-white/10'
                                 onClick={() => pinMessage(msg._id)}
                               >
-                                {msg.isPinned ? (
-                                  <PinOff className='h-4 w-4' />
-                                ) : (
-                                  <Pin className='h-4 w-4' />
-                                )}
+                                {msg.isPinned ? <PinOff className='h-4 w-4' /> : <Pin className='h-4 w-4' />}
                                 <span className='sr-only'>{msg.isPinned ? 'Bỏ ghim' : 'Ghim'}</span>
                               </Button>
 

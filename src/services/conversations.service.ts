@@ -95,6 +95,47 @@ class ConversationsService {
     console.log('API response for getPinnedMessages:', res.data)
     return res.data.data
   }
+
+  // Tạo nhóm chat mới
+  async createGroupConversation(data: { participants: string[], name: string, avatar?: string }) {
+    console.log('Calling createGroupConversation API with:', data)
+    const res = await httpRequest.post('/chat/group', data)
+    console.log('API response for createGroupConversation:', res.data)
+    return res.data.data
+  }
+
+  // Thêm các phương thức quản lý nhóm
+  // Cập nhật thông tin nhóm
+  async updateGroupConversation(groupId: string, data: { name?: string, avatar?: string }) {
+    console.log('Calling updateGroupConversation API with:', { groupId, data })
+    const res = await httpRequest.put(`/chat/group/${groupId}`, data)
+    console.log('API response for updateGroupConversation:', res.data)
+    return res.data
+  }
+
+  // Thêm thành viên vào nhóm
+  async addGroupMembers(groupId: string, userIds: string[]) {
+    console.log('Calling addGroupMembers API with:', { groupId, userIds })
+    const res = await httpRequest.post(`/chat/group/${groupId}/members`, { userIds })
+    console.log('API response for addGroupMembers:', res.data)
+    return res.data
+  }
+
+  // Xóa thành viên khỏi nhóm
+  async removeGroupMember(groupId: string, userId: string) {
+    console.log('Calling removeGroupMember API with:', { groupId, userId })
+    const res = await httpRequest.delete(`/chat/group/${groupId}/members/${userId}`)
+    console.log('API response for removeGroupMember:', res.data)
+    return res.data
+  }
+
+  // Rời khỏi nhóm
+  async leaveGroupConversation(groupId: string) {
+    console.log('Calling leaveGroupConversation API with:', { groupId })
+    const res = await httpRequest.post(`/chat/group/${groupId}/leave`)
+    console.log('API response for leaveGroupConversation:', res.data)
+    return res.data
+  }
 }
 
 const conversationsService = new ConversationsService()

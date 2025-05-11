@@ -77,8 +77,10 @@ export function MessageActions({ message, chatId, isSentByMe, onEditStart }: Mes
   // Kiểm tra xem tin nhắn có đang chờ xóa không
   const isPendingDeletion = pendingDeletion === message._id
 
+  // Sửa lại điều kiện hiển thị
   if (!canModify) return null
-  if (isPendingDeletion) return null // Ẩn các action nếu tin nhắn đang chờ xóa
+  // Bỏ dòng này để vẫn hiển thị actions khi tin nhắn đang chờ xóa
+  // if (isPendingDeletion) return null // Ẩn các action nếu tin nhắn đang chờ xóa
 
   // Tạo một component riêng cho icon menu
   const MenuIcon = () => {
@@ -104,9 +106,17 @@ export function MessageActions({ message, chatId, isSentByMe, onEditStart }: Mes
 
   return (
     <>
-      <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
+      <Popover open={isPopoverOpen && !isPendingDeletion} onOpenChange={(open) => {
+        // Chỉ cho phép mở popover nếu tin nhắn không đang chờ xóa
+        if (isPendingDeletion && open) return
+        setIsPopoverOpen(open)
+      }}>
         <PopoverTrigger asChild>
-          <Button variant='ghost' className='h-8 w-8 p-0'>
+          <Button 
+            variant='ghost' 
+            className={`h-8 w-8 p-0 ${isPendingDeletion ? 'opacity-50 cursor-not-allowed' : ''}`}
+            disabled={isPendingDeletion}
+          >
             <span className='sr-only'>Mở menu</span>
             <MenuIcon />
           </Button>
@@ -120,6 +130,7 @@ export function MessageActions({ message, chatId, isSentByMe, onEditStart }: Mes
                 setIsEditDialogOpen(true)
                 setIsPopoverOpen(false)
               }}
+              disabled={isPendingDeletion}
             >
               <Pencil className='h-4 w-4' />
               <span>Chỉnh sửa</span>
@@ -128,6 +139,7 @@ export function MessageActions({ message, chatId, isSentByMe, onEditStart }: Mes
               variant='ghost'
               className='flex cursor-pointer items-center justify-start gap-2 px-2 py-1.5 text-sm'
               onClick={handlePin}
+              disabled={isPendingDeletion}
             >
               {message.isPinned ? (
                 <>
@@ -145,6 +157,7 @@ export function MessageActions({ message, chatId, isSentByMe, onEditStart }: Mes
               variant='ghost'
               className='text-destructive hover:text-destructive flex cursor-pointer items-center justify-start gap-2 px-2 py-1.5 text-sm'
               onClick={handleDelete}
+              disabled={isPendingDeletion}
             >
               <Trash className='h-4 w-4' />
               <span>Xóa</span>
@@ -190,4 +203,6 @@ export function MessageActions({ message, chatId, isSentByMe, onEditStart }: Mes
     </>
   )
 }
+
+
 

@@ -1,5 +1,5 @@
 'use client'
-
+import { Tooltip, TooltipContent, TooltipTrigger } from '~/components/ui/tooltip'
 import { HomeIcon } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { Fragment } from 'react'
@@ -8,7 +8,7 @@ import HeaderSearch from './header-search'
 import MessagePopover from './message-popover'
 import NavLink from './nav-link'
 import NotificationPopover from './notification-popover'
-import { buttonVariants } from './ui/button'
+import { Button, buttonVariants } from './ui/button'
 import UserPopover from './user-popover'
 
 function Header() {
@@ -25,9 +25,19 @@ function Header() {
         <div className='flex items-center gap-4'>
           {session && (
             <Fragment>
-              <NavLink href={'/'} className='bg-accent cursor-pointer rounded-full p-2'>
-                <HomeIcon className='size-5' />
-              </NavLink>
+              <Tooltip delayDuration={0}>
+                <TooltipTrigger asChild>
+                  <NavLink href={'/'}>
+                    <Button variant='ghost' size='icon' className='bg-accent relative cursor-pointer rounded-full p-2'>
+                      <HomeIcon className='size-5' />
+                    </Button>
+                  </NavLink>
+                </TooltipTrigger>
+                <TooltipContent side='left' className='flex items-center gap-4'>
+                  Home
+                </TooltipContent>
+              </Tooltip>
+
               <NotificationPopover />
               <MessagePopover />
               <UserPopover />

@@ -24,7 +24,11 @@ export const useNotifications = (filter = 'all') => {
         })),
         pageParams: data.pageParams
       }
-    }
+    },
+    // Thêm refetchOnWindowFocus để cập nhật khi tab được focus lại
+    refetchOnWindowFocus: true,
+    // Thêm staleTime ngắn để đảm bảo dữ liệu luôn mới
+    staleTime: 10 * 1000 // 10 giây
   })
 }
 
@@ -85,5 +89,6 @@ export const useDeleteAllNotificationsMutation = () => {
     }
   })
 }
+
 
 

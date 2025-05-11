@@ -33,7 +33,12 @@ function SocketProvider({ children }: Props) {
     const socketInstance = io(socketUrl, {
       auth: {
         Authorization: `Bearer ${accessToken}`
-      }
+      },
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 20000
     })
 
     setSocket(socketInstance)
@@ -42,68 +47,80 @@ function SocketProvider({ children }: Props) {
     socketInstance.on('connect', () => {
       console.log('Socket connected:', socketInstance.id)
     })
-    
+
     socketInstance.on('connect_error', (error) => {
       console.error('Socket connection error:', error)
       toast.error(`Lỗi kết nối: ${error?.message || 'Không thể kết nối đến server'}`)
     })
 
-    // Lắng nghe sự kiện lỗi
-    socketInstance.on(SOCKET_EVENTS.ERROR, (error) => {
+    // Thêm log cho các sự kiện khác
+    socketInstance.on('disconnect', (reason) => {
+      console.log('Socket disconnected:', reason)
+    })
+
+    socketInstance.on('reconnect', (attemptNumber) => {
+      console.log('Socket reconnected after', attemptNumber, 'attempts')
+    })
+
+    socketInstance.on('reconnect_attempt', (attemptNumber) => {
+      console.log('Socket reconnection attempt:', attemptNumber)
+    })
+
+    socketInstance.on('error', (error) => {
       console.error('Socket error:', error)
-      toast.error(`Lỗi: ${error?.message || 'Đã xảy ra lỗi'}`)
     })
 
     return () => {
+      console.log('Disconnecting socket')
       socketInstance.disconnect()
     }
   }, [session?.accessToken])
 
   useEffect(() => {
-    if (!socket) return;
-    
+    if (!socket) return
+
     // Lắng nghe sự kiện RECEIVE_MESSAGE để cập nhật tin nhắn cuối cùng
     socket.on(SOCKET_EVENTS.RECEIVE_MESSAGE, (message) => {
-      console.log('RECEIVE_MESSAGE event received in provider:', message);
+      console.log('RECEIVE_MESSAGE event received in provider:', message)
       // Tin nhắn mới đã được xử lý trong chat-list.tsx
-    });
-    
+    })
+
     // Lắng nghe sự kiện USER_ONLINE để cập nhật trạng thái online
     socket.on(SOCKET_EVENTS.USER_ONLINE, (userId) => {
-      console.log('USER_ONLINE event received in provider:', userId);
+      console.log('USER_ONLINE event received in provider:', userId)
       // Trạng thái online đã được xử lý trong chat-list.tsx
-    });
-    
+    })
+
     // Lắng nghe sự kiện USER_OFFLINE để cập nhật trạng thái offline
     socket.on(SOCKET_EVENTS.USER_OFFLINE, (userId, lastActive) => {
-      console.log('USER_OFFLINE event received in provider:', userId, lastActive);
+      console.log('USER_OFFLINE event received in provider:', userId, lastActive)
       // Trạng thái offline đã được xử lý trong chat-list.tsx
-    });
-    
+    })
+
     // Lắng nghe sự kiện MESSAGE_DELETED
     socket.on(SOCKET_EVENTS.MESSAGE_DELETED, (data) => {
-      console.log('MESSAGE_DELETED event received in provider:', data);
-    });
-    
+      console.log('MESSAGE_DELETED event received in provider:', data)
+    })
+
     // Lắng nghe sự kiện MESSAGE_UPDATED
-    socket.on('MESSAGE_UPDATED', () => {
-      console.log('MESSAGE_UPDATED event received in provider');
-    });
-    
+    socket.on(SOCKET_EVENTS.MESSAGE_UPDATED, () => {
+      console.log('MESSAGE_UPDATED event received in provider')
+    })
+
     // Lắng nghe sự kiện CONVERSATION_DELETED
     socket.on(SOCKET_EVENTS.CONVERSATION_DELETED, (data) => {
-      console.log('CONVERSATION_DELETED event received in provider:', data);
-    });
-    
+      console.log('CONVERSATION_DELETED event received in provider:', data)
+    })
+
     return () => {
-      socket.off(SOCKET_EVENTS.RECEIVE_MESSAGE);
-      socket.off(SOCKET_EVENTS.USER_ONLINE);
-      socket.off(SOCKET_EVENTS.USER_OFFLINE);
-      socket.off(SOCKET_EVENTS.MESSAGE_DELETED);
-      socket.off('MESSAGE_UPDATED');
-      socket.off(SOCKET_EVENTS.CONVERSATION_DELETED);
-    };
-  }, [socket]);
+      socket.off(SOCKET_EVENTS.RECEIVE_MESSAGE)
+      socket.off(SOCKET_EVENTS.USER_ONLINE)
+      socket.off(SOCKET_EVENTS.USER_OFFLINE)
+      socket.off(SOCKET_EVENTS.MESSAGE_DELETED)
+      socket.off(SOCKET_EVENTS.MESSAGE_UPDATED)
+      socket.off(SOCKET_EVENTS.CONVERSATION_DELETED)
+    }
+  }, [socket])
 
   return <SocketContext.Provider value={{ socket }}>{children}</SocketContext.Provider>
 }

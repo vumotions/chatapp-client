@@ -12,6 +12,7 @@ import SOCKET_EVENTS from '~/constants/socket-events'
 import { useArchiveChat } from '~/hooks/data/chat.hooks'
 import { useSocket } from '~/hooks/use-socket'
 import { cn } from '~/lib/utils'
+import conversationsService from '~/services/conversations.service'
 
 interface ConversationItemProps {
   conversation: any
@@ -160,6 +161,16 @@ export default function ConversationItem({
           chatId: conversation._id,
           messageIds: conversation.lastMessage ? [conversation.lastMessage._id] : []
         })
+      } else {
+        // Nếu tin nhắn cuối cùng là do người dùng hiện tại gửi, đánh dấu là đã đọc ngay lập tức
+        // mà không cần gửi sự kiện socket
+        conversationsService.markChatAsRead(conversation._id)
+          .then(() => {
+            console.log('Marked own message as read')
+          })
+          .catch(error => {
+            console.error('Failed to mark own message as read:', error)
+          })
       }
     }
   }, [isUserInConversation, conversation.read, conversation._id, conversation.lastMessage, socket, session])
@@ -213,5 +224,8 @@ export default function ConversationItem({
     </div>
   )
 }
+
+
+
 
 

@@ -9,6 +9,8 @@ import { useQueryClient } from '@tanstack/react-query'
 import SOCKET_EVENTS from '~/constants/socket-events'
 import { toast } from 'sonner'
 
+const SUCCESS_RGB = '34, 197, 94' // Giá trị RGB của màu green-500
+
 interface PinnedMessagesProps {
   chatId: string
   onScrollToMessage?: (messageId: string) => void
@@ -135,6 +137,17 @@ export function PinnedMessages({
         // Nếu tìm thấy tin nhắn, cuộn đến nó
         onScrollToMessage(messageId)
         toast.success('Đã tìm thấy tin nhắn')
+        
+        // Thêm hiệu ứng highlight với màu xanh lá cây
+        const messageElement = document.getElementById(`message-${messageId}`)
+        if (messageElement) {
+          messageElement.style.transition = 'background-color 0.5s ease'
+          messageElement.style.backgroundColor = `rgba(${SUCCESS_RGB}, 0.15)`
+          
+          setTimeout(() => {
+            messageElement.style.backgroundColor = ''
+          }, 2000)
+        }
       } else {
         // Nếu không tìm thấy tin nhắn sau nhiều lần thử
         toast.error('Không thể tìm thấy tin nhắn')
@@ -238,6 +251,7 @@ export function PinnedMessages({
     </div>
   )
 }
+
 
 
 

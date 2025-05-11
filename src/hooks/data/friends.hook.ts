@@ -25,13 +25,13 @@ export const useFriendSuggestionsQuery = () => {
 
 export const useSendFriendRequestMutation = () => {
   const queryClient = useQueryClient()
+
   return useMutation({
-    mutationFn: friendService.sendFriendRequest,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['FRIEND_SUGGESTIONS'] })
-    },
-    onError: () => {
-      toast.error('Gửi lời mời thất bại!')
+    mutationFn: (userId: string) => friendService.sendFriendRequest(userId),
+    // Không cập nhật cache ở đây, để component FriendSuggestions xử lý
+    onError: (error: any) => {
+      const errorMessage = error?.response?.data?.message || 'Không thể gửi lời mời kết bạn'
+      toast.error(errorMessage)
     }
   })
 }

@@ -15,54 +15,35 @@ export default function NotificationListener() {
     if (!socket) return
 
     const handleNewNotification = (notification: any) => {
-      console.log('New notification received in listener:', notification)
+      console.log('New notification received:', notification);
       
-      // Invalidate notifications query để cập nhật notification popover
-      queryClient.invalidateQueries({ queryKey: ['NOTIFICATIONS'] })
+      // Xác định tên người gửi
+      let senderName = 'Ai đó';
       
-      // Thêm thông báo mới vào cache để hiển thị ngay lập tức
-      queryClient.setQueryData(['NOTIFICATIONS'], (oldData: any) => {
-        if (!oldData) {
-          // Nếu chưa có dữ liệu, tạo cấu trúc mới
-          return {
-            pages: [
-              {
-                notifications: [notification],
-                hasMore: false
-              }
-            ],
-            pageParams: [undefined]
-          };
+      if (notification.senderId && typeof notification.senderId === 'object' && notification.senderId.name) {
+        senderName = notification.senderId.name;
+      }
+      
+      // Kiểm tra loại thông báo
+      if (notification.type === NOTIFICATION_TYPE.FRIEND_REQUEST) {
+        // Kiểm tra xem người dùng đã thực hiện hành động gửi lời mời kết bạn chưa
+        // Nếu đã thực hiện, không hiển thị toast
+        const friendSuggestions = queryClient.getQueryData(['FRIEND_SUGGESTIONS']);
+        
+        if (friendSuggestions) {
+          const hasJustSent = (friendSuggestions as any)?.pages?.flatMap((page: { suggestions: any[] }) => page.suggestions || []).some(
+            (user: any) => user._id === notification.senderId._id && user.status === 'PENDING'
+          );
+          
+          if (hasJustSent) {
+            console.log('Skipping notification toast as user just sent the request');
+            return;
+          }
         }
-        
-        // Tạo bản sao của dữ liệu cũ
-        const newData = JSON.parse(JSON.stringify(oldData));
-        
-        // Đảm bảo cấu trúc dữ liệu đúng
-        if (!newData.pages || !newData.pages[0]) {
-          newData.pages = [{ notifications: [], hasMore: false }];
-        }
-        
-        if (!newData.pages[0].notifications) {
-          newData.pages[0].notifications = [];
-        }
-        
-        // Kiểm tra xem thông báo đã tồn tại chưa
-        const exists = newData.pages[0].notifications.some(
-          (n: any) => n._id === notification._id
-        );
-        
-        // Thêm thông báo mới vào đầu danh sách nếu chưa tồn tại
-        if (!exists) {
-          newData.pages[0].notifications.unshift(notification);
-        }
-        
-        return newData;
-      });
+      }
       
       // Hiển thị toast thông báo
       if (notification.type !== NOTIFICATION_TYPE.NEW_MESSAGE) {
-        const senderName = notification.sender?.name || notification.senderId?.name || 'Ai đó';
         let message = 'Bạn có thông báo mới';
         
         switch (notification.type) {
@@ -79,25 +60,26 @@ export default function NotificationListener() {
           action: {
             label: 'Xem',
             onClick: () => {
-              // Mở popover thông báo hoặc chuyển hướng
-              queryClient.invalidateQueries({ queryKey: ['NOTIFICATIONS'] });
+              document.getElementById('notification-trigger')?.click();
             }
           }
         });
       }
+      
+      // Cập nhật cache thông báo
+      queryClient.invalidateQueries({ queryKey: ['NOTIFICATIONS'] });
     };
 
-    // Đăng ký lắng nghe sự kiện thông báo mới
-    socket.on(SOCKET_EVENTS.NOTIFICATION_NEW, handleNewNotification)
-    
-    // Thêm log để kiểm tra socket đã kết nối
+    // Đăng ký lắng nghe sự kiện NOTIFICATION_NEW
+    socket.on(SOCKET_EVENTS.NOTIFICATION_NEW, handleNewNotification);
 
+    // Hủy đăng ký khi component unmount
     return () => {
-      socket.off(SOCKET_EVENTS.NOTIFICATION_NEW, handleNewNotification)
-    }
-  }, [socket, queryClient])
+      socket.off(SOCKET_EVENTS.NOTIFICATION_NEW, handleNewNotification);
+    };
+  }, [socket, queryClient]);
 
-  return null
+  return null;
 }
 
 
