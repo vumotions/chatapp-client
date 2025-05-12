@@ -11,11 +11,13 @@ import NavLink from './nav-link'
 import NotificationPopover from './notification-popover'
 import { Button, buttonVariants } from './ui/button'
 import UserPopover from './user-popover'
+import { Skeleton } from './ui/skeleton'
 
 function Header() {
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
   const isMobile = useMediaQuery('(max-width: 768px)')
-  
+  const isLoading = status === 'loading'
+
   return (
     <header className='bg-background sticky top-0 z-50 flex h-16 w-full items-center border-b'>
       <div className='flex w-full items-center justify-between gap-2 px-4 py-2'>
@@ -27,8 +29,13 @@ function Header() {
         </div>
         <div className='flex items-center gap-2 md:gap-4'>
           {isMobile && <HeaderSearch />}
-          
-          {session && (
+
+          {isLoading ? (
+            <div className='flex items-center gap-2 md:gap-4'>
+              <Skeleton className='h-9 w-20 rounded-md' />
+              <Skeleton className='h-9 w-20 rounded-md' />
+            </div>
+          ) : session ? (
             <Fragment>
               <Tooltip delayDuration={0}>
                 <TooltipTrigger asChild>
@@ -47,18 +54,16 @@ function Header() {
               <MessagePopover />
               <UserPopover />
             </Fragment>
-          )}
-
-          {!session && (
+          ) : (
             <Fragment>
-                <Link
-                  href='/auth/login'
-                  className={buttonVariants({
-                    variant: 'outline'
-                  })}
-                >
-                  Sign in
-                </Link>
+              <Link
+                href='/auth/login'
+                className={buttonVariants({
+                  variant: 'outline'
+                })}
+              >
+                Sign in
+              </Link>
               <Link
                 href='/auth/register'
                 className={buttonVariants({

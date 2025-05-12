@@ -42,14 +42,15 @@ function FriendItemSkeleton() {
 }
 
 export default function RightSidebarFriendList() {
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
   const router = useRouter()
   const { socket } = useSocket()
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedQuery, setDebouncedQuery] = useState('')
   // Sử dụng useTransition để theo dõi trạng thái chuyển trang
   const [isPending, startTransition] = useTransition()
-
+  const isLoading = status === 'loading'
+  
   // State để lưu trạng thái online của bạn bè
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set())
   // State để lưu thời gian hoạt động gần nhất của bạn bè
@@ -233,7 +234,17 @@ export default function RightSidebarFriendList() {
   return (
     <Card>
       <CardContent className='px-2 lg:pr-2 lg:pl-4'>
-        {session ? (
+        {isLoading ? (
+          <div className='space-y-4 p-2'>
+            <Skeleton className='h-6 w-32' />
+            <Skeleton className='h-8 w-full' />
+            <div className='space-y-3'>
+              {Array(5).fill(0).map((_, index) => (
+                <FriendItemSkeleton key={index} />
+              ))}
+            </div>
+          </div>
+        ) : session ? (
           <Fragment>
             <h4 className='mb-2 hidden font-semibold lg:block'>Người liên hệ</h4>
 
