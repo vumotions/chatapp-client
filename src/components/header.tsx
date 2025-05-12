@@ -1,8 +1,9 @@
 'use client'
-import { Tooltip, TooltipContent, TooltipTrigger } from '~/components/ui/tooltip'
 import { HomeIcon } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { Fragment } from 'react'
+import { Tooltip, TooltipContent, TooltipTrigger } from '~/components/ui/tooltip'
+import useMediaQuery from '~/hooks/use-media-query'
 import { Link } from '~/i18n/navigation'
 import HeaderSearch from './header-search'
 import MessagePopover from './message-popover'
@@ -10,7 +11,6 @@ import NavLink from './nav-link'
 import NotificationPopover from './notification-popover'
 import { Button, buttonVariants } from './ui/button'
 import UserPopover from './user-popover'
-import useMediaQuery from '~/hooks/use-media-query'
 
 function Header() {
   const { data: session } = useSession()
@@ -51,7 +51,6 @@ function Header() {
 
           {!session && (
             <Fragment>
-              {!isMobile && (
                 <Link
                   href='/auth/login'
                   className={buttonVariants({
@@ -60,14 +59,13 @@ function Header() {
                 >
                   Sign in
                 </Link>
-              )}
               <Link
                 href='/auth/register'
                 className={buttonVariants({
                   variant: 'default'
                 })}
               >
-                {isMobile ? 'Sign Up' : 'Sign Up'}
+                Sign Up
               </Link>
             </Fragment>
           )}

@@ -843,59 +843,77 @@ function ChatDetail({ params }: Props) {
 
   // Thêm useEffect để lắng nghe sự kiện tin nhắn đã đọc
   useEffect(() => {
-    if (!socket || !chatId) return
-
-    const handleMessageRead = (data: {
-      chatId: string
-      messageIds: string[]
-      messages: Array<{
-        _id: string
-        status: MESSAGE_STATUS
-        readBy: string[]
-      }>
-    }) => {
-      if (data.chatId !== chatId) return
-
+    if (!socket || !chatId) return;
+    
+    const handleMessageRead = (data: { chatId: string; messageIds: string[]; messages?: any[]; readBy: string }) => {
+      if (data.chatId !== chatId) return;
+      
       // Cập nhật cache để đánh dấu tin nhắn đã đọc
       queryClient.setQueryData(['MESSAGES', chatId], (oldData: any) => {
-        if (!oldData || !oldData.pages) return oldData
-
-        const updatedPages = oldData.pages.map((page: any) => {
-          if (!page || !page.messages) return page
-
+        if (!oldData || !('pages' in oldData)) return oldData;
+        
+        const updatedPages = (oldData as { pages: any[] }).pages.map((page: any) => {
+          if (!page || !page.messages) return page;
+          
           const updatedMessages = page.messages.map((msg: any) => {
-            if (!msg || !data.messages) return msg
-
-            const updatedMessage = data.messages.find((m) => m._id === msg._id)
-            if (updatedMessage) {
+            // Tìm tin nhắn tương ứng trong danh sách cập nhật
+            const updatedMsg = data.messages?.find(m => m._id === msg._id);
+            
+            if (updatedMsg) {
               return {
                 ...msg,
-                status: updatedMessage.status,
-                readBy: updatedMessage.readBy || []
-              }
+                status: updatedMsg.status,
+                readBy: updatedMsg.readBy
+              };
             }
-            return msg
-          })
-
+            
+            // Nếu tin nhắn không có trong danh sách cập nhật nhưng có trong messageIds
+            if (data.messageIds.includes(msg._id)) {
+              // Thêm người đọc vào readBy nếu chưa có
+              const readBy = [...(msg.readBy || [])];
+              if (!readBy.includes(data.readBy)) {
+                readBy.push(data.readBy);
+              }
+              
+              // Lọc ra danh sách người đọc, loại bỏ người gửi tin nhắn
+              const filteredReadBy = readBy.filter(userId => 
+                (typeof msg.senderId === 'object' && msg.senderId._id) 
+                  ? String(userId) !== String(msg.senderId._id)
+                  : String(userId) !== String(msg.senderId)
+              );
+              
+              return {
+                ...msg,
+                readBy: filteredReadBy,
+                // Cập nhật status nếu tất cả người tham gia đã đọc
+                status: filteredReadBy.length >= (msg.participants?.length || 0) - 1 
+                  ? MESSAGE_STATUS.SEEN 
+                  : MESSAGE_STATUS.DELIVERED
+              };
+            }
+            
+            return msg;
+          });
+          
           return {
             ...page,
             messages: updatedMessages
-          }
-        })
-
+          };
+        });
+        
         return {
           ...oldData,
           pages: updatedPages
-        }
-      })
-    }
-
-    socket.on(SOCKET_EVENTS.MESSAGE_READ, handleMessageRead)
-
+        };
+      });
+    };
+    
+    socket.on(SOCKET_EVENTS.MESSAGE_READ, handleMessageRead);
+    
     return () => {
-      socket.off(SOCKET_EVENTS.MESSAGE_READ, handleMessageRead)
-    }
-  }, [socket, chatId, queryClient])
+      socket.off(SOCKET_EVENTS.MESSAGE_READ, handleMessageRead);
+    };
+  }, [socket, chatId, queryClient]);
 
   // Thêm useEffect để lắng nghe sự kiện cập nhật reaction
   useEffect(() => {

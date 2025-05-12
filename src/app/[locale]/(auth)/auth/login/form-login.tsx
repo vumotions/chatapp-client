@@ -113,7 +113,9 @@ function FormLogin({ className }: Props) {
 
   async function handleGoogleLogin() {
     setLoadingState((prev) => ({ ...prev, google: true }))
-    await signIn('google')
+    await signIn('google', {
+      callbackUrl: '/'
+    })
     setLoadingState((prev) => ({ ...prev, google: false }))
   }
 

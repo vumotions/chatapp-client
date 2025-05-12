@@ -1,23 +1,26 @@
 'use client'
-import { useState } from 'react'
 import { Search } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { useState } from 'react'
 
+import { useSession } from 'next-auth/react'
 import { Label } from '~/components/ui/label'
-import { Input } from './ui/input'
+import useMediaQuery from '~/hooks/use-media-query'
+import { cn } from '~/lib/utils'
 import { Button } from './ui/button'
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from './ui/command'
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from './ui/dialog'
-import { CommandInput, Command, CommandList, CommandEmpty, CommandGroup, CommandItem } from './ui/command'
-import useMediaQuery from '~/hooks/use-media-query'
+import { Input } from './ui/input'
 
 function HeaderSearch() {
   const [isOpen, setIsOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const { data: session } = useSession()
   const router = useRouter()
   const isMobile = useMediaQuery('(max-width: 768px)')
 
@@ -35,7 +38,7 @@ function HeaderSearch() {
   }
 
   // Hiển thị icon tròn trên mobile, form search trên desktop
-  if (isMobile) {
+  if (isMobile && session) {
     return (
       <>
         <Button 
@@ -90,7 +93,9 @@ function HeaderSearch() {
 
   // Desktop version
   return (
-    <form onSubmit={handleSearch}>
+    <form onSubmit={handleSearch} className={cn({
+      'hidden':!session
+    })}>
       <div className='relative w-full min-w-64'>
         <Label htmlFor='search' className='sr-only'>
           Search
