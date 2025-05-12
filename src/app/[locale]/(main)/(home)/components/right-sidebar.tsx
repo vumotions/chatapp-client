@@ -384,7 +384,7 @@ export default function RightSidebarFriendList() {
                                     ? 'Đang hoạt động'
                                     : getLastActive(friend._id)
                                       ? formatLastActive(getLastActive(friend._id)!)
-                                      : 'Đang ngoài tuyến'}
+                                      : 'Đang ngoại tuyến'}
                                 </p>
                               </div>
                               <div className='mt-2 flex w-full gap-2'>

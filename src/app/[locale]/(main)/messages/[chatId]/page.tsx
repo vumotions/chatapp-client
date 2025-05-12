@@ -685,7 +685,7 @@ function ChatDetail({ params }: Props) {
         socket.off(SOCKET_EVENTS.USER_OFFLINE, handleUserOffline)
       }
     } else {
-      // Logic cho chat riêng tư (giữ nguyên)
+      // Logic cho chat riêng tư
       const otherUser = data?.pages[0]?.conversation?.participants?.find((p: any) => p._id !== session?.user?._id)
       if (!otherUser) return
 
@@ -697,7 +697,33 @@ function ChatDetail({ params }: Props) {
         })
       })
 
-      // Còn lại giữ nguyên...
+      // Lắng nghe sự kiện online
+      const handleUserOnline = (userId: string) => {
+        if (userId === otherUser._id) {
+          setUserStatus({
+            isOnline: true,
+            lastActive: new Date().toISOString()
+          })
+        }
+      }
+
+      // Lắng nghe sự kiện offline
+      const handleUserOffline = (userId: string, lastActiveTime: string) => {
+        if (userId === otherUser._id) {
+          setUserStatus({
+            isOnline: false,
+            lastActive: lastActiveTime || userStatus.lastActive
+          })
+        }
+      }
+
+      socket.on(SOCKET_EVENTS.USER_ONLINE, handleUserOnline)
+      socket.on(SOCKET_EVENTS.USER_OFFLINE, handleUserOffline)
+
+      return () => {
+        socket.off(SOCKET_EVENTS.USER_ONLINE, handleUserOnline)
+        socket.off(SOCKET_EVENTS.USER_OFFLINE, handleUserOffline)
+      }
     }
   }, [socket, chatId, data])
 
