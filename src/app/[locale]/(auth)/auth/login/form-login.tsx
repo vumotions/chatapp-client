@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import status from 'http-status'
 import { signIn } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { ZodIssue } from 'zod'
@@ -31,6 +31,7 @@ function FormLogin({ className }: Props) {
   const sendEmailVerificationMutation = useSendEmailVerificationMutation()
   const searchParams = useSearchParams()
   const router = useRouter()
+  const [isPending, startTransition] = useTransition()
   const form = useForm<FormLoginValues>({
     defaultValues: {
       email: searchParams.get('email') || '',
@@ -44,7 +45,7 @@ function FormLogin({ className }: Props) {
     github: false,
     google: false
   })
-  const isLoading = Object.values(loadingState).some(Boolean)
+  const isLoading = Object.values(loadingState).some(Boolean) || isPending
 
   useEffect(() => {
     const credentials = getRememberedAccountFromCookie()
@@ -53,7 +54,7 @@ function FormLogin({ className }: Props) {
       form.setValue('email', credentials.email)
       form.setValue('password', credentials.password)
     }
-  }, [])
+  }, [form])
 
   const handleCredentialsLogin = form.handleSubmit(async (data) => {
     setLoadingState((prev) => ({ ...prev, credentials: true }))
@@ -88,7 +89,9 @@ function FormLogin({ className }: Props) {
           email: data.email
         })
 
-        router.push(`/auth/recover/code?email=${encodeURIComponent(data.email)}&redirect_from=register`)
+        startTransition(() => {
+          router.push(`/auth/recover/code?email=${encodeURIComponent(data.email)}&redirect_from=register`)
+        })
         toast.info(error?.data?.message || response.data.message)
       }
 
@@ -105,7 +108,9 @@ function FormLogin({ className }: Props) {
       } else {
         removeRememberedAccountFromCookie()
       }
-      router.replace('/')
+      startTransition(() => {
+        router.replace('/')
+      })
     }
 
     setLoadingState((prev) => ({ ...prev, credentials: false }))
@@ -117,6 +122,14 @@ function FormLogin({ className }: Props) {
       callbackUrl: '/'
     })
     setLoadingState((prev) => ({ ...prev, google: false }))
+  }
+
+  async function handleGithubLogin() {
+    setLoadingState((prev) => ({ ...prev, github: true }))
+    await signIn('github', {
+      callbackUrl: '/'
+    })
+    setLoadingState((prev) => ({ ...prev, github: false }))
   }
 
   return (
@@ -180,7 +193,7 @@ function FormLogin({ className }: Props) {
                 </Link>
               </div>
               <Button disabled={isLoading}>
-                {loadingState.credentials && <Icons.spinner className='mr-2 h-4 w-4 animate-spin' />}
+                {(loadingState.credentials || isPending) && <Icons.spinner className='mr-2 h-4 w-4 animate-spin' />}
                 Login
               </Button>
             </div>
@@ -200,7 +213,7 @@ function FormLogin({ className }: Props) {
             )}{' '}
             Google
           </Button>
-          <Button variant='outline' className='flex-1/2' disabled={isLoading}>
+          <Button variant='outline' onClick={handleGithubLogin} className='flex-1/2' disabled={isLoading}>
             {loadingState.github ? (
               <Icons.spinner className='mr-2 h-4 w-4 animate-spin' />
             ) : (

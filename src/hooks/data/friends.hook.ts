@@ -38,6 +38,9 @@ export const useSendFriendRequestMutation = () => {
 
   return useMutation({
     mutationFn: (userId: string) => friendService.sendFriendRequest(userId),
+    onSuccess: () => {
+      toast.success('Đã gửi lời mời kết bạn')
+    },
     // Không cập nhật cache ở đây, để component FriendSuggestions xử lý
     onError: (error: any) => {
       const errorMessage = error?.response?.data?.message || 'Không thể gửi lời mời kết bạn'
@@ -53,6 +56,7 @@ export const useAcceptFriendRequestMutation = () => {
     onSuccess: () => {
       toast.success('Đã chấp nhận lời mời kết bạn')
       queryClient.invalidateQueries({ queryKey: ['FRIENDS'] })
+      queryClient.invalidateQueries({ queryKey: ['FRIEND_SUGGESTIONS'] })
     },
     onError: () => {
       toast.error('Chấp nhận lời mời thất bại')

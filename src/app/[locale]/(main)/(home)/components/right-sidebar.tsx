@@ -50,7 +50,7 @@ export default function RightSidebarFriendList() {
   // Sử dụng useTransition để theo dõi trạng thái chuyển trang
   const [isPending, startTransition] = useTransition()
   const isLoading = status === 'loading'
-  
+
   // State để lưu trạng thái online của bạn bè
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set())
   // State để lưu thời gian hoạt động gần nhất của bạn bè
@@ -65,7 +65,7 @@ export default function RightSidebarFriendList() {
   const debouncedSetQuery = useCallback(
     debounce((value: string) => {
       setDebouncedQuery(value)
-    }, 300),
+    }, 500),
     []
   )
 
@@ -239,9 +239,11 @@ export default function RightSidebarFriendList() {
             <Skeleton className='h-6 w-32' />
             <Skeleton className='h-8 w-full' />
             <div className='space-y-3'>
-              {Array(5).fill(0).map((_, index) => (
-                <FriendItemSkeleton key={index} />
-              ))}
+              {Array(5)
+                .fill(0)
+                .map((_, index) => (
+                  <FriendItemSkeleton key={index} />
+                ))}
             </div>
           </div>
         ) : session ? (

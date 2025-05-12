@@ -13,7 +13,8 @@ import {
   PinOff,
   UserCheck,
   UserMinus,
-  UserPlus
+  UserPlus,
+  Video
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
@@ -843,77 +844,78 @@ function ChatDetail({ params }: Props) {
 
   // Thêm useEffect để lắng nghe sự kiện tin nhắn đã đọc
   useEffect(() => {
-    if (!socket || !chatId) return;
-    
+    if (!socket || !chatId) return
+
     const handleMessageRead = (data: { chatId: string; messageIds: string[]; messages?: any[]; readBy: string }) => {
-      if (data.chatId !== chatId) return;
-      
+      if (data.chatId !== chatId) return
+
       // Cập nhật cache để đánh dấu tin nhắn đã đọc
       queryClient.setQueryData(['MESSAGES', chatId], (oldData: any) => {
-        if (!oldData || !('pages' in oldData)) return oldData;
-        
+        if (!oldData || !('pages' in oldData)) return oldData
+
         const updatedPages = (oldData as { pages: any[] }).pages.map((page: any) => {
-          if (!page || !page.messages) return page;
-          
+          if (!page || !page.messages) return page
+
           const updatedMessages = page.messages.map((msg: any) => {
             // Tìm tin nhắn tương ứng trong danh sách cập nhật
-            const updatedMsg = data.messages?.find(m => m._id === msg._id);
-            
+            const updatedMsg = data.messages?.find((m) => m._id === msg._id)
+
             if (updatedMsg) {
               return {
                 ...msg,
                 status: updatedMsg.status,
                 readBy: updatedMsg.readBy
-              };
+              }
             }
-            
+
             // Nếu tin nhắn không có trong danh sách cập nhật nhưng có trong messageIds
             if (data.messageIds.includes(msg._id)) {
               // Thêm người đọc vào readBy nếu chưa có
-              const readBy = [...(msg.readBy || [])];
+              const readBy = [...(msg.readBy || [])]
               if (!readBy.includes(data.readBy)) {
-                readBy.push(data.readBy);
+                readBy.push(data.readBy)
               }
-              
+
               // Lọc ra danh sách người đọc, loại bỏ người gửi tin nhắn
-              const filteredReadBy = readBy.filter(userId => 
-                (typeof msg.senderId === 'object' && msg.senderId._id) 
+              const filteredReadBy = readBy.filter((userId) =>
+                typeof msg.senderId === 'object' && msg.senderId._id
                   ? String(userId) !== String(msg.senderId._id)
                   : String(userId) !== String(msg.senderId)
-              );
-              
+              )
+
               return {
                 ...msg,
                 readBy: filteredReadBy,
                 // Cập nhật status nếu tất cả người tham gia đã đọc
-                status: filteredReadBy.length >= (msg.participants?.length || 0) - 1 
-                  ? MESSAGE_STATUS.SEEN 
-                  : MESSAGE_STATUS.DELIVERED
-              };
+                status:
+                  filteredReadBy.length >= (msg.participants?.length || 0) - 1
+                    ? MESSAGE_STATUS.SEEN
+                    : MESSAGE_STATUS.DELIVERED
+              }
             }
-            
-            return msg;
-          });
-          
+
+            return msg
+          })
+
           return {
             ...page,
             messages: updatedMessages
-          };
-        });
-        
+          }
+        })
+
         return {
           ...oldData,
           pages: updatedPages
-        };
-      });
-    };
-    
-    socket.on(SOCKET_EVENTS.MESSAGE_READ, handleMessageRead);
-    
+        }
+      })
+    }
+
+    socket.on(SOCKET_EVENTS.MESSAGE_READ, handleMessageRead)
+
     return () => {
-      socket.off(SOCKET_EVENTS.MESSAGE_READ, handleMessageRead);
-    };
-  }, [socket, chatId, queryClient]);
+      socket.off(SOCKET_EVENTS.MESSAGE_READ, handleMessageRead)
+    }
+  }, [socket, chatId, queryClient])
 
   // Thêm useEffect để lắng nghe sự kiện cập nhật reaction
   useEffect(() => {
@@ -1208,91 +1210,6 @@ function ChatDetail({ params }: Props) {
       return 'unknown'
     }
   }
-
-  // Thêm biến friendIconElement để hiển thị trạng thái bạn bè
-  const friendIconElement = useMemo(() => {
-    if (!otherUser) return null
-
-    // Thêm xử lý sự kiện click
-    const handleFriendAction = async () => {
-      if (!otherUserId || isLoadingFriendAction) return
-
-      setIsLoadingFriendAction(true)
-
-      try {
-        // Sử dụng đúng các trạng thái từ API trả về
-        if (friendStatus === null) {
-          // Chưa có mối quan hệ bạn bè
-          await sendFriendRequest.mutateAsync(otherUserId)
-          setFriendStatus(FRIEND_REQUEST_STATUS.PENDING)
-        } else if (friendStatus === 'RECEIVED') {
-          // Đã nhận được lời mời kết bạn
-          await acceptFriendRequest.mutateAsync(otherUserId)
-          setFriendStatus(FRIEND_REQUEST_STATUS.ACCEPTED)
-          setIsFriend(true)
-        } else if (friendStatus === FRIEND_REQUEST_STATUS.PENDING) {
-          // Đã gửi lời mời kết bạn
-          await cancelFriendRequest.mutateAsync(otherUserId)
-          setFriendStatus(null)
-        } else if (friendStatus === FRIEND_REQUEST_STATUS.ACCEPTED) {
-          // Đã là bạn bè
-          await removeFriend.mutateAsync(otherUserId)
-          setFriendStatus(null)
-          setIsFriend(false)
-        }
-      } catch (error) {
-        console.error('Friend action error:', error)
-        toast.error('Có lỗi xảy ra. Vui lòng thử lại sau.')
-      } finally {
-        setIsLoadingFriendAction(false)
-      }
-    }
-
-    // Hiển thị icon và tooltip phù hợp với trạng thái
-    let icon = <UserPlus className='text-muted-foreground h-3.5 w-3.5' />
-    let tooltipText = 'Thêm bạn bè'
-
-    if (isLoadingFriendAction) {
-      // Hiển thị spinner khi đang loading
-      return (
-        <div className='ml-2'>
-          <div className='h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600'></div>
-        </div>
-      )
-    }
-
-    if (friendStatus === FRIEND_REQUEST_STATUS.PENDING) {
-      icon = <UserMinus className='text-muted-foreground h-3.5 w-3.5' />
-      tooltipText = 'Hủy lời mời kết bạn'
-    } else if (friendStatus === 'RECEIVED') {
-      icon = <UserCheck className='text-muted-foreground h-3.5 w-3.5' />
-      tooltipText = 'Chấp nhận lời mời kết bạn'
-    } else if (friendStatus === FRIEND_REQUEST_STATUS.ACCEPTED) {
-      icon = <UserMinus className='text-muted-foreground h-3.5 w-3.5' />
-      tooltipText = 'Hủy kết bạn'
-    }
-
-    // Logic hiển thị icon trạng thái bạn bè với xử lý sự kiện click
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div className='ml-2 cursor-pointer' onClick={handleFriendAction}>
-            {icon}
-          </div>
-        </TooltipTrigger>
-        <TooltipContent>{tooltipText}</TooltipContent>
-      </Tooltip>
-    )
-  }, [
-    otherUser,
-    friendStatus,
-    isLoadingFriendAction,
-    otherUserId,
-    sendFriendRequest,
-    acceptFriendRequest,
-    cancelFriendRequest,
-    removeFriend
-  ])
 
   // Thêm hàm xử lý thả tim với log để debug
   const handleAddReaction = (messageId: string) => {
@@ -1832,12 +1749,7 @@ function ChatDetail({ params }: Props) {
               <div className='flex flex-1 items-center'>
                 <div className='grid gap-1'>
                   <div className='flex items-center font-semibold'>
-                    <div className='flex items-center gap-2'>
-                      {getChatInfo().name || 'Cuộc trò chuyện'}
-
-                      {/* Friend status icon - close to username */}
-                      {data?.pages[0]?.conversation?.type !== 'GROUP' && friendIconElement}
-                    </div>
+                    <div className='flex items-center gap-2'>{getChatInfo().name || 'Cuộc trò chuyện'}</div>
                   </div>
                   <div className='text-muted-foreground flex items-center text-xs'>
                     {data?.pages[0]?.conversation?.type === 'GROUP' ? (
@@ -1890,8 +1802,18 @@ function ChatDetail({ params }: Props) {
                           </TooltipTrigger>
                           <TooltipContent>Gọi thoại</TooltipContent>
                         </Tooltip>
-                        {/* Chỉ hiển thị nút kết bạn trong chat 1-1 */}
-                        {!isFriend && otherUserId && (
+                        {/* Nút gọi video */}
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button variant='ghost' size='icon'>
+                              <Video className='h-5 w-5' />
+                              <span className='sr-only'>Gọi video</span>
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Gọi video</TooltipContent>
+                        </Tooltip>
+
+                        {otherUserId && (
                           <FriendActionButton
                             friendStatus={friendStatus}
                             otherUserId={otherUserId}

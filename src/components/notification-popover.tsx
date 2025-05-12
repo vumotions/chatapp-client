@@ -178,6 +178,8 @@ function NotificationPopover() {
         toast.success('Đã chấp nhận lời mời kết bạn')
         // Cập nhật lại danh sách bạn bè
         queryClient.invalidateQueries({ queryKey: ['FRIENDS'] })
+        // Cập nhật lại danh sách gợi ý bạn bè
+        queryClient.invalidateQueries({ queryKey: ['FRIEND_SUGGESTIONS'] })
       },
       onError: (error: any) => {
         toast.error(error?.response?.data?.message || 'Có lỗi xảy ra khi chấp nhận lời mời')
