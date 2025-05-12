@@ -1,7 +1,6 @@
-import { useEffect, useState } from 'react'
-import Slider from 'react-slick'
-import 'slick-carousel/slick/slick-theme.css'
-import 'slick-carousel/slick/slick.css'
+import { useEffect, useState, useRef } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { toast } from 'sonner'
 import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
 import { Button } from '~/components/ui/button'
@@ -37,7 +36,14 @@ function FriendSuggestionItemSkeleton() {
 }
 
 export default function FriendSuggestions() {
-  const { data: suggestions, isLoading, refetch } = useFriendSuggestionsQuery()
+  const [page, setPage] = useState(1)
+  const [limit, setLimit] = useState(6) // Mặc định 6 items mỗi trang
+  
+  // Sử dụng hook với phân trang
+  const { data, isLoading, refetch } = useFriendSuggestionsQuery(page, limit)
+  const suggestions = data?.suggestions || []
+  const pagination = data?.pagination
+  
   const sendFriendRequest = useSendFriendRequestMutation()
   const cancelFriendRequest = useCancelFriendRequestMutation()
   const acceptFriendRequest = useAcceptFriendRequestMutation()
@@ -50,18 +56,51 @@ export default function FriendSuggestions() {
   const [selectedMsg, setSelectedMsg] = useState<string | null>(null)
   const [pendingIds, setPendingIds] = useState<string[]>([])
   const [justSentIds, setJustSentIds] = useState<string[]>([])
+  
+  // State cho responsive
+  const containerRef = useRef<HTMLDivElement>(null)
+  
+  // Cập nhật số lượng items per page dựa trên kích thước màn hình
+  useEffect(() => {
+    const updateItemsPerPage = () => {
+      if (window.innerWidth < 640) {
+        setLimit(2) // 1 hàng x 2 cột cho mobile
+      } else if (window.innerWidth < 1024) {
+        setLimit(4) // 2 hàng x 2 cột cho tablet
+      } else {
+        setLimit(6) // 2 hàng x 3 cột cho desktop
+      }
+    }
+    
+    updateItemsPerPage()
+    window.addEventListener('resize', updateItemsPerPage)
+    return () => window.removeEventListener('resize', updateItemsPerPage)
+  }, [])
+
+  // Xử lý chuyển trang
+  const nextPage = () => {
+    if (pagination && page < pagination.totalPages) {
+      setPage(page + 1)
+    }
+  }
+  
+  const prevPage = () => {
+    if (page > 1) {
+      setPage(page - 1)
+    }
+  }
 
   const handleAddFriend = async (userId: string) => {
     setSelectedAdd(userId)
     try {
       await sendFriendRequest.mutateAsync(userId)
 
-      // Cập nhật cache trực tiếp thay vì sử dụng state
-      queryClient.setQueryData(['FRIEND_SUGGESTIONS'], (oldData: any) => {
+      // Cập nhật cache trực tiếp
+      queryClient.setQueryData(['FRIEND_SUGGESTIONS', page, limit], (oldData: any) => {
         if (!oldData) return oldData
 
         const newData = { ...oldData }
-        newData.data.data = newData.data.data.map((user: any) => {
+        newData.data.data.suggestions = newData.data.data.suggestions.map((user: any) => {
           if (user._id === userId) {
             return { ...user, status: 'PENDING' }
           }
@@ -71,7 +110,7 @@ export default function FriendSuggestions() {
         return newData
       })
 
-      // Thêm vào danh sách vừa gửi (chỉ trong memory, không lưu localStorage)
+      // Thêm vào danh sách vừa gửi
       setJustSentIds((prev) => [...prev, userId])
       setPendingIds((prev) => [...prev, userId])
 
@@ -88,12 +127,12 @@ export default function FriendSuggestions() {
     try {
       await cancelFriendRequest.mutateAsync(userId)
 
-      // Cập nhật cache trực tiếp thay vì sử dụng state
-      queryClient.setQueryData(['FRIEND_SUGGESTIONS'], (oldData: any) => {
+      // Cập nhật cache trực tiếp
+      queryClient.setQueryData(['FRIEND_SUGGESTIONS', page, limit], (oldData: any) => {
         if (!oldData) return oldData
 
         const newData = { ...oldData }
-        newData.data.data = newData.data.data.map((user: any) => {
+        newData.data.data.suggestions = newData.data.data.suggestions.map((user: any) => {
           if (user._id === userId) {
             return { ...user, status: undefined }
           }
@@ -139,124 +178,148 @@ export default function FriendSuggestions() {
     }
   }
 
-  // Cấu hình cho slider
-  const sliderSettings = {
-    dots: false,
-    infinite: false,
-    speed: 500,
-    slidesToShow: 3,
-    slidesToScroll: 1,
-    responsive: [
-      {
-        breakpoint: 1024,
-        settings: {
-          slidesToShow: 2
-        }
-      },
-      {
-        breakpoint: 768,
-        settings: {
-          slidesToShow: 1
-        }
-      }
-    ],
-    adaptiveHeight: false,
-    className: 'equal-height-slides'
-  }
-
   return (
     <Card>
       <CardContent className='p-4'>
         <div className='mb-4 flex items-center justify-between'>
           <h3 className='text-lg font-semibold'>Gợi ý kết bạn</h3>
+          {pagination && pagination.totalPages > 1 && (
+            <div className='flex gap-2'>
+              <Button
+                variant='outline'
+                size='icon'
+                onClick={prevPage}
+                disabled={page === 1}
+                className='h-8 w-8'
+              >
+                <ChevronLeft className='h-4 w-4' />
+              </Button>
+              <Button
+                variant='outline'
+                size='icon'
+                onClick={nextPage}
+                disabled={page === pagination.totalPages}
+                className='h-8 w-8'
+              >
+                <ChevronRight className='h-4 w-4' />
+              </Button>
+            </div>
+          )}
         </div>
-        <div className='mx-auto max-w-[600px]'>
-          {/* Thêm CSS để đảm bảo tất cả slide có chiều cao bằng nhau */}
-          <style jsx global>{`
-            .equal-height-slides .slick-track {
-              display: flex !important;
-            }
-            .equal-height-slides .slick-slide {
-              height: inherit !important;
-              display: flex !important;
-            }
-            .equal-height-slides .slick-slide > div {
-              width: 100%;
-              height: 100%;
-              display: flex;
-            }
-          `}</style>
-          <Slider {...sliderSettings}>
-            {suggestions?.map((user) => {
-              // Kiểm tra xem người dùng đã gửi lời mời chưa
-              const isPending =
-                pendingIds.includes(user._id) || user.status === 'PENDING' || justSentIds.includes(user._id)
-              const isReceived = user.status === 'RECEIVED'
+        
+        <div className='mx-auto max-w-[800px]' ref={containerRef}>
+          {isLoading ? (
+            <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3'>
+              {[...Array(limit)].map((_, index) => (
+                <FriendSuggestionItemSkeleton key={index} />
+              ))}
+            </div>
+          ) : suggestions.length === 0 ? (
+            <div className='text-muted-foreground py-8 text-center'>Không có gợi ý kết bạn nào</div>
+          ) : (
+            <AnimatePresence mode='wait'>
+              <motion.div
+                key={page}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.3 }}
+                className='grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3'
+              >
+                {suggestions.map((user) => {
+                  // Kiểm tra xem người dùng đã gửi lời mời chưa
+                  const isPending =
+                    pendingIds.includes(user._id) || user.status === 'PENDING' || justSentIds.includes(user._id)
+                  const isReceived = user.status === 'RECEIVED'
 
-              return (
-                <div key={user._id} className='h-full px-2'>
-                  <div className='bg-card flex h-full flex-col items-center gap-2 rounded-lg border p-4 shadow-sm'>
-                    <Avatar className='h-16 w-16'>
-                      <AvatarImage src={user.avatar} alt={user.name} />
-                      <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
-                    </Avatar>
-                    <div className='text-center'>
-                      <h4 className='font-medium'>{user.name}</h4>
-                      <p className='text-muted-foreground text-sm'>{user.mutualFriends} bạn chung</p>
-                    </div>
+                  return (
+                    <motion.div
+                      key={user._id}
+                      layout
+                      initial={{ scale: 0.9, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+                      className='h-full'
+                    >
+                      <div className='bg-card flex h-full flex-col items-center gap-2 rounded-lg border p-4 shadow-sm'>
+                        <Avatar className='h-16 w-16'>
+                          <AvatarImage src={user.avatar} alt={user.name} />
+                          <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
+                        </Avatar>
+                        <div className='text-center'>
+                          <h4 className='font-medium'>{user.name}</h4>
+                          <p className='text-muted-foreground text-sm'>{user.mutualFriends} bạn chung</p>
+                        </div>
 
-                    {/* Sử dụng flex-grow để đẩy các nút xuống dưới */}
-                    <div className='flex flex-grow items-end justify-center'>
-                      {isPending && <div className='truncate text-xs text-amber-500'>Đã gửi lời mời</div>}
-                      {isReceived && <div className='truncate text-xs text-blue-500'>Đã gửi lời mời cho bạn</div>}
-                    </div>
+                        <div className='flex flex-grow items-end justify-center'>
+                          {isPending && <div className='truncate text-xs text-amber-500'>Đã gửi lời mời</div>}
+                          {isReceived && <div className='truncate text-xs text-blue-500'>Đã gửi lời mời cho bạn</div>}
+                        </div>
 
-                    <div className='mt-2 flex w-full flex-col gap-2'>
-                      {isPending ? (
-                        <Button
-                          size='sm'
-                          variant='destructive'
-                          className='w-full'
-                          onClick={() => handleCancelRequest(user._id)}
-                          disabled={selectedCancel === user._id || cancelFriendRequest.isPending}
-                        >
-                          {selectedCancel === user._id && cancelFriendRequest.isPending ? 'Đang hủy...' : 'Hủy lời mời'}
-                        </Button>
-                      ) : isReceived ? (
-                        <Button
-                          size='sm'
-                          variant='default'
-                          className='w-full'
-                          onClick={() => handleAcceptRequest(user._id)}
-                          disabled={selectedAccept === user._id || acceptFriendRequest.isPending}
-                        >
-                          {selectedAccept === user._id && acceptFriendRequest.isPending ? 'Đang xử lý...' : 'Chấp nhận'}
-                        </Button>
-                      ) : (
-                        <Button
-                          size='sm'
-                          className='w-full'
-                          onClick={() => handleAddFriend(user._id)}
-                          disabled={selectedAdd === user._id || sendFriendRequest.isPending}
-                        >
-                          {selectedAdd === user._id && sendFriendRequest.isPending ? 'Đang gửi...' : 'Kết bạn'}
-                        </Button>
-                      )}
-                      <Button
-                        size='sm'
-                        variant='outline'
-                        className='w-full'
-                        onClick={() => handleStartConversation(user._id)}
-                        disabled={selectedMsg === user._id || startConversation.isPending}
-                      >
-                        {selectedMsg === user._id && startConversation.isPending ? 'Đang tạo...' : 'Nhắn tin'}
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
-          </Slider>
+                        <div className='mt-2 flex w-full flex-col gap-2'>
+                          {isPending ? (
+                            <Button
+                              size='sm'
+                              variant='destructive'
+                              className='w-full'
+                              onClick={() => handleCancelRequest(user._id)}
+                              disabled={selectedCancel === user._id || cancelFriendRequest.isPending}
+                            >
+                              {selectedCancel === user._id && cancelFriendRequest.isPending ? 'Đang hủy...' : 'Hủy lời mời'}
+                            </Button>
+                          ) : isReceived ? (
+                            <Button
+                              size='sm'
+                              variant='default'
+                              className='w-full'
+                              onClick={() => handleAcceptRequest(user._id)}
+                              disabled={selectedAccept === user._id || acceptFriendRequest.isPending}
+                            >
+                              {selectedAccept === user._id && acceptFriendRequest.isPending ? 'Đang xử lý...' : 'Chấp nhận'}
+                            </Button>
+                          ) : (
+                            <Button
+                              size='sm'
+                              className='w-full'
+                              onClick={() => handleAddFriend(user._id)}
+                              disabled={selectedAdd === user._id || sendFriendRequest.isPending}
+                            >
+                              {selectedAdd === user._id && sendFriendRequest.isPending ? 'Đang gửi...' : 'Kết bạn'}
+                            </Button>
+                          )}
+                          <Button
+                            size='sm'
+                            variant='outline'
+                            className='w-full'
+                            onClick={() => handleStartConversation(user._id)}
+                            disabled={selectedMsg === user._id || startConversation.isPending}
+                          >
+                            {selectedMsg === user._id && startConversation.isPending ? 'Đang tạo...' : 'Nhắn tin'}
+                          </Button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )
+                })}
+              </motion.div>
+            </AnimatePresence>
+          )}
+          
+          {pagination && pagination.totalPages > 1 && (
+            <div className='mt-4 flex justify-center gap-1'>
+              {[...Array(pagination.totalPages)].map((_, index) => (
+                <Button
+                  key={index}
+                  variant={page === index + 1 ? 'default' : 'outline'}
+                  size='icon'
+                  onClick={() => setPage(index + 1)}
+                  className='h-8 w-8 rounded-full'
+                >
+                  {index + 1}
+                </Button>
+              ))}
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>

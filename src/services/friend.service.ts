@@ -2,6 +2,7 @@ import httpRequest from '~/config/http-request'
 import { SuccessResponse } from '~/types/api.types'
 
 export interface Friend {
+  username: string
   status: string
   _id: string
   name: string
@@ -16,6 +17,17 @@ export interface FriendRequest {
   status: 'PENDING' | 'ACCEPTED' | 'REJECTED'
   createdAt: string
   updatedAt: string
+}
+
+// Thêm interface cho response phân trang
+export interface PaginatedResponse<T> {
+  suggestions: T[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
 }
 
 class FriendService {
@@ -47,14 +59,14 @@ class FriendService {
     })
   }
 
-  // Lấy danh sách bạn bè
-  getFriendsList() {
-    return httpRequest.get<SuccessResponse<Friend[]>>('/friends')
+  // Cập nhật method để hỗ trợ tìm kiếm
+  getFriendsList(search = '') {
+    return httpRequest.get<SuccessResponse<Friend[]>>(`/friends?search=${encodeURIComponent(search)}`)
   }
 
-  // Lấy danh sách gợi ý bạn bè
-  getFriendSuggestions() {
-    return httpRequest.get<SuccessResponse<Friend[]>>('/friends/suggestions')
+  // Lấy danh sách gợi ý bạn bè với phân trang
+  getFriendSuggestions(page = 1, limit = 10) {
+    return httpRequest.get<SuccessResponse<PaginatedResponse<Friend>>>(`/friends/suggestions?page=${page}&limit=${limit}`)
   }
 
   // Thêm phương thức removeFriend

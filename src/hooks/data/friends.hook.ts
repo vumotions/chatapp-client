@@ -3,21 +3,31 @@ import { useSession } from 'next-auth/react'
 import { toast } from 'sonner'
 import friendService from '~/services/friend.service'
 
-export const useFriendsQuery = () => {
+// Gộp useFriendsQuery và useFriendsListQuery thành một hook duy nhất
+export const useFriendsQuery = (search = '') => {
   const { data: session } = useSession()
   return useQuery({
-    queryKey: ['FRIENDS'],
-    queryFn: friendService.getFriendsList,
+    queryKey: ['FRIENDS', search],
+    queryFn: ({ queryKey }) => {
+      // queryKey[1] chứa giá trị search từ queryKey
+      const searchTerm = queryKey[1] as string
+      return friendService.getFriendsList(searchTerm)
+    },
     select: (res) => res.data.data,
-    enabled: !!session
+    enabled: !!session,
+    staleTime: 5 * 60 * 1000 // 5 phút
   })
 }
 
-export const useFriendSuggestionsQuery = () => {
+// Giữ lại alias này để tương thích ngược với code cũ
+// Trong tương lai có thể xóa và sử dụng useFriendsQuery trực tiếp
+export const useFriendsListQuery = useFriendsQuery
+
+export const useFriendSuggestionsQuery = (page = 1, limit = 10) => {
   const { data: session } = useSession()
   return useQuery({
-    queryKey: ['FRIEND_SUGGESTIONS'],
-    queryFn: friendService.getFriendSuggestions,
+    queryKey: ['FRIEND_SUGGESTIONS', page, limit],
+    queryFn: () => friendService.getFriendSuggestions(page, limit),
     select: (res) => res.data.data,
     enabled: !!session
   })
@@ -42,7 +52,7 @@ export const useAcceptFriendRequestMutation = () => {
     mutationFn: (senderId: string) => friendService.acceptFriendRequest(senderId),
     onSuccess: () => {
       toast.success('Đã chấp nhận lời mời kết bạn')
-      queryClient.invalidateQueries({ queryKey: ['friends'] })
+      queryClient.invalidateQueries({ queryKey: ['FRIENDS'] })
     },
     onError: () => {
       toast.error('Chấp nhận lời mời thất bại')

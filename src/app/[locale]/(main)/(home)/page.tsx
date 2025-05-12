@@ -143,7 +143,7 @@ function Home() {
 
       {/* Right Sidebar (friends list) */}
       <div
-        className={cn('sticky top-[100px] h-fit w-fit lg:w-[250px]', {
+        className={cn('sticky top-0 h-fit w-fit lg:w-[250px]', {
           'hidden lg:flex': !session
         })}
       >
