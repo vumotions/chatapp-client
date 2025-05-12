@@ -1,9 +1,9 @@
 'use client'
 
-import { Archive, ArrowLeft, File, Home, Inbox, Settings } from 'lucide-react'
+import { AnimatePresence, motion } from 'framer-motion'
+import { Archive, File, Home, Inbox, Settings } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
 
 import ChatList from '~/app/[locale]/(main)/messages/components/chat-list'
 import { Nav } from '~/components/nav'
@@ -12,7 +12,6 @@ import { ScrollArea } from '~/components/ui/scroll-area'
 import { Separator } from '~/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/components/ui/tabs'
 import { TooltipProvider } from '~/components/ui/tooltip'
-import { Button } from '~/components/ui/button'
 import useMediaQuery from '~/hooks/use-media-query'
 import { usePathname } from '~/i18n/navigation'
 import { cn } from '~/lib/utils'
@@ -31,11 +30,11 @@ export default function MessageLayout({ children }: LayoutProps) {
   const currentFilter = searchParams.get('filter') || 'all'
   // Lấy view từ URL hoặc mặc định là 'inbox'
   const currentView = searchParams.get('view') || 'inbox'
-  
+
   // Kiểm tra xem có đang xem chi tiết cuộc trò chuyện không
   const chatId = pathname.split('/').pop()
   const isViewingChat = pathname.includes('/messages/') && chatId !== 'messages'
-  
+
   useEffect(() => {
     if (isSmallScreen) {
       onCollapseCallback(true)
@@ -74,19 +73,14 @@ export default function MessageLayout({ children }: LayoutProps) {
       router.push(`${pathname}?${params.toString()}`)
     }
   }
-  
-  // Xử lý quay lại danh sách chat trên mobile
-  const handleBackToList = () => {
-    router.push('/messages')
-  }
 
   // Nếu là mobile và đang xem chi tiết chat, chỉ hiển thị phần chi tiết
   if (isMobile && isViewingChat) {
     return (
-      <AnimatePresence mode="wait">
-        <motion.div 
-          key="chat-detail"
-          className="flex h-full flex-col"
+      <AnimatePresence mode='wait'>
+        <motion.div
+          key='chat-detail'
+          className='flex h-full flex-col'
           initial={{ x: '100%' }}
           animate={{ x: 0 }}
           exit={{ x: '100%' }}
@@ -102,18 +96,18 @@ export default function MessageLayout({ children }: LayoutProps) {
   // Nếu là mobile và đang xem danh sách, chỉ hiển thị phần danh sách
   if (isMobile) {
     return (
-      <AnimatePresence mode="wait">
-        <motion.div 
-          className="flex h-full flex-col"
+      <AnimatePresence mode='wait'>
+        <motion.div
+          className='flex h-full flex-col'
           initial={{ x: '-100%' }}
           animate={{ x: 0 }}
           exit={{ x: '-100%' }}
           transition={{ type: 'spring', damping: 25, stiffness: 300 }}
         >
           <Tabs defaultValue={currentFilter} onValueChange={handleChangeTab}>
-            <div className="flex items-center px-4 py-2">
-              <h1 className="text-xl font-bold">{currentView === 'inbox' ? 'Inbox' : 'Archive'}</h1>
-              <TabsList className="ml-auto">
+            <div className='flex items-center px-4 py-2'>
+              <h1 className='text-xl font-bold'>{currentView === 'inbox' ? 'Inbox' : 'Archive'}</h1>
+              <TabsList className='ml-auto'>
                 <TabsTrigger
                   value='all'
                   className='dark:data-[state=active]:bg-background text-zinc-600 dark:text-zinc-200'

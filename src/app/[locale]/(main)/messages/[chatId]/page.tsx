@@ -147,6 +147,8 @@ function ChatDetail({ params }: Props) {
   const [userInfoMap, setUserInfoMap] = useState<Record<string, { name: string; avatar: string }>>({})
   // Thêm state để theo dõi việc hiển thị popover reactions
   const [openReactionPopover, setOpenReactionPopover] = useState<string | null>(null)
+  // Thêm state để theo dõi việc hiển thị popover người đã xem
+  const [openReadersPopover, setOpenReadersPopover] = useState<string | null>(null)
   // Thêm state để theo dõi trạng thái loading
   const [isLoadingFriendAction, setIsLoadingFriendAction] = useState(false)
   // Thêm state để theo dõi các tin nhắn đã thả tim localy trước khi server phản hồi
@@ -161,6 +163,8 @@ function ChatDetail({ params }: Props) {
   const [processedUpdatedMessages, setProcessedUpdatedMessages] = useState<Map<string, string>>(new Map())
   // Thêm state để quản lý trạng thái của dialog
   const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false)
+  // Thêm state để lưu trữ thông tin người đã xem
+  const [messageReaders, setMessageReaders] = useState<Record<string, any[]>>({})
 
   // Define scrollToBottom function
   const scrollToBottom = useCallback(() => {
@@ -841,21 +845,33 @@ function ChatDetail({ params }: Props) {
   useEffect(() => {
     if (!socket || !chatId) return
 
-    const handleMessageRead = (data: { chatId: string; messageIds: string[] }) => {
+    const handleMessageRead = (data: {
+      chatId: string
+      messageIds: string[]
+      messages: Array<{
+        _id: string
+        status: MESSAGE_STATUS
+        readBy: string[]
+      }>
+    }) => {
       if (data.chatId !== chatId) return
 
       // Cập nhật cache để đánh dấu tin nhắn đã đọc
       queryClient.setQueryData(['MESSAGES', chatId], (oldData: any) => {
-        if (!oldData) return oldData
+        if (!oldData || !oldData.pages) return oldData
 
         const updatedPages = oldData.pages.map((page: any) => {
-          if (!page.messages) return page
+          if (!page || !page.messages) return page
 
           const updatedMessages = page.messages.map((msg: any) => {
-            if (data.messageIds.includes(msg._id)) {
+            if (!msg || !data.messages) return msg
+
+            const updatedMessage = data.messages.find((m) => m._id === msg._id)
+            if (updatedMessage) {
               return {
                 ...msg,
-                status: MESSAGE_STATUS.SEEN
+                status: updatedMessage.status,
+                readBy: updatedMessage.readBy || []
               }
             }
             return msg
@@ -1698,6 +1714,28 @@ function ChatDetail({ params }: Props) {
     }
   }, [data?.pages, session?.user?._id])
 
+  const fetchReadersInfo = async (messageId: string, readBy: string[]) => {
+    if (!readBy || readBy.length === 0) return
+    try {
+      const promises = readBy.map(async (userId) => {
+        try {
+          const response = await httpRequest.get(`/user/${userId}`)
+          return response.data.data
+        } catch (error) {
+          return { _id: userId, name: 'Unknown User', avatar: '' }
+        }
+      })
+      const users = await Promise.all(promises)
+      console.log({ users })
+      setMessageReaders((prev) => ({
+        ...prev,
+        [messageId]: users
+      }))
+    } catch (error) {
+      console.error('Error fetching readers:', error)
+    }
+  }
+
   return (
     <div className='sticky top-0 flex h-full max-h-[calc(100vh-64px)] flex-col'>
       <div className='flex items-center border-b p-2'>
@@ -1935,8 +1973,70 @@ function ChatDetail({ params }: Props) {
                               isSentByMe ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground'
                             } ${isFirstMessageInGroup ? (isSentByMe ? 'rounded-tr-xl' : 'rounded-tl-xl') : isSentByMe ? 'rounded-r-xl' : 'rounded-l-xl'} relative`}
                           >
-                            <div style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{msg.content}</div>
+                            <HoverCard openDelay={100} closeDelay={100}>
+                              <HoverCardTrigger asChild>
+                                <div className='absolute inset-0 cursor-pointer' />
+                              </HoverCardTrigger>
+                              <HoverCardContent
+                                className={`w-auto border-none bg-transparent p-0 shadow-none ${isSentByMe ? 'data-[side=top]:translate-x-1/2' : 'data-[side=top]:-translate-x-1/2'}`}
+                                side={isSentByMe ? 'left' : 'right'}
+                              >
+                                <div className='flex gap-2'>
+                                  <Button
+                                    variant='ghost'
+                                    size='icon'
+                                    className='h-8 w-8 rounded-full bg-transparent hover:bg-black/10 dark:hover:bg-white/10'
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(msg.content)
+                                      toast.success('Đã sao chép tin nhắn', {
+                                        duration: 2000
+                                      })
+                                    }}
+                                  >
+                                    <Copy className='h-4 w-4' />
+                                    <span className='sr-only'>Copy</span>
+                                  </Button>
 
+                                  {/* Thêm nút reaction */}
+                                  {hasUserReacted(msg) ? (
+                                    <Button
+                                      variant='ghost'
+                                      size='icon'
+                                      className='h-8 w-8 rounded-full bg-transparent hover:bg-black/10 dark:hover:bg-white/10'
+                                      onClick={() => handleRemoveReaction(msg._id)}
+                                    >
+                                      <Heart className='h-4 w-4 fill-red-500 text-red-500' />
+                                      <span className='sr-only'>Unlike</span>
+                                    </Button>
+                                  ) : (
+                                    <Button
+                                      variant='ghost'
+                                      size='icon'
+                                      className='h-8 w-8 rounded-full bg-transparent hover:bg-black/10 dark:hover:bg-white/10'
+                                      onClick={() => handleAddReaction(msg._id)}
+                                    >
+                                      <Heart className='h-4 w-4' />
+                                      <span className='sr-only'>Like</span>
+                                    </Button>
+                                  )}
+
+                                  {/* Thêm nút ghim cho tất cả tin nhắn */}
+                                  <Button
+                                    variant='ghost'
+                                    size='icon'
+                                    className='h-8 w-8 rounded-full bg-transparent hover:bg-black/10 dark:hover:bg-white/10'
+                                    onClick={() => pinMessage(msg._id)}
+                                  >
+                                    {msg.isPinned ? <PinOff className='h-4 w-4' /> : <Pin className='h-4 w-4' />}
+                                    <span className='sr-only'>{msg.isPinned ? 'Bỏ ghim' : 'Ghim'}</span>
+                                  </Button>
+
+                                  {/* Thêm MessageActions component */}
+                                  <MessageActions message={msg} chatId={chatId} isSentByMe={isSentByMe} />
+                                </div>
+                              </HoverCardContent>
+                            </HoverCard>
+                            <div style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{msg.content}</div>
                             {/* Hiển thị reactions kiểu Instagram */}
                             {msg.reactions && msg.reactions.length > 0 && (
                               <div className='absolute right-0 bottom-0 translate-x-1/3 translate-y-1/2 transform'>
@@ -2013,7 +2113,6 @@ function ChatDetail({ params }: Props) {
                             )}
                           </div>
                         </div>
-
                         {/* Hiển thị thời gian và trạng thái tin nhắn */}
                         {isLastMessageInGroup && (
                           <div
@@ -2025,80 +2124,66 @@ function ChatDetail({ params }: Props) {
                                 {msg.status === MESSAGE_STATUS.SENT && <Check className='inline h-3 w-3' />}
                                 {msg.status === MESSAGE_STATUS.DELIVERED && <Check className='inline h-3 w-3' />}
                                 {msg.status === MESSAGE_STATUS.SEEN && (
-                                  <CheckCheck className='inline h-3 w-3 text-blue-500' />
+                                  <>
+                                    {data?.pages[0]?.conversation?.type === 'GROUP' ? (
+                                      <Popover
+                                        open={openReadersPopover === msg._id}
+                                        onOpenChange={(open) => {
+                                          if (open) {
+                                            setOpenReadersPopover(msg._id)
+                                            fetchReadersInfo(msg._id, msg.readBy || [])
+                                          } else {
+                                            setOpenReadersPopover(null)
+                                          }
+                                        }}
+                                      >
+                                        <PopoverTrigger asChild>
+                                          <span className='cursor-pointer text-blue-500 hover:underline'>
+                                            <CheckCheck className='inline h-3 w-3' />
+                                            {msg.readBy && msg.readBy.length > 0 && (
+                                              <span className='ml-1 text-xs'>({msg.readBy.length})</span>
+                                            )}
+                                          </span>
+                                        </PopoverTrigger>
+                                        <PopoverContent className='w-60 p-0' side='top'>
+                                          <div className='py-2'>
+                                            <h4 className='px-3 py-1 text-sm font-medium'>
+                                              Đã xem ({msg.readBy?.length || 0})
+                                            </h4>
+                                            <div className='max-h-40 overflow-y-auto'>
+                                              {messageReaders[msg._id] ? (
+                                                messageReaders[msg._id].map((reader: any) => (
+                                                  <div
+                                                    key={reader._id}
+                                                    className='hover:bg-muted flex items-center px-3 py-2'
+                                                  >
+                                                    <Avatar className='mr-2 h-6 w-6'>
+                                                      <AvatarImage src={reader.avatar} />
+                                                      <AvatarFallback>{reader.name?.[0] || '?'}</AvatarFallback>
+                                                    </Avatar>
+                                                    <span className='text-sm'>{reader.name}</span>
+                                                  </div>
+                                                ))
+                                              ) : (
+                                                <div className='text-muted-foreground px-3 py-2 text-sm'>
+                                                  Đang tải...
+                                                </div>
+                                              )}
+                                            </div>
+                                          </div>
+                                        </PopoverContent>
+                                      </Popover>
+                                    ) : (
+                                      <span className='text-blue-500'>
+                                        <CheckCheck className='inline h-3 w-3' />
+                                      </span>
+                                    )}
+                                  </>
                                 )}
                               </span>
                             )}
                           </div>
                         )}
-
-                        {/* Hiển thị nút copy và reaction khi hover */}
-                        <HoverCard openDelay={100} closeDelay={100}>
-                          <HoverCardTrigger asChild>
-                            <div className='absolute inset-0 cursor-pointer' />
-                          </HoverCardTrigger>
-                          <HoverCardContent
-                            className={`w-auto border-none bg-transparent p-0 shadow-none ${isSentByMe ? 'data-[side=top]:translate-x-1/2' : 'data-[side=top]:-translate-x-1/2'}`}
-                            side={isSentByMe ? 'left' : 'right'}
-                          >
-                            <div className='flex gap-2'>
-                              <Button
-                                variant='ghost'
-                                size='icon'
-                                className='h-8 w-8 rounded-full bg-transparent hover:bg-black/10 dark:hover:bg-white/10'
-                                onClick={() => {
-                                  navigator.clipboard.writeText(msg.content)
-                                  toast.success('Đã sao chép tin nhắn', {
-                                    duration: 2000
-                                  })
-                                }}
-                              >
-                                <Copy className='h-4 w-4' />
-                                <span className='sr-only'>Copy</span>
-                              </Button>
-
-                              {/* Thêm nút reaction */}
-                              {hasUserReacted(msg) ? (
-                                <Button
-                                  variant='ghost'
-                                  size='icon'
-                                  className='h-8 w-8 rounded-full bg-transparent hover:bg-black/10 dark:hover:bg-white/10'
-                                  onClick={() => handleRemoveReaction(msg._id)}
-                                >
-                                  <Heart className='h-4 w-4 fill-red-500 text-red-500' />
-                                  <span className='sr-only'>Unlike</span>
-                                </Button>
-                              ) : (
-                                <Button
-                                  variant='ghost'
-                                  size='icon'
-                                  className='h-8 w-8 rounded-full bg-transparent hover:bg-black/10 dark:hover:bg-white/10'
-                                  onClick={() => handleAddReaction(msg._id)}
-                                >
-                                  <Heart className='h-4 w-4' />
-                                  <span className='sr-only'>Like</span>
-                                </Button>
-                              )}
-
-                              {/* Thêm nút ghim cho tất cả tin nhắn */}
-                              <Button
-                                variant='ghost'
-                                size='icon'
-                                className='h-8 w-8 rounded-full bg-transparent hover:bg-black/10 dark:hover:bg-white/10'
-                                onClick={() => pinMessage(msg._id)}
-                              >
-                                {msg.isPinned ? <PinOff className='h-4 w-4' /> : <Pin className='h-4 w-4' />}
-                                <span className='sr-only'>{msg.isPinned ? 'Bỏ ghim' : 'Ghim'}</span>
-                              </Button>
-
-                              {/* Thêm MessageActions component */}
-                              <MessageActions message={msg} chatId={chatId} isSentByMe={isSentByMe} />
-                            </div>
-                          </HoverCardContent>
-                        </HoverCard>
-
-                        {/* Hiển thị chỉ báo đã chỉnh sửa nếu tin nhắn đã được chỉnh sửa */}
-                        {msg.isEdited && <span className='text-muted-foreground ml-2 text-xs'>(đã chỉnh sửa)</span>}
                       </div>
                     </div>
                   )

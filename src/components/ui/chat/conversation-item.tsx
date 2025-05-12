@@ -6,13 +6,13 @@ import { Archive } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
 import { ConversationActions } from '~/components/ui/chat/conversation-actions'
 import SOCKET_EVENTS from '~/constants/socket-events'
 import { useArchiveChat } from '~/hooks/data/chat.hooks'
 import { useSocket } from '~/hooks/use-socket'
 import { cn } from '~/lib/utils'
-import conversationsService from '~/services/conversations.service'
 
 interface ConversationItemProps {
   conversation: any
@@ -38,6 +38,7 @@ export default function ConversationItem({
   const { socket } = useSocket()
   const [isOnline, setIsOnline] = useState(false)
   const [otherUserId, setOtherUserId] = useState<string | null>(null)
+  const queryClient = useQueryClient()
 
   // Kiểm tra xem người dùng có đang ở trong cuộc trò chuyện này không
   const isUserInConversation = pathname?.includes(`/messages/${conversation._id}`)
@@ -60,10 +61,10 @@ export default function ConversationItem({
   // Kiểm tra trạng thái online ban đầu và lắng nghe sự kiện online/offline
   useEffect(() => {
     if (!socket) return
-    
+
     if (conversation.type === 'PRIVATE' && otherUserId) {
       console.log('Checking online status for user:', otherUserId)
-      
+
       // Kiểm tra trạng thái online ban đầu cho chat riêng tư
       socket.emit(SOCKET_EVENTS.CHECK_ONLINE, otherUserId, (isUserOnline: boolean, lastActiveTime: string) => {
         console.log('Online status for user:', otherUserId, isUserOnline)
@@ -96,10 +97,10 @@ export default function ConversationItem({
     } else if (conversation.type === 'GROUP' && conversation.participants) {
       // Kiểm tra trạng thái online của tất cả thành viên trong nhóm
       const participants = conversation.participants.filter((p: any) => p._id !== session?.user?._id)
-      
+
       // Đếm số người online trong nhóm
       let onlineCount = 0
-      
+
       participants.forEach((participant: any) => {
         socket.emit(SOCKET_EVENTS.CHECK_ONLINE, participant._id, (isUserOnline: boolean) => {
           if (isUserOnline) {
@@ -114,17 +115,57 @@ export default function ConversationItem({
     }
   }, [socket, otherUserId, conversation.type, conversation.participants, session?.user?._id])
 
+  // Join room khi component mount
+  useEffect(() => {
+    if (!socket || !conversation._id) return
+
+    // Join vào room của conversation
+    socket.emit(SOCKET_EVENTS.JOIN_ROOM, conversation._id)
+
+    // Lắng nghe sự kiện tin nhắn mới
+    const handleNewMessage = (message: any) => {
+      if (message.chatId === conversation._id) {
+        // Cập nhật last message trong conversation list
+        queryClient.setQueryData(['conversations'], (oldData: any) => {
+          if (!oldData) return oldData
+          return {
+            ...oldData,
+            pages: oldData.pages.map((page: any) => ({
+              ...page,
+              conversations: page.conversations.map((conv: any) => {
+                if (conv._id === conversation._id) {
+                  return {
+                    ...conv,
+                    lastMessage: message,
+                    updatedAt: message.createdAt
+                  }
+                }
+                return conv
+              })
+            }))
+          }
+        })
+      }
+    }
+
+    socket.on(SOCKET_EVENTS.RECEIVE_MESSAGE, handleNewMessage)
+
+    return () => {
+      socket.off(SOCKET_EVENTS.RECEIVE_MESSAGE, handleNewMessage)
+    }
+  }, [socket, conversation._id, queryClient])
+
   // Xử lý khi click vào nút archive/unarchive
   const handleArchiveToggle = (e: React.MouseEvent) => {
     e.stopPropagation() // Ngăn không cho sự kiện click lan tỏa lên parent
-    
+
     // Log để debug
     console.log('Archive toggle clicked', {
       isArchived,
       conversationId: conversation._id,
       onArchive: !!onArchive
     })
-    
+
     if (onArchive) {
       onArchive(conversation._id)
     } else {
@@ -148,16 +189,18 @@ export default function ConversationItem({
       avatar = otherUser.avatar
     }
   }
-  
+
   // Đếm số người online trong nhóm (trừ bản thân)
-  const onlineParticipantsCount = conversation.type === 'GROUP' 
-    ? conversation.participants?.filter((p: any) => p.isOnline && p._id !== session?.user?._id).length || 0
-    : 0
-  
+  const onlineParticipantsCount =
+    conversation.type === 'GROUP'
+      ? conversation.participants?.filter((p: any) => p.isOnline && p._id !== session?.user?._id).length || 0
+      : 0
+
   // Tổng số thành viên trong nhóm (trừ bản thân)
-  const totalParticipantsCount = conversation.type === 'GROUP'
-    ? conversation.participants?.filter((p: any) => p._id !== session?.user?._id).length || 0
-    : 0
+  const totalParticipantsCount =
+    conversation.type === 'GROUP'
+      ? conversation.participants?.filter((p: any) => p._id !== session?.user?._id).length || 0
+      : 0
 
   // Format thời gian của tin nhắn cuối cùng
   const formatTime = (dateString: string) => {
@@ -182,26 +225,29 @@ export default function ConversationItem({
 
   // Xác định nếu tin nhắn chưa đọc - nếu người dùng đang ở trong cuộc trò chuyện, coi như đã đọc
   // Thêm kiểm tra: nếu tin nhắn cuối cùng do chính người dùng hiện tại gửi, coi như đã đọc
-  const isUnread = !conversation.read && !isArchived && !isUserInConversation && 
-    conversation.lastMessage?.senderId?._id !== session?.user?._id && 
-    conversation.lastMessage?.senderId !== session?.user?._id;
+  const isUnread =
+    !conversation.read &&
+    !isArchived &&
+    !isUserInConversation &&
+    conversation.lastMessage?.senderId?._id !== session?.user?._id &&
+    conversation.lastMessage?.senderId !== session?.user?._id
 
   // Tự động đánh dấu đã đọc khi người dùng đang ở trong cuộc trò chuyện
   useEffect(() => {
     if (isUserInConversation && !conversation.read && socket) {
       // Chỉ đánh dấu đã đọc nếu tin nhắn cuối cùng KHÔNG phải do người dùng hiện tại gửi
-      const lastMessageSenderId = conversation.lastMessage?.senderId?._id || conversation.lastMessage?.senderId;
-      const currentUserId = session?.user?._id;
-      
+      const lastMessageSenderId = conversation.lastMessage?.senderId?._id || conversation.lastMessage?.senderId
+      const currentUserId = session?.user?._id
+
       if (lastMessageSenderId !== currentUserId) {
         // Gửi sự kiện đánh dấu đã đọc
         socket.emit(SOCKET_EVENTS.MARK_AS_READ, {
           chatId: conversation._id,
           messageIds: conversation.lastMessage ? [conversation.lastMessage._id] : []
-        });
+        })
       }
     }
-  }, [isUserInConversation, conversation.read, conversation._id, conversation.lastMessage, socket, session]);
+  }, [isUserInConversation, conversation.read, conversation._id, conversation.lastMessage, socket, session])
 
   return (
     <div
@@ -250,24 +296,3 @@ export default function ConversationItem({
     </div>
   )
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
