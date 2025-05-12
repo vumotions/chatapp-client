@@ -1,18 +1,47 @@
+'use client'
+
 import NotFound from '../not-found'
 
-import { Avatar } from '~/components/ui/avatar'
+import { Avatar, AvatarImage, AvatarFallback } from '~/components/ui/avatar'
 import { Button } from '~/components/ui/button'
 import { Card, CardContent } from '~/components/ui/card'
 import { Input } from '~/components/ui/input'
+import { useMyProfileQuery } from '~/hooks/data/auth.hooks'
+import { useFriendsQuery } from '~/hooks/data/friends.hook'
+import { Skeleton } from '~/components/ui/skeleton'
 
 type Props = {
-  params: Promise<{
+  params: {
     username: string
-  }>
+  }
 }
 
-async function Profile({ params }: Props) {
-  const { username } = await params
+function Profile({ params }: Props) {
+  const { username } = params
+  const { data, isLoading, error } = useMyProfileQuery()
+  const { data: friends, isLoading: isLoadingFriends } = useFriendsQuery()
+
+  if (isLoading) {
+    return (
+      <div className='mx-auto my-6 max-w-7xl space-y-6 px-4'>
+        <Card className='pt-0'>
+          <div className='bg-muted h-48 rounded-t-md' />
+          <CardContent className='-mt-12 flex flex-col gap-4 px-6 pb-4 sm:flex-row sm:items-end'>
+            <Skeleton className='h-28 w-28 rounded-full' />
+            <div className='flex-1'>
+              <Skeleton className='mb-2 h-6 w-32' />
+              <Skeleton className='h-4 w-24' />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  if (error) {
+    console.error('Error loading profile:', error)
+    return <div>Error loading profile. Please try again later.</div>
+  }
 
   if (!username) {
     return <NotFound />
@@ -21,12 +50,27 @@ async function Profile({ params }: Props) {
     <div className='mx-auto my-6 max-w-7xl space-y-6 px-4'>
       {/* Cover + Avatar */}
       <Card className='pt-0'>
-        <div className='bg-muted h-48 rounded-t-md' />
+        <div
+          className='bg-muted h-48 rounded-t-md'
+          style={
+            data?.coverPhoto
+              ? {
+                  backgroundImage: `url(${data.coverPhoto})`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center'
+                }
+              : {}
+          }
+        />
         <CardContent className='-mt-12 flex flex-col gap-4 px-6 pb-4 sm:flex-row sm:items-end'>
-          <Avatar className='border-background h-28 w-28 border-4 shadow-md' />
+          <Avatar className='border-background h-28 w-28 border-4 shadow-md'>
+            <AvatarImage src={data?.avatar} alt={data?.name || 'User'} />
+            <AvatarFallback>{data?.name?.[0] || 'U'}</AvatarFallback>
+          </Avatar>
           <div className='flex-1'>
-            <h1 className='text-xl font-bold'>Lê Vũ</h1>
-            <p className='text-muted-foreground text-sm'>779 người bạn</p>
+            <h1 className='text-xl font-bold'>{data?.name || 'User'}</h1>
+            <p className='text-muted-foreground text-sm'>@{data?.username || username}</p>
+            <p className='text-muted-foreground text-sm'>{friends?.length || 0} người bạn</p>
           </div>
           <div className='flex gap-2'>
             <Button size='sm'>+ Thêm vào tin</Button>
@@ -82,14 +126,31 @@ async function Profile({ params }: Props) {
                   Xem tất cả
                 </Button>
               </div>
-              <p className='text-muted-foreground text-sm'>779 người bạn</p>
+              <p className='text-muted-foreground text-sm'>{friends?.length || 0} người bạn</p>
               <div className='grid grid-cols-3 gap-2'>
-                {[...Array(9)].map((_, i) => (
-                  <div key={i} className='space-y-1'>
-                    <div className='bg-muted aspect-square rounded' />
-                    <p className='truncate text-center text-xs'>Bạn {i + 1}</p>
-                  </div>
-                ))}
+                {isLoadingFriends ? (
+                  // Hiển thị skeleton khi đang tải
+                  [...Array(6)].map((_, i) => (
+                    <div key={i} className='space-y-1'>
+                      <Skeleton className='aspect-square rounded' />
+                      <Skeleton className='mx-auto h-3 w-16' />
+                    </div>
+                  ))
+                ) : friends && friends.length > 0 ? (
+                  // Hiển thị danh sách bạn bè
+                  friends.slice(0, 9).map((friend) => (
+                    <div key={friend._id} className='space-y-1'>
+                      <Avatar className='aspect-square w-full'>
+                        <AvatarImage src={friend.avatar} alt={friend.name} />
+                        <AvatarFallback>{friend.name?.[0]}</AvatarFallback>
+                      </Avatar>
+                      <p className='truncate text-center text-xs'>{friend.name}</p>
+                    </div>
+                  ))
+                ) : (
+                  // Hiển thị khi không có bạn bè
+                  <div className='text-muted-foreground col-span-3 py-2 text-center'>Chưa có bạn bè</div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -121,7 +182,7 @@ async function Profile({ params }: Props) {
               <div className='flex items-center gap-3'>
                 <Avatar className='h-10 w-10' />
                 <div className='text-sm'>
-                  <p className='font-medium'>Lê Vũ</p>
+                  <p className='font-medium'>{data?.name || 'User'}</p>
                   <p className='text-muted-foreground text-xs'>31 tháng 5, 2022</p>
                 </div>
               </div>
@@ -133,7 +194,7 @@ async function Profile({ params }: Props) {
               </p>
               {/* Reactions */}
               <div className='text-muted-foreground mt-2 flex justify-between border-t pt-2 text-xs'>
-                <div>👍❤️ Bạn và Rinoa Zoro</div>
+                <div>👍❤️ {data?.name || 'User'} và Rinoa Zoro</div>
                 <div>10 bình luận</div>
               </div>
               {/* Actions */}

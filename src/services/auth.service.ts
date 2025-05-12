@@ -1,6 +1,7 @@
 import httpRequest from '~/config/http-request'
 import { FormCodeValues, FormLoginValues, FormRegisterValues } from '~/schemas/form.schemas'
 import {
+  GetMyProfileResponse,
   LoginResponse,
   RegisterResponse,
   SendEmailVerificationResponse,
@@ -16,9 +17,7 @@ class AuthService {
     return httpRequest.post<LoginResponse>('/auth/login', body)
   }
 
-  async loginOauth() {
-    
-  }
+  async loginOauth() {}
 
   async logout(refreshToken: string) {
     return httpRequest.post('/auth/logout', {
@@ -32,6 +31,10 @@ class AuthService {
 
   async verifyAccount(body: FormCodeValues) {
     return httpRequest.post<VerifyAccountResponse>('/auth/email/verify/confirm', body)
+  }
+
+  async getMyProfile() {
+    return httpRequest.get<GetMyProfileResponse>('/user/my-profile')
   }
 }
 
