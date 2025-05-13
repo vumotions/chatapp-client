@@ -1,21 +1,6 @@
 'use client'
 import { format, formatDistanceToNow } from 'date-fns'
-import {
-  Archive,
-  ArrowDown,
-  ArrowLeft,
-  Check,
-  CheckCheck,
-  Copy,
-  Heart,
-  Phone,
-  Pin,
-  PinOff,
-  UserCheck,
-  UserMinus,
-  UserPlus,
-  Video
-} from 'lucide-react'
+import { Archive, ArrowDown, ArrowLeft, Check, CheckCheck, Copy, Heart, Phone, Pin, PinOff, Video } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
@@ -43,30 +28,24 @@ import { Skeleton } from '~/components/ui/skeleton'
 import { useArchiveChat, useMarkChatAsRead, useMessages, usePinMessage } from '~/hooks/data/chat.hooks'
 import { useSocket } from '~/hooks/use-socket'
 
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import { vi } from 'date-fns/locale'
 import { throttle } from 'lodash'
 import { useSession } from 'next-auth/react'
 import { toast } from 'sonner'
 import { AddGroupMembersDialog } from '~/components/add-group-members-dialog'
+import FriendHoverCard from '~/components/friend-hover-card'
 import { GroupSettingsDialog } from '~/components/group-settings-dialog'
 import { MessageActions } from '~/components/ui/chat/message-actions'
 import MessageLoading from '~/components/ui/chat/message-loading'
 import httpRequest from '~/config/http-request'
 import { CHAT_TYPE, FRIEND_REQUEST_STATUS, MEDIA_TYPE, MESSAGE_STATUS, MESSAGE_TYPE } from '~/constants/enums'
 import SOCKET_EVENTS from '~/constants/socket-events'
-import { useDraftMessage } from '~/hooks/data/draft.hooks'
-import {
-  useAcceptFriendRequestMutation,
-  useCancelFriendRequestMutation,
-  useRemoveFriendMutation
-} from '~/hooks/data/friends.hook'
+import { useFriendStatus } from '~/hooks/data/friends.hook'
 import useMediaQuery from '~/hooks/use-media-query'
 import { useRouter } from '~/i18n/navigation'
-import friendService from '~/services/friend.service'
 import { FriendActionButton } from './components/friend-action-button'
 import { PinnedMessages } from './components/pinned-messages'
-import FriendHoverCard from '~/components/friend-hover-card'
 
 const PRIMARY_RGB = '14, 165, 233' // Giá trị RGB của màu primary (sky-500)
 const SUCCESS_RGB = '34, 197, 94' // Giá trị RGB của màu green-500
@@ -131,9 +110,7 @@ function ChatDetail({ params }: Props) {
   const [isFirstLoad, setIsFirstLoad] = useState(true)
   const [isTyping, setIsTyping] = useState(false)
   const [sentTempIds, setSentTempIds] = useState<Set<string>>(new Set())
-  const [friendStatus, setFriendStatus] = useState<FRIEND_REQUEST_STATUS | 'RECEIVED' | null>(null)
   const [otherUserId, setOtherUserId] = useState<string | null>(null)
-  const [isFriend, setIsFriend] = useState(false)
   const [userStatus, setUserStatus] = useState<{
     isOnline: boolean
     lastActive: string | null
@@ -152,7 +129,6 @@ function ChatDetail({ params }: Props) {
   // Thêm state để theo dõi việc hiển thị popover người đã xem
   const [openReadersPopover, setOpenReadersPopover] = useState<string | null>(null)
   // Thêm state để theo dõi trạng thái loading
-  const [isLoadingFriendAction, setIsLoadingFriendAction] = useState(false)
   // Thêm state để theo dõi các tin nhắn đã thả tim localy trước khi server phản hồi
   const [localReactions, setLocalReactions] = useState<Record<string, boolean>>({})
   // Thêm state để theo dõi người dùng online trong nhóm
@@ -249,25 +225,7 @@ function ChatDetail({ params }: Props) {
     [hasNextPage, isFetchingNextPage, fetchNextPage]
   )
 
-  // Friend request mutations
-  const sendFriendRequest = useMutation({
-    mutationFn: (userId: string) => friendService.sendFriendRequest(userId),
-    onSuccess: () => {
-      toast.success('Đã gửi lời mời kết bạn')
-      // Cập nhật trạng thái sau khi gửi thành công
-      setFriendStatus(FRIEND_REQUEST_STATUS.PENDING)
-    },
-    onError: (error: any) => {
-      // Hiển thị thông báo lỗi từ server
-      const errorMessage = error?.response?.data?.message || 'Không thể gửi lời mời kết bạn'
-      toast.error(errorMessage)
-    }
-  })
   const isMobile = useMediaQuery('(max-width: 768px)')
-  const cancelFriendRequest = useCancelFriendRequestMutation()
-  const acceptFriendRequest = useAcceptFriendRequestMutation()
-  const removeFriend = useRemoveFriendMutation()
-
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const typingDebounceRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -276,10 +234,6 @@ function ChatDetail({ params }: Props) {
   const queryClient = useQueryClient()
   const { data: session } = useSession()
   const { archiveChat, unarchiveChat } = useArchiveChat()
-
-  // Thêm hook quản lý draft
-  const { draftContent, updateDraftContent, draftAttachments, addAttachment, removeAttachment, deleteDraft } =
-    useDraftMessage(chatId)
 
   // Thêm hook để ghim tin nhắn
   const { mutate: pinMessage } = usePinMessage(chatId as string)
@@ -606,30 +560,6 @@ function ChatDetail({ params }: Props) {
       document.body.setAttribute('data-fetching-old-messages', 'false')
     }
   }, [isFetchingNextPage])
-
-  // Thêm useEffect để lấy trạng thái kết bạn
-  useEffect(() => {
-    const fetchFriendStatus = async () => {
-      if (!otherUserId) return
-
-      try {
-        setIsLoadingFriendAction(true)
-        const response = await friendService.getFriendStatus(otherUserId)
-        const status = response.data.data.status
-
-        setFriendStatus(status as FRIEND_REQUEST_STATUS | 'RECEIVED' | null)
-        setIsFriend(status === FRIEND_REQUEST_STATUS.ACCEPTED)
-        setIsLoadingFriendAction(false)
-      } catch (error) {
-        console.error('Error fetching friend status:', error)
-        setIsLoadingFriendAction(false)
-      }
-    }
-
-    if (otherUserId) {
-      fetchFriendStatus()
-    }
-  }, [otherUserId])
 
   // Thêm useEffect để lấy ID người dùng khác từ cuộc trò chuyện
   useEffect(() => {
@@ -986,22 +916,17 @@ function ChatDetail({ params }: Props) {
   }, [socket, chatId, queryClient])
 
   // Add socket listener for friend status changes
-  useEffect(() => {
-    if (!socket || !otherUserId) return
+  const {
+    data: friendStatusData,
+    isPending: isLoadingFriendStatus,
+    refetch: refetchFriendStatus
+  } = useFriendStatus(otherUserId || undefined, {
+    enabled: !!otherUserId && otherUserId !== session?.user?._id
+  })
 
-    const handleFriendStatusChange = (data: { userId: string; status: string }) => {
-      if (data.userId === otherUserId) {
-        setFriendStatus(data.status as FRIEND_REQUEST_STATUS | 'RECEIVED' | null)
-        setIsFriend(data.status === FRIEND_REQUEST_STATUS.ACCEPTED)
-      }
-    }
-
-    socket.on(SOCKET_EVENTS.FRIEND_STATUS_CHANGED, handleFriendStatusChange)
-
-    return () => {
-      socket.off(SOCKET_EVENTS.FRIEND_STATUS_CHANGED, handleFriendStatusChange)
-    }
-  }, [socket, otherUserId])
+  // Lấy trạng thái từ data của hook
+  const friendStatus = friendStatusData?.status || null
+  const isFriend = friendStatus === FRIEND_REQUEST_STATUS.ACCEPTED
 
   // Thêm useEffect để đồng bộ tin nhắn khi mở cuộc trò chuyện
   useEffect(() => {
@@ -1100,7 +1025,6 @@ function ChatDetail({ params }: Props) {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newContent = e.target.value
     setMessage(newContent)
-    updateDraftContent(newContent)
 
     // Xử lý typing event
     if (!isTyping) {
@@ -1159,9 +1083,6 @@ function ChatDetail({ params }: Props) {
       senderAvatar: session?.user?.avatar,
       status: MESSAGE_STATUS.DELIVERED // Đặt trạng thái ban đầu là DELIVERED, không phải SEEN
     })
-
-    // Xóa draft sau khi gửi tin nhắn
-    deleteDraft()
 
     // Xóa nội dung input
     setMessage('')
@@ -1842,11 +1763,11 @@ function ChatDetail({ params }: Props) {
 
                         {otherUserId && (
                           <FriendActionButton
+                            isLoading={isLoadingFriendStatus}
                             friendStatus={friendStatus}
                             otherUserId={otherUserId}
-                            onStatusChange={(newStatus) => {
-                              setFriendStatus(newStatus as FRIEND_REQUEST_STATUS | 'RECEIVED' | null)
-                              setIsFriend(newStatus === FRIEND_REQUEST_STATUS.ACCEPTED)
+                            onStatusChange={() => {
+                              refetchFriendStatus()
                             }}
                           />
                         )}

@@ -14,7 +14,7 @@ import { useArchiveChat } from '~/hooks/data/chat.hooks'
 import { useSocket } from '~/hooks/use-socket'
 import conversationsService from '~/services/conversations.service'
 import { AnimatePresence, motion } from 'framer-motion'
-import  useMediaQuery  from '~/hooks/use-media-query'
+import useMediaQuery from '~/hooks/use-media-query'
 
 // Tạo component MemoizedConversationItem
 const MemoizedConversationItem = React.memo<{
@@ -31,11 +31,11 @@ const MemoizedConversationItem = React.memo<{
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, height: 0, marginBottom: 0 }}
-        transition={{ 
-          type: "spring", 
-          stiffness: 500, 
+        transition={{
+          type: 'spring',
+          stiffness: 500,
           damping: 30,
-          layout: { type: "spring", stiffness: 300, damping: 30 }
+          layout: { type: 'spring', stiffness: 300, damping: 30 }
         }}
       >
         <ConversationItem
@@ -180,7 +180,7 @@ export function ChatList() {
 
       // Invalidate query để React Query tự refetch
       queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] })
-      
+
       // Thêm invalidate cho ARCHIVED_CHAT_LIST nếu tin nhắn có thể thuộc về chat đã lưu trữ
       queryClient.invalidateQueries({ queryKey: ['ARCHIVED_CHAT_LIST'] })
 
@@ -212,12 +212,12 @@ export function ChatList() {
   return (
     <div className='flex h-full flex-col'>
       {/* Thanh tìm kiếm và tạo nhóm */}
-      <div className='p-2 flex items-center gap-2'>
+      <div className='flex items-center gap-2 p-4'>
         <div className='relative flex-1'>
           <Search className='text-muted-foreground absolute top-2.5 left-2 h-4 w-4' />
           <Input placeholder='Tìm kiếm tin nhắn' value={searchQuery} onChange={handleSearchChange} className='pl-8' />
         </div>
-        <CreateGroupChatDialog variant="icon" />
+        <CreateGroupChatDialog variant='icon' />
       </div>
 
       {/* Hiển thị danh sách cuộc trò chuyện dựa trên chế độ xem hiện tại */}
@@ -280,12 +280,3 @@ export function ChatList() {
 
 // Thêm export default để hỗ trợ cả hai cách import
 export default ChatList
-
-
-
-
-
-
-
-
-

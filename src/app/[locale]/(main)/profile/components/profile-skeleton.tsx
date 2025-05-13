@@ -3,7 +3,7 @@ import { Skeleton } from '~/components/ui/skeleton'
 
 export default function ProfileSkeleton() {
   return (
-    <div className='mx-auto my-6 max-w-7xl space-y-6 px-4'>
+    <div className='mx-auto my-6 w-full max-w-5xl space-y-6 px-4'>
       {/* Cover + Avatar Skeleton */}
       <Card className='pt-0'>
         <div className='bg-muted h-48 rounded-t-md' />
@@ -100,13 +100,13 @@ export default function ProfileSkeleton() {
               <Skeleton className='aspect-video rounded-md' />
               <Skeleton className='h-4 w-full' />
               <Skeleton className='h-4 w-3/4' />
-              
+
               {/* Reactions */}
               <div className='mt-2 flex justify-between border-t pt-2'>
                 <Skeleton className='h-3 w-32' />
                 <Skeleton className='h-3 w-24' />
               </div>
-              
+
               {/* Actions */}
               <div className='mt-2 flex justify-between border-t pt-2'>
                 <Skeleton className='h-8 w-28 rounded-md' />

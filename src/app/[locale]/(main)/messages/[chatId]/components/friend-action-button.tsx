@@ -24,10 +24,16 @@ import {
 interface FriendActionButtonProps {
   friendStatus: string | null
   otherUserId: string
+  isLoading?: boolean // Thêm prop isLoading (optional)
   onStatusChange: (newStatus: string | null) => void
 }
 
-export function FriendActionButton({ friendStatus, otherUserId, onStatusChange }: FriendActionButtonProps) {
+export function FriendActionButton({ 
+  friendStatus, 
+  otherUserId, 
+  isLoading: externalLoading = false, // Đổi tên để tránh nhầm lẫn với state isLoading
+  onStatusChange 
+}: FriendActionButtonProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
 
@@ -36,6 +42,9 @@ export function FriendActionButton({ friendStatus, otherUserId, onStatusChange }
   const acceptFriendRequest = useAcceptFriendRequestMutation()
   const removeFriend = useRemoveFriendMutation()
 
+  // Kết hợp loading từ bên ngoài và loading nội bộ
+  const isButtonDisabled = isLoading || externalLoading
+
   const handleFriendAction = async () => {
     // Nếu đang là bạn bè và người dùng muốn hủy kết bạn, hiển thị dialog xác nhận
     if (friendStatus === FRIEND_REQUEST_STATUS.ACCEPTED) {
@@ -43,7 +52,7 @@ export function FriendActionButton({ friendStatus, otherUserId, onStatusChange }
       return
     }
 
-    if (isLoading) return
+    if (isButtonDisabled) return
     setIsLoading(true)
 
     try {
@@ -95,16 +104,16 @@ export function FriendActionButton({ friendStatus, otherUserId, onStatusChange }
     icon = <UserCheck className='h-4 w-4' />
     tooltipText = 'Chấp nhận lời mời kết bạn'
   } else if (friendStatus === FRIEND_REQUEST_STATUS.ACCEPTED) {
-    icon = <UserX className='h-4 w-4' />
-    tooltipText = 'Hủy kết bạn'
+    icon = <UserCheck className='h-4 w-4' />
+    tooltipText = 'Đã là bạn bè'
   }
 
   return (
     <>
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button variant='ghost' size='icon' onClick={handleFriendAction} disabled={isLoading}>
-            {isLoading ? <Loader2 className='h-4 w-4 animate-spin' /> : icon}
+          <Button variant='ghost' size='icon' onClick={handleFriendAction} disabled={isButtonDisabled}>
+            {isButtonDisabled ? <Loader2 className='h-4 w-4 animate-spin' /> : icon}
             <span className='sr-only'>{tooltipText}</span>
           </Button>
         </TooltipTrigger>
@@ -138,4 +147,6 @@ export function FriendActionButton({ friendStatus, otherUserId, onStatusChange }
     </>
   )
 }
+
+
 

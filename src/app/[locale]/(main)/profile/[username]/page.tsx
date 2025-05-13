@@ -1,17 +1,22 @@
 'use client'
 
 import { useSession } from 'next-auth/react'
-import { use } from 'react'
+import { use, useState } from 'react'
 import FriendHoverCard from '~/components/friend-hover-card'
 import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
 import { Button } from '~/components/ui/button'
 import { Card, CardContent } from '~/components/ui/card'
 import { Input } from '~/components/ui/input'
 import { Skeleton } from '~/components/ui/skeleton'
-import { useFriendsByUsername, useFriendsQuery } from '~/hooks/data/friends.hook'
+import { FRIEND_REQUEST_STATUS } from '~/constants/enums'
+import { useStartConversationMutation } from '~/hooks/data/chat.hooks'
+import { useFriendsByUsername, useFriendStatus, useSendFriendRequestMutation } from '~/hooks/data/friends.hook'
 import { useUserByUsername } from '~/hooks/data/user.hooks'
+import { useRouter } from '~/i18n/navigation'
 import ProfileSkeleton from '../components/profile-skeleton'
 import NotFound from '../not-found'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '~/components/ui/dialog'
+import { useCancelFriendRequestMutation, useRemoveFriendMutation } from '~/hooks/data/friends.hook'
 
 type Props = {
   params: Promise<{
@@ -22,18 +27,78 @@ type Props = {
 function Profile({ params }: Props) {
   const { username } = use(params)
   const { data: session } = useSession()
-
-  // Sử dụng hook mới để lấy bạn bè của người dùng đang xem
+  const router = useRouter()
   const { data: profileFriends, isLoading: isLoadingProfileFriends } = useFriendsByUsername(username)
-
-  // Vẫn giữ hook cũ để kiểm tra trạng thái bạn bè
-  const { data: myFriends } = useFriendsQuery()
-
-  // Sử dụng hook để lấy thông tin profile theo username
   const { data: profileData, isLoading, error, isError } = useUserByUsername(username)
-
-  // Xác định xem đây có phải là profile của mình không
+  const [isLoadingAction, setIsLoadingAction] = useState(false)
   const isMyProfile = session?.user?.username === username
+  const { data: friendStatus, refetch: refetchStatus } = useFriendStatus(profileData?._id, {
+    enabled: !!profileData && !isMyProfile
+  })
+
+  // Mutation để gửi lời mời kết bạn
+  const sendFriendRequest = useSendFriendRequestMutation()
+
+  // Mutation để bắt đầu cuộc trò chuyện
+  const startConversation = useStartConversationMutation()
+
+  // Mutation để hủy lời mời kết bạn
+  const cancelFriendRequest = useCancelFriendRequestMutation()
+
+  // Mutation để xóa bạn bè
+  const removeFriend = useRemoveFriendMutation()
+
+  // State để quản lý dialog xác nhận hủy kết bạn
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false)
+
+  // Xử lý khi click vào nút kết bạn
+  const handleFriendAction = () => {
+    // Nếu đang là bạn bè, hiển thị dialog xác nhận hủy kết bạn
+    if (friendStatus?.status === FRIEND_REQUEST_STATUS.ACCEPTED) {
+      setShowConfirmDialog(true)
+      return
+    }
+    
+    // Nếu đã gửi lời mời, thực hiện hủy lời mời
+    if (friendStatus?.status === FRIEND_REQUEST_STATUS.PENDING) {
+      if (cancelFriendRequest.isPending || !profileData?._id) return
+      
+      cancelFriendRequest.mutate(profileData._id, {
+        onSuccess: () => {
+          refetchStatus()
+        }
+      })
+      return
+    }
+    
+    // Trường hợp gửi lời mời kết bạn mới
+    if (sendFriendRequest.isPending || !profileData?._id) return
+    
+    sendFriendRequest.mutate(profileData._id, {
+      onSuccess: () => {
+        refetchStatus()
+      }
+    })
+  }
+
+  // Xử lý khi click vào nút nhắn tin
+  const handleMessageAction = () => {
+    if (startConversation.isPending || !profileData?._id) return
+  
+    startConversation.mutate(profileData._id)
+  }
+
+  // Xử lý khi xác nhận hủy kết bạn
+  const handleConfirmRemoveFriend = () => {
+    if (removeFriend.isPending || !profileData?._id) return
+    
+    removeFriend.mutate(profileData._id, {
+      onSuccess: () => {
+        refetchStatus()
+        setShowConfirmDialog(false)
+      }
+    })
+  }
 
   // Hiển thị skeleton khi đang tải
   if (isLoading) {
@@ -50,7 +115,7 @@ function Profile({ params }: Props) {
   }
 
   return (
-    <div className='mx-auto my-6 max-w-7xl space-y-6 px-4'>
+    <div className='mx-auto my-6 w-full max-w-5xl space-y-6 px-4'>
       {/* Cover + Avatar */}
       <Card className='pt-0'>
         <div
@@ -66,7 +131,7 @@ function Profile({ params }: Props) {
           }
         />
         <CardContent className='-mt-12 flex flex-col gap-4 px-6 pb-4 sm:flex-row sm:items-end'>
-          <Avatar className='border-background h-28 w-28 border-4 shadow-md'>
+          <Avatar className='border-b-accent h-28 w-28 border-4 shadow-md'>
             <AvatarImage src={profileData?.avatar} alt={profileData?.name || 'User'} />
             <AvatarFallback>{profileData?.name?.[0] || 'U'}</AvatarFallback>
           </Avatar>
@@ -85,9 +150,21 @@ function Profile({ params }: Props) {
               </>
             ) : (
               <>
-                <Button size='sm'>+ Kết bạn</Button>
-                <Button size='sm' variant='outline'>
-                  Nhắn tin
+                <Button
+                  size='sm'
+                  onClick={handleFriendAction}
+                  disabled={sendFriendRequest.isPending || cancelFriendRequest.isPending || removeFriend.isPending}
+                >
+                  {sendFriendRequest.isPending || cancelFriendRequest.isPending || removeFriend.isPending
+                    ? 'Đang xử lý...'
+                    : friendStatus?.status === FRIEND_REQUEST_STATUS.PENDING
+                      ? 'Hủy lời mời'
+                      : friendStatus?.status === FRIEND_REQUEST_STATUS.ACCEPTED
+                        ? 'Bạn bè'
+                        : '+ Kết bạn'}
+                </Button>
+                <Button size='sm' variant='outline' onClick={handleMessageAction} disabled={startConversation.isPending}>
+                  {startConversation.isPending ? 'Đang xử lý...' : 'Nhắn tin'}
                 </Button>
               </>
             )}
@@ -247,6 +324,32 @@ function Profile({ params }: Props) {
           </Card>
         </div>
       </div>
+
+      {/* Dialog xác nhận hủy kết bạn */}
+      {showConfirmDialog && (
+        <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Xác nhận hủy kết bạn</DialogTitle>
+              <DialogDescription>
+                Bạn có chắc chắn muốn hủy kết bạn với {profileData?.name}? Hành động này sẽ xóa tất cả các kết nối bạn bè giữa hai người.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant='outline' onClick={() => setShowConfirmDialog(false)}>
+                Hủy
+              </Button>
+              <Button 
+                variant='destructive' 
+                onClick={handleConfirmRemoveFriend}
+                disabled={removeFriend.isPending}
+              >
+                {removeFriend.isPending ? 'Đang xử lý...' : 'Xác nhận'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   )
 }

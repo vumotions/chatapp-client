@@ -113,3 +113,13 @@ export const useFriendsByUsername = (username: string) => {
     enabled: !!username
   })
 }
+
+// Add the useFriendStatus hook
+export const useFriendStatus = (userId?: string, options = {} as any) => {
+  return useQuery({
+    queryKey: ['FRIEND_STATUS', userId],
+    queryFn: () => friendService.getFriendStatus(userId as string),
+    select: (res) => res.data.data,
+    enabled: !!userId && options.enabled !== false
+  })
+}

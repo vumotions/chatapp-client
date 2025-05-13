@@ -36,4 +36,5 @@ class DraftService {
   }
 }
 
-export default new DraftService()
+const draftService = new DraftService()
+export default draftService

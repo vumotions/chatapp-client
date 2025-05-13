@@ -1,11 +1,12 @@
 'use client'
 
 import { AnimatePresence, motion } from 'framer-motion'
-import { Archive, File, Home, Inbox, Settings } from 'lucide-react'
+import { Archive, Edit, Home, Inbox, Settings } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
 import ChatList from '~/app/[locale]/(main)/messages/components/chat-list'
+// Loại bỏ import DraftList
 import { Nav } from '~/components/nav'
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '~/components/ui/resizable'
 import { ScrollArea } from '~/components/ui/scroll-area'
@@ -29,7 +30,9 @@ export default function MessageLayout({ children }: LayoutProps) {
   // Lấy filter từ URL hoặc mặc định là 'all'
   const currentFilter = searchParams.get('filter') || 'all'
   // Lấy view từ URL hoặc mặc định là 'inbox'
-  const currentView = searchParams.get('view') || 'inbox'
+  const viewParam = searchParams.get('view') || 'inbox'
+  const validViews = ['inbox', 'drafts', 'archived']
+  const currentView = validViews.includes(viewParam) ? viewParam : 'inbox'
 
   // Kiểm tra xem có đang xem chi tiết cuộc trò chuyện không
   const chatId = pathname.split('/').pop()
@@ -74,6 +77,20 @@ export default function MessageLayout({ children }: LayoutProps) {
     }
   }
 
+  // Lấy tiêu đề dựa trên view hiện tại
+  const getViewTitle = () => {
+    switch (currentView) {
+      case 'inbox':
+        return 'Inbox'
+      case 'archived':
+        return 'Archive'
+      case 'drafts':
+        return 'Drafts'
+      default:
+        return 'Inbox'
+    }
+  }
+
   // Nếu là mobile và đang xem chi tiết chat, chỉ hiển thị phần chi tiết
   if (isMobile && isViewingChat) {
     return (
@@ -106,7 +123,7 @@ export default function MessageLayout({ children }: LayoutProps) {
         >
           <Tabs defaultValue={currentFilter} onValueChange={handleChangeTab}>
             <div className='flex items-center px-4 py-2'>
-              <h1 className='text-xl font-bold'>{currentView === 'inbox' ? 'Inbox' : 'Archive'}</h1>
+              <h1 className='text-xl font-bold'>{getViewTitle()}</h1>
               <TabsList className='ml-auto'>
                 <TabsTrigger
                   value='all'
@@ -172,8 +189,9 @@ export default function MessageLayout({ children }: LayoutProps) {
                 {
                   title: 'Drafts',
                   label: '',
-                  icon: File,
-                  variant: 'ghost'
+                  icon: Edit,
+                  variant: currentView === 'drafts' ? 'default' : 'ghost',
+                  onClick: () => handleNavClick('drafts')
                 },
                 {
                   title: 'Archive',
@@ -210,7 +228,7 @@ export default function MessageLayout({ children }: LayoutProps) {
         <ResizablePanel defaultSize={minLayout[1]} minSize={40}>
           <Tabs defaultValue={currentFilter} onValueChange={handleChangeTab}>
             <div className='flex items-center px-4 py-2'>
-              <h1 className='text-xl font-bold'>{currentView === 'inbox' ? 'Inbox' : 'Archive'}</h1>
+              <h1 className='text-xl font-bold'>{getViewTitle()}</h1>
               <TabsList className='ml-auto'>
                 <TabsTrigger
                   value='all'

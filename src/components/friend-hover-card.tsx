@@ -68,19 +68,19 @@ export default function FriendHoverCard({ friend, isOnline, lastActive, children
   // Format thời gian hoạt động gần nhất
   const formatLastActive = (lastActiveTime: string) => {
     if (!lastActiveTime) return 'Đang ngoại tuyến'
-    
+
     try {
       const lastActiveDate = new Date(lastActiveTime)
       const now = new Date()
       const diffMs = now.getTime() - lastActiveDate.getTime()
       const diffMins = Math.floor(diffMs / 60000)
-      
+
       if (diffMins < 1) return 'Vừa mới truy cập'
       if (diffMins < 60) return `Hoạt động ${diffMins} phút trước`
-      
+
       const diffHours = Math.floor(diffMins / 60)
       if (diffHours < 24) return `Hoạt động ${diffHours} giờ trước`
-      
+
       const diffDays = Math.floor(diffHours / 24)
       return `Hoạt động ${diffDays} ngày trước`
     } catch (error) {
@@ -90,9 +90,7 @@ export default function FriendHoverCard({ friend, isOnline, lastActive, children
 
   return (
     <HoverCard openDelay={300} closeDelay={200}>
-      <HoverCardTrigger asChild>
-        {children}
-      </HoverCardTrigger>
+      <HoverCardTrigger asChild>{children}</HoverCardTrigger>
       <HoverCardContent className='w-72 p-4'>
         <div className='flex flex-col items-center gap-3'>
           <Avatar className='size-16'>
@@ -102,11 +100,7 @@ export default function FriendHoverCard({ friend, isOnline, lastActive, children
           <div className='text-center'>
             <h4 className='text-lg font-medium'>{friend.name}</h4>
             <p className='text-muted-foreground text-sm'>
-              {isOnline
-                ? 'Đang hoạt động'
-                : lastActive
-                  ? formatLastActive(lastActive)
-                  : 'Đang ngoại tuyến'}
+              {isOnline ? 'Đang hoạt động' : lastActive ? formatLastActive(lastActive) : 'Đang ngoại tuyến'}
             </p>
           </div>
           <div className='mt-2 flex w-full gap-2'>
@@ -144,7 +138,3 @@ export default function FriendHoverCard({ friend, isOnline, lastActive, children
     </HoverCard>
   )
 }
-
-
-
-
