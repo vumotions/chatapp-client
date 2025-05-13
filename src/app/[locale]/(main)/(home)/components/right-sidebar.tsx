@@ -20,6 +20,7 @@ import useMediaQuery from '~/hooks/use-media-query'
 import { useSocket } from '~/hooks/use-socket'
 import { Link } from '~/i18n/navigation'
 import { cn } from '~/lib/utils'
+import FriendHoverCard from '~/components/friend-hover-card'
 
 // Skeleton component cho item bạn bè
 function FriendItemSkeleton() {
@@ -354,81 +355,35 @@ export default function RightSidebarFriendList() {
 
                         {/* Desktop: hiện avatar kèm tên, sử dụng HoverCard */}
                         <div className='hidden w-full lg:block'>
-                          <HoverCard openDelay={300} closeDelay={200}>
-                            <HoverCardTrigger asChild>
-                              <div className='flex w-full items-center gap-2 p-2'>
-                                <div className='relative'>
-                                  <Avatar className='size-10'>
-                                    <AvatarImage src={friend.avatar} alt={friend.name} />
-                                    <AvatarFallback>{friend.name?.[0]}</AvatarFallback>
-                                  </Avatar>
-                                  {/* Badge online */}
-                                  {isOnline(friend._id) && (
-                                    <span className='absolute right-0 bottom-0 block h-3 w-3 rounded-full border-2 border-white bg-green-500' />
-                                  )}
-                                </div>
-                                <div className='flex flex-col'>
-                                  <span className='truncate text-base'>{friend.name}</span>
-                                  {!isOnline(friend._id) && getLastActive(friend._id) && (
-                                    <span className='text-muted-foreground text-xs'>
-                                      {formatLastActive(getLastActive(friend._id)!)}
-                                    </span>
-                                  )}
-                                  {isOnline(friend._id) && (
-                                    <span className='text-xs text-green-500'>Đang hoạt động</span>
-                                  )}
-                                </div>
-                              </div>
-                            </HoverCardTrigger>
-                            <HoverCardContent className='w-72 p-4'>
-                              <div className='flex flex-col items-center gap-3'>
-                                <Avatar className='size-16'>
+                          <FriendHoverCard 
+                            friend={friend}
+                            isOnline={isOnline(friend._id)}
+                            lastActive={getLastActive(friend._id)}
+                          >
+                            <div className='flex w-full items-center gap-2 p-2'>
+                              <div className='relative'>
+                                <Avatar className='size-10'>
                                   <AvatarImage src={friend.avatar} alt={friend.name} />
                                   <AvatarFallback>{friend.name?.[0]}</AvatarFallback>
                                 </Avatar>
-                                <div className='text-center'>
-                                  <h4 className='text-lg font-medium'>{friend.name}</h4>
-                                  <p className='text-muted-foreground text-sm'>
-                                    {isOnline(friend._id)
-                                      ? 'Đang hoạt động'
-                                      : getLastActive(friend._id)
-                                        ? formatLastActive(getLastActive(friend._id)!)
-                                        : 'Đang ngoại tuyến'}
-                                  </p>
-                                </div>
-                                <div className='mt-2 flex w-full gap-2'>
-                                  <Button
-                                    variant='outline'
-                                    size='icon'
-                                    className='flex-1'
-                                    onClick={() => handleViewProfile(friend._id, friend.username || friend._id)}
-                                    disabled={isPending || processingProfileId === friend._id}
-                                  >
-                                    {processingProfileId === friend._id ? (
-                                      <Loader2 className='size-4 animate-spin' />
-                                    ) : (
-                                      <User className='size-4' />
-                                    )}
-                                    <span className='sr-only'>Trang cá nhân</span>
-                                  </Button>
-                                  <Button
-                                    variant='default'
-                                    size='icon'
-                                    className='flex-1'
-                                    onClick={() => handleStartChat(friend._id)}
-                                    disabled={isPending || processingFriendId === friend._id}
-                                  >
-                                    {processingFriendId === friend._id ? (
-                                      <Loader2 className='size-4 animate-spin' />
-                                    ) : (
-                                      <MessageSquare className='size-4' />
-                                    )}
-                                    <span className='sr-only'>Nhắn tin</span>
-                                  </Button>
-                                </div>
+                                {/* Badge online */}
+                                {isOnline(friend._id) && (
+                                  <span className='absolute right-0 bottom-0 block h-3 w-3 rounded-full border-2 border-white bg-green-500' />
+                                )}
                               </div>
-                            </HoverCardContent>
-                          </HoverCard>
+                              <div className='flex flex-col'>
+                                <span className='truncate text-base'>{friend.name}</span>
+                                {!isOnline(friend._id) && getLastActive(friend._id) && (
+                                  <span className='text-muted-foreground text-xs'>
+                                    {formatLastActive(getLastActive(friend._id)!)}
+                                  </span>
+                                )}
+                                {isOnline(friend._id) && (
+                                  <span className='text-xs text-green-500'>Đang hoạt động</span>
+                                )}
+                              </div>
+                            </div>
+                          </FriendHoverCard>
                         </div>
                       </div>
                     ))

@@ -103,3 +103,13 @@ export const useRemoveFriendMutation = () => {
     }
   })
 }
+
+// Thêm hook mới để lấy bạn bè theo username
+export const useFriendsByUsername = (username: string) => {
+  return useQuery({
+    queryKey: ['FRIENDS_BY_USERNAME', username],
+    queryFn: () => friendService.getFriendsByUsername(username),
+    select: (res) => res.data.data,
+    enabled: !!username
+  })
+}

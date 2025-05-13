@@ -1,11 +1,12 @@
-import { useEffect, useState, useRef } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
+import { AnimatePresence, motion } from 'framer-motion'
+import { ChevronLeft, ChevronRight, Loader2, User } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
 import { Button } from '~/components/ui/button'
 import { Card, CardContent } from '~/components/ui/card'
-import { Skeleton } from '~/components/ui/skeleton'
 import { useStartConversationMutation } from '~/hooks/data/chat.hooks'
 import {
   useAcceptFriendRequestMutation,
@@ -13,53 +14,38 @@ import {
   useFriendSuggestionsQuery,
   useSendFriendRequestMutation
 } from '~/hooks/data/friends.hook'
-import { useQueryClient } from '@tanstack/react-query'
+import FriendSuggestionItemSkeleton from './friend-suggestion-item-skeleton'
 
 // Skeleton component cho item gợi ý kết bạn
-function FriendSuggestionItemSkeleton() {
-  return (
-    <div className='h-full px-2'>
-      <div className='bg-card flex h-full flex-col items-center gap-2 rounded-lg border p-4 shadow-sm'>
-        <Skeleton className='h-16 w-16 rounded-full' />
-        <div className='w-full text-center'>
-          <Skeleton className='mx-auto mb-1 h-5 w-24' />
-          <Skeleton className='mx-auto h-4 w-16' />
-        </div>
-        <div className='flex-grow' />
-        <div className='mt-2 flex w-full flex-col gap-2'>
-          <Skeleton className='h-8 w-full' />
-          <Skeleton className='h-8 w-full' />
-        </div>
-      </div>
-    </div>
-  )
-}
 
 export default function FriendSuggestions() {
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(6) // Mặc định 6 items mỗi trang
-  
+
   // Sử dụng hook với phân trang
   const { data, isLoading, refetch } = useFriendSuggestionsQuery(page, limit)
   const suggestions = data?.suggestions || []
   const pagination = data?.pagination
-  
+
   const sendFriendRequest = useSendFriendRequestMutation()
   const cancelFriendRequest = useCancelFriendRequestMutation()
   const acceptFriendRequest = useAcceptFriendRequestMutation()
   const startConversation = useStartConversationMutation()
   const queryClient = useQueryClient()
+  const router = useRouter()
 
   const [selectedAdd, setSelectedAdd] = useState<string | null>(null)
   const [selectedCancel, setSelectedCancel] = useState<string | null>(null)
   const [selectedAccept, setSelectedAccept] = useState<string | null>(null)
   const [selectedMsg, setSelectedMsg] = useState<string | null>(null)
+  const [selectedProfile, setSelectedProfile] = useState<string | null>(null)
   const [pendingIds, setPendingIds] = useState<string[]>([])
   const [justSentIds, setJustSentIds] = useState<string[]>([])
-  
+  const [isPending, startTransition] = useTransition()
+
   // State cho responsive
   const containerRef = useRef<HTMLDivElement>(null)
-  
+
   // Cập nhật số lượng items per page dựa trên kích thước màn hình
   useEffect(() => {
     const updateItemsPerPage = () => {
@@ -71,7 +57,7 @@ export default function FriendSuggestions() {
         setLimit(6) // 2 hàng x 3 cột cho desktop
       }
     }
-    
+
     updateItemsPerPage()
     window.addEventListener('resize', updateItemsPerPage)
     return () => window.removeEventListener('resize', updateItemsPerPage)
@@ -83,7 +69,7 @@ export default function FriendSuggestions() {
       setPage(page + 1)
     }
   }
-  
+
   const prevPage = () => {
     if (page > 1) {
       setPage(page - 1)
@@ -178,20 +164,24 @@ export default function FriendSuggestions() {
     }
   }
 
+  const handleViewProfile = (userId: string, username: string) => {
+    if (selectedProfile === userId) return
+
+    setSelectedProfile(userId)
+    startTransition(() => {
+      // Sử dụng username nếu có, nếu không thì dùng userId
+      router.push(`/profile/${username || userId}`)
+    })
+  }
+
   return (
-    <Card>
+    <Card className='mb-6'>
       <CardContent className='p-4'>
         <div className='mb-4 flex items-center justify-between'>
           <h3 className='text-lg font-semibold'>Gợi ý kết bạn</h3>
           {pagination && pagination.totalPages > 1 && (
             <div className='flex gap-2'>
-              <Button
-                variant='outline'
-                size='icon'
-                onClick={prevPage}
-                disabled={page === 1}
-                className='h-8 w-8'
-              >
+              <Button variant='outline' size='icon' onClick={prevPage} disabled={page === 1} className='h-8 w-8'>
                 <ChevronLeft className='h-4 w-4' />
               </Button>
               <Button
@@ -206,7 +196,7 @@ export default function FriendSuggestions() {
             </div>
           )}
         </div>
-        
+
         <div className='mx-auto max-w-[800px]' ref={containerRef}>
           {isLoading ? (
             <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3'>
@@ -231,7 +221,7 @@ export default function FriendSuggestions() {
                   const isPending =
                     pendingIds.includes(user._id) || user.status === 'PENDING' || justSentIds.includes(user._id)
                   const isReceived = user.status === 'RECEIVED'
-
+                  console.log({ user })
                   return (
                     <motion.div
                       key={user._id}
@@ -258,44 +248,120 @@ export default function FriendSuggestions() {
 
                         <div className='mt-2 flex w-full flex-col gap-2'>
                           {isPending ? (
-                            <Button
-                              size='sm'
-                              variant='destructive'
-                              className='w-full'
-                              onClick={() => handleCancelRequest(user._id)}
-                              disabled={selectedCancel === user._id || cancelFriendRequest.isPending}
-                            >
-                              {selectedCancel === user._id && cancelFriendRequest.isPending ? 'Đang hủy...' : 'Hủy lời mời'}
-                            </Button>
+                            <>
+                              <Button
+                                size='sm'
+                                variant='destructive'
+                                className='w-full'
+                                onClick={() => handleCancelRequest(user._id)}
+                                disabled={selectedCancel === user._id || cancelFriendRequest.isPending}
+                              >
+                                {selectedCancel === user._id && cancelFriendRequest.isPending
+                                  ? 'Đang hủy...'
+                                  : 'Hủy lời mời'}
+                              </Button>
+                              <div className='flex w-full gap-2'>
+                                <Button
+                                  size='sm'
+                                  variant='outline'
+                                  className='flex-1'
+                                  onClick={() => handleStartConversation(user._id)}
+                                  disabled={selectedMsg === user._id || startConversation.isPending}
+                                >
+                                  {selectedMsg === user._id && startConversation.isPending ? 'Đang tạo...' : 'Nhắn tin'}
+                                </Button>
+                                <Button
+                                  size='sm'
+                                  variant='outline'
+                                  className='flex-1'
+                                  onClick={() => handleViewProfile(user._id, user.username || '')}
+                                  disabled={selectedProfile === user._id}
+                                >
+                                  {selectedProfile === user._id ? (
+                                    <Loader2 className='mr-1 h-4 w-4 animate-spin' />
+                                  ) : (
+                                    <User className='mr-1 h-4 w-4' />
+                                  )}{' '}
+                                  Hồ sơ
+                                </Button>
+                              </div>
+                            </>
                           ) : isReceived ? (
-                            <Button
-                              size='sm'
-                              variant='default'
-                              className='w-full'
-                              onClick={() => handleAcceptRequest(user._id)}
-                              disabled={selectedAccept === user._id || acceptFriendRequest.isPending}
-                            >
-                              {selectedAccept === user._id && acceptFriendRequest.isPending ? 'Đang xử lý...' : 'Chấp nhận'}
-                            </Button>
+                            <>
+                              <Button
+                                size='sm'
+                                variant='default'
+                                className='w-full'
+                                onClick={() => handleAcceptRequest(user._id)}
+                                disabled={selectedAccept === user._id || acceptFriendRequest.isPending}
+                              >
+                                {selectedAccept === user._id && acceptFriendRequest.isPending
+                                  ? 'Đang xử lý...'
+                                  : 'Chấp nhận'}
+                              </Button>
+                              <div className='flex w-full gap-2'>
+                                <Button
+                                  size='sm'
+                                  variant='outline'
+                                  className='flex-1'
+                                  onClick={() => handleStartConversation(user._id)}
+                                  disabled={selectedMsg === user._id || startConversation.isPending}
+                                >
+                                  {selectedMsg === user._id && startConversation.isPending ? 'Đang tạo...' : 'Nhắn tin'}
+                                </Button>
+                                <Button
+                                  size='sm'
+                                  variant='outline'
+                                  className='flex-1'
+                                  onClick={() => handleViewProfile(user._id, user.username || '')}
+                                  disabled={selectedProfile === user._id}
+                                >
+                                  {selectedProfile === user._id ? (
+                                    <Loader2 className='mr-1 h-4 w-4 animate-spin' />
+                                  ) : (
+                                    <User className='mr-1 h-4 w-4' />
+                                  )}{' '}
+                                  Hồ sơ
+                                </Button>
+                              </div>
+                            </>
                           ) : (
-                            <Button
-                              size='sm'
-                              className='w-full'
-                              onClick={() => handleAddFriend(user._id)}
-                              disabled={selectedAdd === user._id || sendFriendRequest.isPending}
-                            >
-                              {selectedAdd === user._id && sendFriendRequest.isPending ? 'Đang gửi...' : 'Kết bạn'}
-                            </Button>
+                            <>
+                              <div className='flex w-full gap-2'>
+                                <Button
+                                  size='sm'
+                                  className='flex-1'
+                                  onClick={() => handleAddFriend(user._id)}
+                                  disabled={selectedAdd === user._id || sendFriendRequest.isPending}
+                                >
+                                  {selectedAdd === user._id && sendFriendRequest.isPending ? 'Đang gửi...' : 'Kết bạn'}
+                                </Button>
+                                <Button
+                                  size='sm'
+                                  variant='outline'
+                                  className='flex-1'
+                                  onClick={() => handleStartConversation(user._id)}
+                                  disabled={selectedMsg === user._id || startConversation.isPending}
+                                >
+                                  {selectedMsg === user._id && startConversation.isPending ? 'Đang tạo...' : 'Nhắn tin'}
+                                </Button>
+                              </div>
+                              <Button
+                                size='sm'
+                                variant='outline'
+                                className='w-full'
+                                onClick={() => handleViewProfile(user._id, user.username || '')}
+                                disabled={selectedProfile === user._id}
+                              >
+                                {selectedProfile === user._id ? (
+                                  <Loader2 className='mr-1 h-4 w-4 animate-spin' />
+                                ) : (
+                                  <User className='mr-1 h-4 w-4' />
+                                )}{' '}
+                                Xem hồ sơ
+                              </Button>
+                            </>
                           )}
-                          <Button
-                            size='sm'
-                            variant='outline'
-                            className='w-full'
-                            onClick={() => handleStartConversation(user._id)}
-                            disabled={selectedMsg === user._id || startConversation.isPending}
-                          >
-                            {selectedMsg === user._id && startConversation.isPending ? 'Đang tạo...' : 'Nhắn tin'}
-                          </Button>
                         </div>
                       </div>
                     </motion.div>
@@ -304,7 +370,7 @@ export default function FriendSuggestions() {
               </motion.div>
             </AnimatePresence>
           )}
-          
+
           {pagination && pagination.totalPages > 1 && (
             <div className='mt-4 flex justify-center gap-1'>
               {[...Array(pagination.totalPages)].map((_, index) => (

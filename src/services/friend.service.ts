@@ -2,12 +2,12 @@ import httpRequest from '~/config/http-request'
 import { SuccessResponse } from '~/types/api.types'
 
 export interface Friend {
-  username: string
+  username: string // Đảm bảo trường này tồn tại
   status: string
   _id: string
   name: string
   avatar: string
-  mutualFriends?: number // Số bạn chung, chỉ có ở friend suggestions
+  mutualFriends?: number
 }
 
 export interface FriendRequest {
@@ -82,6 +82,11 @@ class FriendService {
   // Thêm phương thức searchUsers để tìm kiếm tất cả người dùng
   searchUsers(query = '') {
     return httpRequest.get<SuccessResponse<Friend[]>>(`/friends/search?q=${encodeURIComponent(query)}`)
+  }
+
+  // Thêm phương thức mới để lấy bạn bè theo username
+  getFriendsByUsername(username: string) {
+    return httpRequest.get<SuccessResponse<Friend[]>>(`/friends/user/${username}`)
   }
 }
 

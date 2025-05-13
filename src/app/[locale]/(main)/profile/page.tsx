@@ -8,7 +8,7 @@ function MyProfile() {
   const { data: session } = useSession()
   useEffect(() => {
     if (session?.user?.username) {
-      redirect(`/profile/${session?.user?.username}`)
+      redirect(`/profile/${session.user.username}`)
     }
   }, [session])
   return null

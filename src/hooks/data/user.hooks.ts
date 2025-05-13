@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useState, useCallback, useEffect } from 'react'
 import { debounce } from 'lodash'
 import friendService from '~/services/friend.service'
+import userService from '~/services/user.service'
 
 // Hook để tìm kiếm người dùng
 export const useSearchUsers = (initialQuery = '') => {
@@ -58,3 +59,35 @@ export const useSearchUsers = (initialQuery = '') => {
     setSearchQuery
   }
 }
+
+// Hook để lấy thông tin người dùng theo username
+export const useUserByUsername = (username: string) => {
+  return useQuery({
+    queryKey: ['user', 'profile', username],
+    queryFn: async () => {
+      try {
+        if (!username) return null
+        const response = await userService.getUserByUsername(username)
+        return response?.data?.data || null
+      } catch (error) {
+        console.error('Error fetching user profile:', error)
+        throw error
+      }
+    },
+    enabled: !!username,
+    staleTime: 5 * 60 * 1000, // Cache trong 5 phút
+    retry: 1, // Thử lại 1 lần nếu có lỗi
+    refetchOnWindowFocus: false // Không refetch khi focus lại window
+  })
+}
+
+
+
+
+
+
+
+
+
+
+

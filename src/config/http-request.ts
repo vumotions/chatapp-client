@@ -16,6 +16,7 @@ class HttpRequest {
       async (config) => {
         if (!(config as any).usingNewAccessToken) {
           const session = await getSession({ event: 'storage' })
+          console.log('session', session)
           const accessToken = session?.accessToken
 
           if (accessToken) {

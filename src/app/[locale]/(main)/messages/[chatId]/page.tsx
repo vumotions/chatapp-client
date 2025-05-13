@@ -66,6 +66,7 @@ import { useRouter } from '~/i18n/navigation'
 import friendService from '~/services/friend.service'
 import { FriendActionButton } from './components/friend-action-button'
 import { PinnedMessages } from './components/pinned-messages'
+import FriendHoverCard from '~/components/friend-hover-card'
 
 const PRIMARY_RGB = '14, 165, 233' // Giá trị RGB của màu primary (sky-500)
 const SUCCESS_RGB = '34, 197, 94' // Giá trị RGB của màu green-500
@@ -1925,10 +1926,12 @@ function ChatDetail({ params }: Props) {
                         <div className={`flex items-end gap-2 ${isSentByMe ? 'flex-row-reverse' : 'flex-row'}`}>
                           {/* Chỉ hiển thị avatar cho tin nhắn đầu tiên trong nhóm */}
                           {isFirstMessageInGroup && !isSentByMe ? (
-                            <Avatar className='h-8 w-8 flex-shrink-0'>
-                              <AvatarImage src={msg.senderId.avatar} alt={msg.senderId.name || 'User'} />
-                              <AvatarFallback>{msg.senderId.name?.[0] || 'U'}</AvatarFallback>
-                            </Avatar>
+                            <FriendHoverCard friend={msg.senderId}>
+                              <Avatar className='h-8 w-8 flex-shrink-0'>
+                                <AvatarImage src={msg.senderId.avatar} alt={msg.senderId.name || 'User'} />
+                                <AvatarFallback>{msg.senderId.name?.[0] || 'U'}</AvatarFallback>
+                              </Avatar>
+                            </FriendHoverCard>
                           ) : (
                             // Thêm div trống để giữ căn chỉnh khi không hiển thị avatar
                             !isSentByMe && <div className='w-8 flex-shrink-0'></div>
