@@ -1,9 +1,10 @@
-import { useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
-import { toast } from 'sonner'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
+import { useState } from 'react'
+import { toast } from 'sonner'
 
+import { UsersIcon } from 'lucide-react'
+import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
 import { Button } from '~/components/ui/button'
 import {
   Dialog,
@@ -13,8 +14,6 @@ import {
   DialogTitle,
   DialogTrigger
 } from '~/components/ui/dialog'
-import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
-import { UsersIcon } from 'lucide-react'
 import conversationsService from '~/services/conversations.service'
 
 export function GroupMembersDialog({ conversation }: { conversation: any }) {

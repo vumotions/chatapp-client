@@ -1,11 +1,9 @@
-import { Archive, MoreHorizontal, Trash2 } from 'lucide-react'
+import { Archive, Trash2 } from 'lucide-react'
+import { useRouter } from 'next/router'
 import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
 import { Button } from '~/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '~/components/ui/tooltip'
-import { Separator } from '~/components/ui/separator'
 import { useArchiveChat } from '~/hooks/data/chat.hooks'
-import { toast } from 'sonner'
-import { useRouter } from 'next/router'
 import useMediaQuery from '~/hooks/use-media-query'
 
 interface ChatHeaderProps {

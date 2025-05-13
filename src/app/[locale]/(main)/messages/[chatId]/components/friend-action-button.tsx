@@ -12,6 +12,14 @@ import {
   useRemoveFriendMutation,
   useSendFriendRequestMutation
 } from '~/hooks/data/friends.hook'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '~/components/ui/dialog'
 
 interface FriendActionButtonProps {
   friendStatus: string | null
@@ -21,6 +29,7 @@ interface FriendActionButtonProps {
 
 export function FriendActionButton({ friendStatus, otherUserId, onStatusChange }: FriendActionButtonProps) {
   const [isLoading, setIsLoading] = useState(false)
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false)
 
   const sendFriendRequest = useSendFriendRequestMutation()
   const cancelFriendRequest = useCancelFriendRequestMutation()
@@ -28,6 +37,12 @@ export function FriendActionButton({ friendStatus, otherUserId, onStatusChange }
   const removeFriend = useRemoveFriendMutation()
 
   const handleFriendAction = async () => {
+    // Nếu đang là bạn bè và người dùng muốn hủy kết bạn, hiển thị dialog xác nhận
+    if (friendStatus === FRIEND_REQUEST_STATUS.ACCEPTED) {
+      setShowConfirmDialog(true)
+      return
+    }
+
     if (isLoading) return
     setIsLoading(true)
 
@@ -44,16 +59,28 @@ export function FriendActionButton({ friendStatus, otherUserId, onStatusChange }
         // Accept friend request
         await acceptFriendRequest.mutateAsync(otherUserId)
         onStatusChange(FRIEND_REQUEST_STATUS.ACCEPTED)
-      } else if (friendStatus === FRIEND_REQUEST_STATUS.ACCEPTED) {
-        // Remove friend
-        await removeFriend.mutateAsync(otherUserId)
-        onStatusChange(null)
       }
     } catch (error) {
       console.error('Friend action error:', error)
       toast.error('Có lỗi xảy ra. Vui lòng thử lại sau.')
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  // Xử lý khi người dùng xác nhận hủy kết bạn
+  const handleConfirmRemoveFriend = async () => {
+    setIsLoading(true)
+    try {
+      await removeFriend.mutateAsync(otherUserId)
+      onStatusChange(null)
+      toast.success('Đã hủy kết bạn')
+    } catch (error) {
+      console.error('Remove friend error:', error)
+      toast.error('Có lỗi xảy ra khi hủy kết bạn. Vui lòng thử lại sau.')
+    } finally {
+      setIsLoading(false)
+      setShowConfirmDialog(false)
     }
   }
 
@@ -73,14 +100,42 @@ export function FriendActionButton({ friendStatus, otherUserId, onStatusChange }
   }
 
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button variant='ghost' size='icon' onClick={handleFriendAction} disabled={isLoading}>
-          {isLoading ? <Loader2 className='h-4 w-4 animate-spin' /> : icon}
-          <span className='sr-only'>{tooltipText}</span>
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>{tooltipText}</TooltipContent>
-    </Tooltip>
+    <>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button variant='ghost' size='icon' onClick={handleFriendAction} disabled={isLoading}>
+            {isLoading ? <Loader2 className='h-4 w-4 animate-spin' /> : icon}
+            <span className='sr-only'>{tooltipText}</span>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>{tooltipText}</TooltipContent>
+      </Tooltip>
+
+      {/* Dialog xác nhận hủy kết bạn */}
+      <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Xác nhận hủy kết bạn</DialogTitle>
+            <DialogDescription>
+              Bạn có chắc chắn muốn hủy kết bạn? Hành động này sẽ xóa tất cả các kết nối bạn bè giữa hai người.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant='outline' onClick={() => setShowConfirmDialog(false)}>
+              Hủy
+            </Button>
+            <Button 
+              variant='destructive' 
+              onClick={handleConfirmRemoveFriend}
+              disabled={isLoading}
+            >
+              {isLoading ? <Loader2 className='h-4 w-4 animate-spin mr-2' /> : null}
+              Xác nhận
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
+

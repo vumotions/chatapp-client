@@ -9,15 +9,18 @@ import { Button } from '~/components/ui/button'
 import { Card, CardContent } from '~/components/ui/card'
 import { Input } from '~/components/ui/input'
 import nextEnv from '~/config/next-env'
+
 import RightSidebarFriendList from './components/right-sidebar'
 
 import { useSession } from 'next-auth/react'
 import { cn } from '~/lib/utils'
 import FriendSuggestions from '~/components/friend-suggestions'
+import useMediaQuery from '~/hooks/use-media-query'
 
 function Home() {
   const { data: session } = useSession()
-  console.log(session)
+  const isMobile = useMediaQuery('(max-width: 768px)')
+
   return (
     <div className='mx-auto flex max-w-screen-2xl gap-4 py-4 lg:flex-row'>
       {/* Main Content */}
@@ -142,13 +145,8 @@ function Home() {
       </div>
 
       {/* Right Sidebar (friends list) */}
-      <div
-        className={cn('sticky top-0 h-fit w-fit lg:w-[250px]', {
-          'hidden lg:flex': !session
-        })}
-      >
-        <RightSidebarFriendList />
-      </div>
+
+      <RightSidebarFriendList />
     </div>
   )
 }

@@ -78,6 +78,11 @@ class FriendService {
   getFriendStatus(userId: string) {
     return httpRequest.get<SuccessResponse<{ status: string | null }>>(`/friends/status/${userId}`)
   }
+
+  // Thêm phương thức searchUsers để tìm kiếm tất cả người dùng
+  searchUsers(query = '') {
+    return httpRequest.get<SuccessResponse<Friend[]>>(`/friends/search?q=${encodeURIComponent(query)}`)
+  }
 }
 
 const friendService = new FriendService()
