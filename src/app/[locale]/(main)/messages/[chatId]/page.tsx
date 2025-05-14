@@ -378,7 +378,7 @@ function ChatDetail({ params }: Props) {
         }
       }
       // Nếu là nhóm chat, tìm thông tin người gửi trong danh sách thành viên
-      else if (data?.pages[0]?.conversation?.type === 'GROUP') {
+      else if (isGroupChat) {
         const sender = data?.pages[0]?.conversation?.participants?.find((p: any) => p._id === message.senderId)
 
         if (sender) {
@@ -577,9 +577,9 @@ function ChatDetail({ params }: Props) {
     if (!socket || !chatId) return
 
     // Nếu là chat nhóm, cập nhật danh sách người dùng online
-    if (data?.pages[0]?.conversation?.type === 'GROUP') {
+    if (isGroupChat) {
       // Kiểm tra trạng thái online của tất cả thành viên
-      const participants = data.pages[0].conversation.participants || []
+      const participants = data?.pages[0].conversation.participants || []
       participants.forEach((participant: any) => {
         if (participant._id !== session?.user?._id) {
           socket.emit(SOCKET_EVENTS.CHECK_ONLINE, participant._id, (isUserOnline: boolean) => {
@@ -1562,14 +1562,8 @@ function ChatDetail({ params }: Props) {
   // Thêm logic để xác định loại chat (nhóm hay cá nhân)
   const isGroupChat = data?.pages[0]?.conversation?.type === 'GROUP'
 
-  // Thêm biến để đếm số người online và tổng số thành viên trong nhóm
-  const onlineParticipantsCount = useMemo(() => {
-    if (!data?.pages[0]?.conversation?.participants || data?.pages[0]?.conversation?.type !== 'GROUP') return 0
-    return data.pages[0].conversation.participants.filter((p: any) => p.isOnline && p._id !== session?.user?._id).length
-  }, [data?.pages[0]?.conversation?.participants, session?.user?._id])
-
   const totalParticipantsCount = useMemo(() => {
-    if (!data?.pages[0]?.conversation?.participants || data?.pages[0]?.conversation?.type !== 'GROUP') return 0
+    if (!data?.pages[0]?.conversation?.participants || !isGroupChat) return 0
     return data.pages[0].conversation.participants.filter((p: any) => p._id !== session?.user?._id).length
   }, [data?.pages[0]?.conversation?.participants, session?.user?._id])
 
@@ -1700,7 +1694,7 @@ function ChatDetail({ params }: Props) {
                     <div className='flex items-center gap-2'>{getChatInfo().name || 'Cuộc trò chuyện'}</div>
                   </div>
                   <div className='text-muted-foreground flex items-center text-xs'>
-                    {data?.pages[0]?.conversation?.type === 'GROUP' ? (
+                    {isGroupChat ? (
                       // Hiển thị thông tin nhóm
                       <div className='flex items-center'>
                         <div
@@ -1710,7 +1704,7 @@ function ChatDetail({ params }: Props) {
                         ></div>
                         {onlineUsers.size > 0
                           ? `${onlineUsers.size} thành viên đang online`
-                          : `${totalParticipantsCount} thành viên`}
+                          : `${totalParticipantsCount + 1} thành viên`}
                       </div>
                     ) : (
                       // Hiển thị trạng thái online cho chat 1-1
@@ -1726,7 +1720,7 @@ function ChatDetail({ params }: Props) {
                 {/* Action buttons - pushed to the right */}
                 <div className='ml-auto flex items-center gap-2'>
                   <div className='flex items-center gap-2'>
-                    {data?.pages[0]?.conversation?.type === 'GROUP' ? (
+                    {isGroupChat ? (
                       // Hiển thị nút cho nhóm chat
                       <>
                         <AddGroupMembersDialog
@@ -2015,7 +2009,7 @@ function ChatDetail({ params }: Props) {
                                 {msg.status === MESSAGE_STATUS.DELIVERED && <Check className='inline h-3 w-3' />}
                                 {msg.status === MESSAGE_STATUS.SEEN && (
                                   <>
-                                    {data?.pages[0]?.conversation?.type === 'GROUP' ? (
+                                    {isGroupChat ? (
                                       <Popover
                                         open={openReadersPopover === msg._id}
                                         onOpenChange={(open) => {

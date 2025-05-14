@@ -84,41 +84,44 @@ export const useDeleteMessage = (chatId: string) => {
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Hàm để cập nhật cache khi xóa tin nhắn
-  const updateCacheAfterDeletion = useCallback((messageId: string) => {
-    // 1. Cập nhật cache tin nhắn
-    queryClient.setQueryData(['MESSAGES', chatId], (oldData: any) => {
-      if (!oldData) return oldData
+  const updateCacheAfterDeletion = useCallback(
+    (messageId: string) => {
+      // 1. Cập nhật cache tin nhắn
+      queryClient.setQueryData(['MESSAGES', chatId], (oldData: any) => {
+        if (!oldData) return oldData
 
-      // Lọc tin nhắn đã xóa khỏi tất cả các trang
-      const updatedPages = oldData.pages.map((page: any) => {
-        if (!page.messages) return page
+        // Lọc tin nhắn đã xóa khỏi tất cả các trang
+        const updatedPages = oldData.pages.map((page: any) => {
+          if (!page.messages) return page
 
-        const filteredMessages = page.messages.filter((msg: any) => msg._id !== messageId)
+          const filteredMessages = page.messages.filter((msg: any) => msg._id !== messageId)
+
+          return {
+            ...page,
+            messages: filteredMessages
+          }
+        })
 
         return {
-          ...page,
-          messages: filteredMessages
+          ...oldData,
+          pages: updatedPages
         }
       })
 
-      return {
-        ...oldData,
-        pages: updatedPages
-      }
-    })
+      // 2. Cập nhật cache tin nhắn ghim
+      queryClient.setQueryData(['PINNED_MESSAGES', chatId], (oldData: any) => {
+        if (!oldData) return oldData
 
-    // 2. Cập nhật cache tin nhắn ghim
-    queryClient.setQueryData(['PINNED_MESSAGES', chatId], (oldData: any) => {
-      if (!oldData) return oldData
-      
-      // Lọc tin nhắn đã xóa khỏi danh sách tin nhắn ghim
-      return oldData.filter((msg: any) => msg._id !== messageId)
-    })
+        // Lọc tin nhắn đã xóa khỏi danh sách tin nhắn ghim
+        return oldData.filter((msg: any) => msg._id !== messageId)
+      })
 
-    // 3. Invalidate các query liên quan để đảm bảo dữ liệu được cập nhật
-    queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] })
-    queryClient.invalidateQueries({ queryKey: ['PINNED_MESSAGES', chatId] })
-  }, [queryClient, chatId])
+      // 3. Invalidate các query liên quan để đảm bảo dữ liệu được cập nhật
+      queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] })
+      queryClient.invalidateQueries({ queryKey: ['PINNED_MESSAGES', chatId] })
+    },
+    [queryClient, chatId]
+  )
 
   // Hàm để xóa tin nhắn với khả năng hoàn tác
   const deleteWithUndo = (messageId: string) => {
@@ -155,39 +158,66 @@ export const useDeleteMessage = (chatId: string) => {
       }
     })
 
-    // Hiển thị toast với nút hoàn tác
+    // Hiển thị toast với nút hoàn tác và nút đóng
     const toastId = toast.loading('Đang xóa tin nhắn...', {
       duration: 5000,
       action: {
         label: 'Hoàn tác',
-        onClick: () => undoDelete(messageId)
+        onClick: () => {
+          if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current)
+            timeoutRef.current = null
+          }
+          toast.dismiss(toastId)
+          undoDelete(messageId)
+        }
+      },
+      cancel: {
+        label: 'Xóa ngay',
+        onClick: () => {
+          if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current)
+            timeoutRef.current = null
+          }
+          toast.dismiss(toastId)
+          confirmDelete(messageId)
+        }
+      },
+      cancelButtonStyle: {
+        backgroundColor: 'red',
+        color: 'white'
       }
     })
 
-    // Lưu promise resolve/reject để có thể gọi từ nút hoàn tác
+    // Lưu timeout ID để có thể hủy nếu cần
     const timeoutId = setTimeout(() => {
+      // Đóng toast trước khi thực hiện xóa
+      toast.dismiss(toastId)
       // Thực hiện xóa sau 5 giây nếu không hoàn tác
-      conversationsService
-        .deleteMessage(messageId)
-        .then((data) => {
-          setPendingDeletion(null)
-          // Đóng toast sau khi xóa thành công
-          toast.dismiss(toastId)
-          toast.success('Đã xóa tin nhắn', { duration: 2000 })
-          
-          // Cập nhật cache sau khi xóa thành công
-          updateCacheAfterDeletion(messageId)
-        })
-        .catch((error) => {
-          // Khôi phục tin nhắn nếu xóa thất bại
-          setPendingDeletion(null)
-          undoDelete(messageId)
-          toast.error('Không thể xóa tin nhắn')
-        })
+      confirmDelete(messageId)
     }, 5000) // Đợi 5 giây trước khi thực sự xóa
 
-    // Lưu timeout ID để có thể hủy nếu cần
     timeoutRef.current = timeoutId
+  }
+
+  // Hàm để xác nhận xóa tin nhắn ngay lập tức
+  const confirmDelete = (messageId: string) => {
+    // Thực hiện xóa ngay lập tức
+    conversationsService
+      .deleteMessage(messageId)
+      .then((data) => {
+        setPendingDeletion(null)
+        toast.success('Đã xóa tin nhắn', { duration: 2000 })
+
+        // Cập nhật cache sau khi xóa thành công
+        updateCacheAfterDeletion(messageId)
+      })
+      .catch((error) => {
+        // Khôi phục tin nhắn nếu xóa thất bại
+        setPendingDeletion(null)
+        undoDelete(messageId)
+        toast.error('Không thể xóa tin nhắn')
+      })
   }
 
   // Hàm để hoàn tác việc xóa
@@ -244,7 +274,7 @@ export const useDeleteMessage = (chatId: string) => {
       onSuccess: (_, messageId) => {
         // Hiển thị toast chỉ cho người xóa
         toast.success('Đã xóa tin nhắn')
-        
+
         // Cập nhật cache sau khi xóa thành công
         updateCacheAfterDeletion(messageId)
       },

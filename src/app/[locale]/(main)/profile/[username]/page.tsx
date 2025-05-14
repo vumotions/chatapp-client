@@ -1,22 +1,35 @@
 'use client'
 
+import { format } from 'date-fns'
+import { Calendar, Users } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { use, useState } from 'react'
 import FriendHoverCard from '~/components/friend-hover-card'
 import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
 import { Button } from '~/components/ui/button'
 import { Card, CardContent } from '~/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '~/components/ui/dialog'
 import { Input } from '~/components/ui/input'
 import { Skeleton } from '~/components/ui/skeleton'
 import { FRIEND_REQUEST_STATUS } from '~/constants/enums'
 import { useStartConversationMutation } from '~/hooks/data/chat.hooks'
-import { useFriendsByUsername, useFriendStatus, useSendFriendRequestMutation } from '~/hooks/data/friends.hook'
+import {
+  useCancelFriendRequestMutation,
+  useFriendsByUsername,
+  useFriendStatus,
+  useRemoveFriendMutation,
+  useSendFriendRequestMutation
+} from '~/hooks/data/friends.hook'
 import { useUserByUsername } from '~/hooks/data/user.hooks'
-import { useRouter } from '~/i18n/navigation'
 import ProfileSkeleton from '../components/profile-skeleton'
 import NotFound from '../not-found'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '~/components/ui/dialog'
-import { useCancelFriendRequestMutation, useRemoveFriendMutation } from '~/hooks/data/friends.hook'
 
 type Props = {
   params: Promise<{
@@ -27,42 +40,34 @@ type Props = {
 function Profile({ params }: Props) {
   const { username } = use(params)
   const { data: session } = useSession()
-  const router = useRouter()
   const { data: profileFriends, isLoading: isLoadingProfileFriends } = useFriendsByUsername(username)
   const { data: profileData, isLoading, error, isError } = useUserByUsername(username)
-  const [isLoadingAction, setIsLoadingAction] = useState(false)
   const isMyProfile = session?.user?.username === username
-  const { data: friendStatus, refetch: refetchStatus } = useFriendStatus(profileData?._id, {
+  const {
+    data: friendStatus,
+    refetch: refetchStatus,
+    isLoading: isLoadingFriendStatus
+  } = useFriendStatus(profileData?._id, {
     enabled: !!profileData && !isMyProfile
   })
 
-  // Mutation để gửi lời mời kết bạn
   const sendFriendRequest = useSendFriendRequestMutation()
-
-  // Mutation để bắt đầu cuộc trò chuyện
   const startConversation = useStartConversationMutation()
-
-  // Mutation để hủy lời mời kết bạn
   const cancelFriendRequest = useCancelFriendRequestMutation()
-
-  // Mutation để xóa bạn bè
   const removeFriend = useRemoveFriendMutation()
-
-  // State để quản lý dialog xác nhận hủy kết bạn
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
 
-  // Xử lý khi click vào nút kết bạn
   const handleFriendAction = () => {
     // Nếu đang là bạn bè, hiển thị dialog xác nhận hủy kết bạn
     if (friendStatus?.status === FRIEND_REQUEST_STATUS.ACCEPTED) {
       setShowConfirmDialog(true)
       return
     }
-    
+
     // Nếu đã gửi lời mời, thực hiện hủy lời mời
     if (friendStatus?.status === FRIEND_REQUEST_STATUS.PENDING) {
       if (cancelFriendRequest.isPending || !profileData?._id) return
-      
+
       cancelFriendRequest.mutate(profileData._id, {
         onSuccess: () => {
           refetchStatus()
@@ -70,10 +75,10 @@ function Profile({ params }: Props) {
       })
       return
     }
-    
+
     // Trường hợp gửi lời mời kết bạn mới
     if (sendFriendRequest.isPending || !profileData?._id) return
-    
+
     sendFriendRequest.mutate(profileData._id, {
       onSuccess: () => {
         refetchStatus()
@@ -84,14 +89,14 @@ function Profile({ params }: Props) {
   // Xử lý khi click vào nút nhắn tin
   const handleMessageAction = () => {
     if (startConversation.isPending || !profileData?._id) return
-  
+
     startConversation.mutate(profileData._id)
   }
 
   // Xử lý khi xác nhận hủy kết bạn
   const handleConfirmRemoveFriend = () => {
     if (removeFriend.isPending || !profileData?._id) return
-    
+
     removeFriend.mutate(profileData._id, {
       onSuccess: () => {
         refetchStatus()
@@ -153,18 +158,45 @@ function Profile({ params }: Props) {
                 <Button
                   size='sm'
                   onClick={handleFriendAction}
-                  disabled={sendFriendRequest.isPending || cancelFriendRequest.isPending || removeFriend.isPending}
+                  disabled={
+                    sendFriendRequest.isPending ||
+                    cancelFriendRequest.isPending ||
+                    removeFriend.isPending ||
+                    isLoadingFriendStatus
+                  }
                 >
-                  {sendFriendRequest.isPending || cancelFriendRequest.isPending || removeFriend.isPending
-                    ? 'Đang xử lý...'
-                    : friendStatus?.status === FRIEND_REQUEST_STATUS.PENDING
-                      ? 'Hủy lời mời'
-                      : friendStatus?.status === FRIEND_REQUEST_STATUS.ACCEPTED
-                        ? 'Bạn bè'
-                        : '+ Kết bạn'}
+                  {isLoadingFriendStatus ? (
+                    <>
+                      <span className='mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent'></span>
+                      Đang tải...
+                    </>
+                  ) : sendFriendRequest.isPending || cancelFriendRequest.isPending || removeFriend.isPending ? (
+                    <>
+                      <span className='mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent'></span>
+                      Đang xử lý...
+                    </>
+                  ) : friendStatus?.status === FRIEND_REQUEST_STATUS.PENDING ? (
+                    'Hủy lời mời'
+                  ) : friendStatus?.status === FRIEND_REQUEST_STATUS.ACCEPTED ? (
+                    'Bạn bè'
+                  ) : (
+                    '+ Kết bạn'
+                  )}
                 </Button>
-                <Button size='sm' variant='outline' onClick={handleMessageAction} disabled={startConversation.isPending}>
-                  {startConversation.isPending ? 'Đang xử lý...' : 'Nhắn tin'}
+                <Button
+                  size='sm'
+                  variant='outline'
+                  onClick={handleMessageAction}
+                  disabled={startConversation.isPending}
+                >
+                  {startConversation.isPending ? (
+                    <>
+                      <span className='mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent'></span>
+                      Đang xử lý...
+                    </>
+                  ) : (
+                    'Nhắn tin'
+                  )}
                 </Button>
               </>
             )}
@@ -179,26 +211,28 @@ function Profile({ params }: Props) {
           {/* Giới thiệu */}
           <Card className='py-0'>
             <CardContent className='space-y-2 p-4'>
-              {isMyProfile ? (
-                <>
-                  <Button variant='outline' className='w-full'>
-                    Thêm tiểu sử
-                  </Button>
-                  <p>📍 Sống tại {profileData?.location || 'Hà Nội'}</p>
-                  <p>💙 {profileData?.relationship || 'Độc thân'}</p>
-                  <p>📡 Có {profileData?.followers?.length || 14} người theo dõi</p>
-                  <Button size='sm' className='w-full'>
-                    Chỉnh sửa chi tiết
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <h3 className='font-semibold'>Giới thiệu</h3>
-                  {profileData?.bio && <p>{profileData.bio}</p>}
-                  <p>📍 Sống tại {profileData?.location || 'Hà Nội'}</p>
-                  <p>💙 {profileData?.relationship || 'Độc thân'}</p>
-                  <p>📡 Có {profileData?.followers?.length || 14} người theo dõi</p>
-                </>
+              <h3 className='font-semibold'>Giới thiệu</h3>
+              {profileData?.bio && <p>{profileData.bio}</p>}
+              {profileData?.dateOfBirth && (
+                <div className='flex items-center gap-2'>
+                  <span>🎂</span>
+                  <span>Sinh ngày {format(new Date(profileData.dateOfBirth), 'dd/MM/yyyy')}</span>
+                </div>
+              )}
+              <div className='flex items-center gap-2'>
+                <Users className='h-4 w-4' />
+                <span>{profileFriends?.length || 0} người bạn</span>
+              </div>
+              {profileData?.createdAt && (
+                <div className='flex items-center gap-2'>
+                  <Calendar className='h-4 w-4' />
+                  <span>Tham gia từ {format(new Date(profileData.createdAt), 'MM/yyyy')}</span>
+                </div>
+              )}
+              {isMyProfile && (
+                <Button size='sm' className='mt-2 w-full'>
+                  Chỉnh sửa chi tiết
+                </Button>
               )}
             </CardContent>
           </Card>
@@ -230,31 +264,36 @@ function Profile({ params }: Props) {
                 </Button>
               </div>
               <p className='text-muted-foreground text-sm'>{profileFriends?.length || 0} người bạn</p>
-              <div className='grid grid-cols-3 gap-2'>
+              <div className='space-y-2'>
                 {isLoadingProfileFriends ? (
                   // Hiển thị skeleton khi đang tải
                   [...Array(6)].map((_, i) => (
-                    <div key={i} className='space-y-1'>
-                      <Skeleton className='aspect-square rounded' />
-                      <Skeleton className='mx-auto h-3 w-16' />
+                    <div key={i} className='flex items-center gap-3 p-2'>
+                      <Skeleton className='h-12 w-12 rounded-full' />
+                      <div className='space-y-1'>
+                        <Skeleton className='h-4 w-24' />
+                        <Skeleton className='h-3 w-16' />
+                      </div>
                     </div>
                   ))
                 ) : profileFriends && profileFriends.length > 0 ? (
                   // Hiển thị danh sách bạn bè với HoverCard
                   profileFriends.slice(0, 9).map((friend) => (
                     <FriendHoverCard key={friend._id} friend={friend}>
-                      <div className='flex cursor-pointer flex-col items-center justify-center space-y-1'>
-                        <Avatar className='aspect-square h-12 w-12 overflow-hidden'>
+                      <div className='hover:bg-muted flex items-center gap-3 rounded-md p-2 transition-colors'>
+                        <Avatar className='h-12 w-12 flex-shrink-0'>
                           <AvatarImage src={friend.avatar} alt={friend.name} />
                           <AvatarFallback>{friend.name?.[0]}</AvatarFallback>
                         </Avatar>
-                        <p className='truncate text-center text-xs'>{friend.name}</p>
+                        <div className='flex-grow overflow-hidden'>
+                          <p className='leading-none font-medium'>{friend.name}</p>
+                        </div>
                       </div>
                     </FriendHoverCard>
                   ))
                 ) : (
                   // Hiển thị khi không có bạn bè
-                  <div className='text-muted-foreground col-span-3 py-2 text-center'>Chưa có bạn bè</div>
+                  <div className='text-muted-foreground py-2 text-center'>Chưa có bạn bè</div>
                 )}
               </div>
             </CardContent>
@@ -332,18 +371,15 @@ function Profile({ params }: Props) {
             <DialogHeader>
               <DialogTitle>Xác nhận hủy kết bạn</DialogTitle>
               <DialogDescription>
-                Bạn có chắc chắn muốn hủy kết bạn với {profileData?.name}? Hành động này sẽ xóa tất cả các kết nối bạn bè giữa hai người.
+                Bạn có chắc chắn muốn hủy kết bạn với {profileData?.name}? Hành động này sẽ xóa tất cả các kết nối bạn
+                bè giữa hai người.
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
               <Button variant='outline' onClick={() => setShowConfirmDialog(false)}>
                 Hủy
               </Button>
-              <Button 
-                variant='destructive' 
-                onClick={handleConfirmRemoveFriend}
-                disabled={removeFriend.isPending}
-              >
+              <Button variant='destructive' onClick={handleConfirmRemoveFriend} disabled={removeFriend.isPending}>
                 {removeFriend.isPending ? 'Đang xử lý...' : 'Xác nhận'}
               </Button>
             </DialogFooter>

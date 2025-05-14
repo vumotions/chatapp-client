@@ -123,3 +123,15 @@ export const useFriendStatus = (userId?: string, options = {} as any) => {
     enabled: !!userId && options.enabled !== false
   })
 }
+
+// Hook để lấy danh sách bạn bè với roles trong nhóm chat
+export const useFriendsWithRolesQuery = (conversationId?: string) => {
+  const { data: session } = useSession()
+  return useQuery({
+    queryKey: ['FRIENDS_WITH_ROLES', conversationId],
+    queryFn: () => friendService.getFriendsWithRoles(conversationId as string),
+    select: (res) => res.data.data,
+    enabled: !!session && !!conversationId,
+    staleTime: 1 * 60 * 1000 // 1 phút
+  })
+}

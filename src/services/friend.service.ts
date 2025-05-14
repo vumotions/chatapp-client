@@ -21,13 +21,13 @@ export interface FriendRequest {
 
 // Thêm interface cho response phân trang
 export interface PaginatedResponse<T> {
-  suggestions: T[];
+  suggestions: T[]
   pagination: {
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
-  };
+    total: number
+    page: number
+    limit: number
+    totalPages: number
+  }
 }
 
 class FriendService {
@@ -66,7 +66,9 @@ class FriendService {
 
   // Lấy danh sách gợi ý bạn bè với phân trang
   getFriendSuggestions(page = 1, limit = 10) {
-    return httpRequest.get<SuccessResponse<PaginatedResponse<Friend>>>(`/friends/suggestions?page=${page}&limit=${limit}`)
+    return httpRequest.get<SuccessResponse<PaginatedResponse<Friend>>>(
+      `/friends/suggestions?page=${page}&limit=${limit}`
+    )
   }
 
   // Thêm phương thức removeFriend
@@ -87,6 +89,11 @@ class FriendService {
   // Thêm phương thức mới để lấy bạn bè theo username
   getFriendsByUsername(username: string) {
     return httpRequest.get<SuccessResponse<Friend[]>>(`/friends/user/${username}`)
+  }
+
+  // Lấy danh sách bạn bè với roles trong nhóm chat
+  getFriendsWithRoles(conversationId: string) {
+    return httpRequest.get(`/friends/with-roles?conversationId=${conversationId}`)
   }
 }
 

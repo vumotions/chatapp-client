@@ -23,7 +23,7 @@ export default function FriendSuggestions() {
   const [limit, setLimit] = useState(6) // Mặc định 6 items mỗi trang
 
   // Sử dụng hook với phân trang
-  const { data, isLoading, refetch } = useFriendSuggestionsQuery(page, limit)
+  const { data, isLoading } = useFriendSuggestionsQuery(page, limit)
   const suggestions = data?.suggestions || []
   const pagination = data?.pagination
 
@@ -142,8 +142,6 @@ export default function FriendSuggestions() {
     setSelectedAccept(userId)
     try {
       await acceptFriendRequest.mutateAsync(userId)
-      toast.success('Đã chấp nhận lời mời kết bạn')
-      refetch()
     } catch (e) {
       // error handled by hook
     } finally {

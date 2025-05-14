@@ -35,24 +35,24 @@ class ConversationsService {
 
   // Cập nhật các phương thức để sử dụng đúng endpoint
   async deleteMessage(messageId: string) {
-    const res = await httpRequest.delete(`/chat/messages/${messageId}`);
-    return res.data.data;
+    const res = await httpRequest.delete(`/chat/messages/${messageId}`)
+    return res.data.data
   }
 
   async editMessage(messageId: string, content: string) {
-    const res = await httpRequest.put(`/chat/messages/${messageId}`, { content });
-    return res.data.data;
+    const res = await httpRequest.put(`/chat/messages/${messageId}`, { content })
+    return res.data.data
   }
 
   // Sử dụng editMessage thay vì updateMessage
   async updateMessage(messageId: string, content: string) {
-    return this.editMessage(messageId, content);
+    return this.editMessage(messageId, content)
   }
 
   // Xóa cuộc trò chuyện
   async deleteConversation(conversationId: string) {
-    const res = await httpRequest.delete(`/chat/${conversationId}`);
-    return res.data.data;
+    const res = await httpRequest.delete(`/chat/${conversationId}`)
+    return res.data.data
   }
 
   // Thêm các phương thức để quản lý archive
@@ -97,19 +97,14 @@ class ConversationsService {
   }
 
   // Tạo nhóm chat mới
-  async createGroupConversation(data: { participants: string[], name: string, avatar?: string }) {
-    console.log('Calling createGroupConversation API with:', data)
+  async createGroupConversation(data: {
+    name: string
+    participants: string[]
+    avatar?: string
+    groupType?: string
+    requireApproval?: boolean
+  }) {
     const res = await httpRequest.post('/chat/group', data)
-    console.log('API response for createGroupConversation:', res.data)
-    return res.data.data
-  }
-
-  // Thêm các phương thức quản lý nhóm
-  // Cập nhật thông tin nhóm
-  async updateGroupConversation(groupId: string, data: { name?: string, avatar?: string }) {
-    console.log('Calling updateGroupConversation API with:', { groupId, data })
-    const res = await httpRequest.put(`/chat/group/${groupId}`, data)
-    console.log('API response for updateGroupConversation:', res.data)
     return res.data
   }
 
@@ -129,12 +124,77 @@ class ConversationsService {
     return res.data
   }
 
+  // Cập nhật thông tin nhóm
+  async updateGroupConversation(
+    conversationId: string,
+    data: { name: string; groupType?: string; requireApproval?: boolean }
+  ) {
+    console.log('Updating group conversation:', { conversationId, data });
+    const res = await httpRequest.put(`/chat/conversations/group/${conversationId}`, data)
+    return res.data.data
+  }
+
   // Rời khỏi nhóm
-  async leaveGroupConversation(groupId: string) {
-    console.log('Calling leaveGroupConversation API with:', { groupId })
-    const res = await httpRequest.post(`/chat/group/${groupId}/leave`)
-    console.log('API response for leaveGroupConversation:', res.data)
-    return res.data
+  async leaveGroupConversation(conversationId: string) {
+    console.log('Leaving group conversation:', { conversationId });
+    const res = await httpRequest.post(`/chat/conversations/group/${conversationId}/leave`)
+    return res.data.data
+  }
+
+  // Tạo link mời
+  async generateInviteLink(conversationId: string) {
+    console.log('Generating invite link for:', conversationId);
+    // Sửa lại endpoint để khớp với server
+    const res = await httpRequest.post(`/chat/group/${conversationId}/invite-link`);
+    console.log('Generate invite link response:', res.data);
+    return res.data;
+  }
+
+  // Tham gia nhóm qua link mời
+  async joinGroupByInviteLink(inviteLink: string) {
+    console.log('Joining group by invite link:', inviteLink);
+    const res = await httpRequest.post(`/chat/group/join/${inviteLink}`)
+    return res.data.data
+  }
+
+  // Lấy thông tin nhóm qua link mời
+  async getGroupByInviteLink(inviteLink: string) {
+    console.log('Getting group by invite link:', inviteLink);
+    const res = await httpRequest.get(`/chat/group/join/${inviteLink}`)
+    return res.data.data
+  }
+
+  // Cập nhật vai trò thành viên
+  async updateGroupMemberRole(
+    conversationId: string,
+    data: {
+      userId: string
+      role: string
+      permissions: Record<string, boolean>
+      customTitle?: string
+    }
+  ) {
+    console.log('Sending update member role request:', { conversationId, data });
+    // Đảm bảo endpoint khớp với định nghĩa route trên server
+    return httpRequest.put(`/chat/conversations/group/${conversationId}/members/role`, data);
+  }
+
+  // Lấy danh sách yêu cầu tham gia
+  async getJoinRequests(conversationId: string) {
+    const res = await httpRequest.get(`/chat/conversations/group/${conversationId}/join-requests`)
+    return res.data.data
+  }
+
+  // Phê duyệt yêu cầu tham gia
+  async approveJoinRequest(conversationId: string, userId: string) {
+    const res = await httpRequest.post(`/chat/conversations/group/${conversationId}/approve-request/${userId}`)
+    return res.data.data
+  }
+
+  // Từ chối yêu cầu tham gia
+  async rejectJoinRequest(conversationId: string, userId: string) {
+    const res = await httpRequest.post(`/chat/conversations/group/${conversationId}/reject-request/${userId}`)
+    return res.data.data
   }
 }
 
