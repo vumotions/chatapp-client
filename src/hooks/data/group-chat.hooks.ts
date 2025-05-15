@@ -195,7 +195,20 @@ export const useDisbandGroupMutation = (conversationId: string) => {
   })
 }
 
-
-
+// Hook để kiểm tra trạng thái yêu cầu tham gia
+export const useCheckJoinRequestStatusQuery = (
+  conversationId: string | undefined,
+  options?: { enabled?: boolean }
+) => {
+  return useQuery({
+    queryKey: ['JOIN_REQUEST_STATUS', conversationId],
+    queryFn: async () => {
+      if (!conversationId) throw new Error('Conversation ID is required')
+      return conversationsService.checkJoinRequestStatus(conversationId)
+    },
+    enabled: !!conversationId && (options?.enabled !== false),
+    staleTime: 1000 * 60 * 5, // 5 phút
+  })
+}
 
 

@@ -222,6 +222,14 @@ class ConversationsService {
     const res = await httpRequest.delete(`/chat/group/${conversationId}/disband`)
     return res.data.data
   }
+
+  // Kiểm tra trạng thái yêu cầu tham gia nhóm
+  async checkJoinRequestStatus(conversationId: string) {
+    console.log('Checking join request status for:', conversationId)
+    const res = await httpRequest.get(`/chat/group/${conversationId}/join-request-status`)
+    console.log('API response for checkJoinRequestStatus:', res.data)
+    return res.data.data
+  }
 }
 
 const conversationsService = new ConversationsService()

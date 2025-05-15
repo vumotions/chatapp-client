@@ -41,6 +41,7 @@ import {
   useDisbandGroupMutation
 } from '~/hooks/data/group-chat.hooks'
 import { TransferOwnershipDialog } from './transfer-ownership-dialog'
+import GroupJoinRequests from './group-join-requests'
 
 // Zod schema cho form cài đặt nhóm
 const groupSettingsSchema = z.object({
