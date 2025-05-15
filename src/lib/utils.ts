@@ -2,25 +2,47 @@ import axios, { AxiosError } from 'axios'
 import { clsx, type ClassValue } from 'clsx'
 import { status } from 'http-status'
 import Cookies from 'js-cookie'
+import { match } from 'path-to-regexp'
 import { twMerge } from 'tailwind-merge'
 import httpRequest from '~/config/http-request'
-import { authRouteRegex, privateRouteRegex, publicRouteRegex } from '~/constants/regex'
+import { LOCALES } from '~/constants/locales'
+import routes from '~/routes'
 import { RememberedAccount } from '~/types/user.types'
 import { decrypt, encrypt } from './crypto'
+
 export const cn = (...inputs: ClassValue[]) => {
   return twMerge(clsx(inputs))
 }
 
+const stripLocale = (pathname: string): string => {
+  const parts = pathname.split('/')
+  if (LOCALES.includes(parts[1])) {
+    return '/' + parts.slice(2).join('/')
+  }
+  return pathname
+}
+
+const createMatchers = (routes: string[]) => {
+  return routes.map((route) => match(route, { decode: decodeURIComponent }))
+}
+
+const publicMatchers = createMatchers(routes.publicRoutes)
+const authMatchers = createMatchers(routes.authRoutes)
+const privateMatchers = createMatchers(routes.privateRoutes)
+
 export const checkPublicRoute = (pathname: string) => {
-  return publicRouteRegex.test(pathname)
+  const cleanPath = stripLocale(pathname)
+  return publicMatchers.some((m) => m(cleanPath))
 }
 
 export const checkAuthRoute = (pathname: string) => {
-  return authRouteRegex.test(pathname)
+  const cleanPath = stripLocale(pathname)
+  return authMatchers.some((m) => m(cleanPath))
 }
 
 export const checkPrivateRoute = (pathname: string) => {
-  return privateRouteRegex.test(pathname)
+  const cleanPath = stripLocale(pathname)
+  return privateMatchers.some((m) => m(cleanPath))
 }
 
 export const isAxiosError = <T>(error: unknown): error is AxiosError<T> => {

@@ -107,6 +107,12 @@ function SocketProvider({ children }: Props) {
       console.log('CONVERSATION_DELETED event received in provider:', data)
     })
 
+    // Lắng nghe sự kiện OWNERSHIP_TRANSFERRED
+    socket.on(SOCKET_EVENTS.OWNERSHIP_TRANSFERRED, (data) => {
+      console.log('OWNERSHIP_TRANSFERRED event received in provider:', data)
+      // Xử lý chi tiết sẽ được thực hiện trong GroupEventsListener
+    })
+
     return () => {
       socket.off(SOCKET_EVENTS.RECEIVE_MESSAGE)
       socket.off(SOCKET_EVENTS.USER_ONLINE)
@@ -114,6 +120,7 @@ function SocketProvider({ children }: Props) {
       socket.off(SOCKET_EVENTS.MESSAGE_DELETED)
       socket.off(SOCKET_EVENTS.MESSAGE_UPDATED)
       socket.off(SOCKET_EVENTS.CONVERSATION_DELETED)
+      socket.off(SOCKET_EVENTS.OWNERSHIP_TRANSFERRED)
     }
   }, [socket])
 

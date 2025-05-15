@@ -64,6 +64,24 @@ export const useLeaveGroupMutation = (conversationId: string) => {
   })
 }
 
+// Thêm hook xóa nhóm
+export const useDeleteGroupMutation = (conversationId: string) => {
+  const queryClient = useQueryClient()
+  const router = useRouter()
+  
+  return useMutation({
+    mutationFn: () => conversationsService.deleteGroupConversation(conversationId),
+    onSuccess: () => {
+      toast.success('Đã xóa nhóm thành công')
+      queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] })
+      router.push('/messages')
+    },
+    onError: (error: any) => {
+      toast.error(error?.response?.data?.message || 'Có lỗi xảy ra khi xóa nhóm')
+    }
+  })
+}
+
 // Hook để xóa thành viên khỏi nhóm
 export const useRemoveGroupMemberMutation = (conversationId: string) => {
   const queryClient = useQueryClient()
@@ -137,5 +155,47 @@ export const useJoinGroupByInviteLinkMutation = () => {
     }
   })
 }
+
+// Hook để chuyển quyền chủ nhóm
+export const useTransferOwnershipMutation = (conversationId: string) => {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: (newOwnerId: string) => 
+      conversationsService.transferOwnership(conversationId, newOwnerId),
+    onSuccess: () => {
+      toast.success('Đã chuyển quyền chủ nhóm thành công')
+      queryClient.invalidateQueries({ queryKey: ['MESSAGES', conversationId] })
+      queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] })
+      queryClient.invalidateQueries({ queryKey: ['FRIENDS_WITH_ROLES', conversationId] })
+    },
+    onError: (error: any) => {
+      console.error('Transfer ownership error:', error)
+      console.error('Error response:', error.response?.data)
+      toast.error(error?.response?.data?.message || 'Có lỗi xảy ra khi chuyển quyền chủ nhóm')
+    }
+  })
+}
+
+// Hook để giải tán nhóm (chỉ owner)
+export const useDisbandGroupMutation = (conversationId: string) => {
+  const queryClient = useQueryClient()
+  const router = useRouter()
+  
+  return useMutation({
+    mutationFn: () => conversationsService.disbandGroup(conversationId),
+    onSuccess: () => {
+      toast.success('Đã giải tán nhóm thành công')
+      queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] })
+      router.push('/messages')
+    },
+    onError: (error: any) => {
+      toast.error(error?.response?.data?.message || 'Có lỗi xảy ra khi giải tán nhóm')
+    }
+  })
+}
+
+
+
 
 

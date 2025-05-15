@@ -1,7 +1,7 @@
 'use client'
 import { format, formatDistanceToNow } from 'date-fns'
 import { Archive, ArrowDown, ArrowLeft, Check, CheckCheck, Copy, Heart, Phone, Pin, PinOff, Video } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
 import { Button } from '~/components/ui/button'
@@ -25,7 +25,13 @@ import dynamic from 'next/dynamic'
 import { use } from 'react'
 import { Input } from '~/components/ui/input'
 import { Skeleton } from '~/components/ui/skeleton'
-import { useArchiveChat, useMarkChatAsRead, useMessages, usePinMessage } from '~/hooks/data/chat.hooks'
+import {
+  useArchiveChat,
+  useCheckConversationAccess,
+  useMarkChatAsRead,
+  useMessages,
+  usePinMessage
+} from '~/hooks/data/chat.hooks'
 import { useSocket } from '~/hooks/use-socket'
 
 import { useQueryClient } from '@tanstack/react-query'
@@ -36,6 +42,7 @@ import { toast } from 'sonner'
 import { AddGroupMembersDialog } from '~/components/add-group-members-dialog'
 import FriendHoverCard from '~/components/friend-hover-card'
 import { GroupSettingsDialog } from '~/components/group-settings-dialog'
+import ChatSkeleton from '~/components/ui/chat/chat-skeleton'
 import { MessageActions } from '~/components/ui/chat/message-actions'
 import MessageLoading from '~/components/ui/chat/message-loading'
 import httpRequest from '~/config/http-request'
@@ -75,32 +82,6 @@ interface Message {
   updatedAt: string
 }
 
-interface ChatInfo {
-  _id: string
-  userId: string
-  type: CHAT_TYPE
-  name?: string
-  avatar?: string
-  lastMessage?: string
-  participants: string[]
-  read: boolean
-  createdAt: string
-  updatedAt: string
-}
-
-interface PageData {
-  messages: Message[]
-  chat: {
-    _id: string
-    name?: string
-    avatar?: string
-    type: string
-    participants: string[]
-    createdAt: string
-  }
-  hasMore: boolean
-}
-
 function ChatDetail({ params }: Props) {
   // 1. Tất cả các state và ref
   const { chatId } = use(params)
@@ -118,10 +99,12 @@ function ChatDetail({ params }: Props) {
     isOnline: false,
     lastActive: null
   })
+
+  const { isLoading: isCheckingAccess, isError: accessError } = useCheckConversationAccess(chatId)
+
   const [isAtBottom, setIsAtBottom] = useState(true)
   const [showScrollButton, setShowScrollButton] = useState(false)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null)
   // Thêm state để lưu trữ thông tin người dùng
   const [userInfoMap, setUserInfoMap] = useState<Record<string, { name: string; avatar: string }>>({})
   // Thêm state để theo dõi việc hiển thị popover reactions
@@ -137,8 +120,6 @@ function ChatDetail({ params }: Props) {
   const [deletedMessageIds, setDeletedMessageIds] = useState<string[]>([])
   // Thêm state để theo dõi tin nhắn đã xóa
   const [processedDeletedMessages, setProcessedDeletedMessages] = useState<Set<string>>(new Set())
-  // Thêm state để theo dõi tin nhắn đã cập nhật
-  const [processedUpdatedMessages, setProcessedUpdatedMessages] = useState<Map<string, string>>(new Map())
   // Thêm state để quản lý trạng thái của dialog
   const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false)
   // Thêm state để lưu trữ thông tin người đã xem
@@ -1212,22 +1193,6 @@ function ChatDetail({ params }: Props) {
     )
   }
 
-  // Thêm listener cho lỗi socket
-  useEffect(() => {
-    if (!socket) return
-
-    const handleError = (error: any) => {
-      console.error('Socket error:', error)
-      toast.error(error.message || 'Có lỗi xảy ra')
-    }
-
-    socket.on(SOCKET_EVENTS.ERROR, handleError)
-
-    return () => {
-      socket.off(SOCKET_EVENTS.ERROR, handleError)
-    }
-  }, [socket])
-
   // Thêm useEffect để lấy thông tin người dùng khi có reaction mới
   useEffect(() => {
     const fetchUserInfo = async (userId: string) => {
@@ -1551,6 +1516,12 @@ function ChatDetail({ params }: Props) {
     [hasNextPage, isFetchingNextPage, handleFetchNextPage]
   )
 
+  // Check access route
+  useEffect(() => {
+    if (accessError) {
+      router.push('/messages')
+    }
+  }, [accessError])
   // Cleanup throttled functions when component unmounts
   useEffect(() => {
     return () => {
@@ -1559,7 +1530,6 @@ function ChatDetail({ params }: Props) {
     }
   }, [handleScrollPosition, handleScrollForFetch])
 
-  // Thêm logic để xác định loại chat (nhóm hay cá nhân)
   const isGroupChat = data?.pages[0]?.conversation?.type === 'GROUP'
 
   const totalParticipantsCount = useMemo(() => {
@@ -1611,6 +1581,10 @@ function ChatDetail({ params }: Props) {
     } catch (error) {
       console.error('Error fetching readers:', error)
     }
+  }
+
+  if (isCheckingAccess) {
+    return <ChatSkeleton />
   }
 
   return (
@@ -2145,21 +2119,5 @@ function ChatDetail({ params }: Props) {
 
 export default dynamic(() => Promise.resolve(ChatDetail), {
   ssr: false,
-  loading: () => (
-    <div className='flex h-[calc(100vh-64px)] flex-col space-y-4 p-4'>
-      <Skeleton className='h-12 w-full' />
-      <div className='flex items-center space-x-4'>
-        <Skeleton className='h-10 w-10 rounded-full' />
-        <div className='space-y-2'>
-          <Skeleton className='h-4 w-40' />
-          <Skeleton className='h-4 w-24' />
-        </div>
-      </div>
-      <Skeleton className='h-full w-full grow rounded-md' />
-      <div className='flex space-x-2'>
-        <Skeleton className='h-10 w-full' />
-        <Skeleton className='h-10 w-10' />
-      </div>
-    </div>
-  )
+  loading: () => <ChatSkeleton />
 })

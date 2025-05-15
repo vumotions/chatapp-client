@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Copy, Crown, RefreshCw, Settings, Shield, UserCog, UserMinus } from 'lucide-react'
+import { Copy, Crown, LogOut, RefreshCw, Settings, Shield, UserCog, UserMinus, Trash } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
@@ -28,7 +28,6 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTr
 import { Switch } from '~/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipTrigger } from '~/components/ui/tooltip'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '~/components/ui/dialog'
 
 import { MAX_GROUP_MEMBERS } from '~/constants/app.constants'
 import { GROUP_TYPE, MEMBER_ROLE } from '~/constants/enums'
@@ -38,8 +37,10 @@ import {
   useLeaveGroupMutation,
   useRemoveGroupMemberMutation,
   useUpdateGroupMutation,
-  useUpdateMemberRoleMutation
+  useUpdateMemberRoleMutation,
+  useDisbandGroupMutation
 } from '~/hooks/data/group-chat.hooks'
+import { TransferOwnershipDialog } from './transfer-ownership-dialog'
 
 // Zod schema cho form cài đặt nhóm
 const groupSettingsSchema = z.object({
@@ -90,6 +91,9 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
   const [memberToEdit, setMemberToEdit] = useState<any>(null)
   const [inviteLink, setInviteLink] = useState(conversation?.inviteLink || '')
   const [confirmNewLinkDialogOpen, setConfirmNewLinkDialogOpen] = useState(false)
+  const [transferOwnershipDialogOpen, setTransferOwnershipDialogOpen] = useState(false)
+  const [leaveGroupConfirmOpen, setLeaveGroupConfirmOpen] = useState(false)
+  const [disbandGroupConfirmOpen, setDisbandGroupConfirmOpen] = useState(false)
 
   const { data: session } = useSession()
   const currentUserId = session?.user?._id
@@ -129,14 +133,17 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
   })
 
   // Lấy danh sách thành viên với roles
-  const { data: membersWithRoles = [], isLoading: isLoadingMembers } = useFriendsWithRolesQuery(
-    open ? conversation?._id : undefined
-  )
+  const { data, isError, isLoading: isLoadingMembers } = useFriendsWithRolesQuery(open ? conversation?._id : undefined)
+
+  // Trích xuất members từ data
+  const membersWithRoles = data?.members || []
 
   // Lọc danh sách thành viên theo tìm kiếm
-  const filteredMembers = membersWithRoles
-    .filter((member: any) => member.inGroup)
-    .filter((member: any) => member.name.toLowerCase().includes(searchQuery.toLowerCase()))
+  const filteredMembers = Array.isArray(membersWithRoles)
+    ? membersWithRoles
+        .filter((member: any) => member.inGroup)
+        .filter((member: any) => member.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    : []
 
   // Cập nhật form khi conversation thay đổi
   useEffect(() => {
@@ -153,6 +160,7 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
   // Cập nhật form chỉnh sửa thành viên khi chọn thành viên
   useEffect(() => {
     if (memberToEdit) {
+      console.log('Filling form with member data:', memberToEdit)
       memberEditForm.reset({
         role: memberToEdit.role || MEMBER_ROLE.MEMBER,
         customTitle: memberToEdit.customTitle || '',
@@ -169,11 +177,13 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
     }
   }, [memberToEdit, memberEditForm])
 
+  // Mutations
   const updateGroupMutation = useUpdateGroupMutation(conversation?._id, onUpdate)
   const generateInviteLinkMutation = useGenerateInviteLinkMutation(conversation?._id, (link) => setInviteLink(link))
   const leaveGroupMutation = useLeaveGroupMutation(conversation?._id)
   const removeUserMutation = useRemoveGroupMemberMutation(conversation?._id)
   const updateMemberRoleMutation = useUpdateMemberRoleMutation(conversation?._id)
+  const disbandGroupMutation = useDisbandGroupMutation(conversation?._id)
 
   const onSubmitGroupSettings = (data: GroupSettingsValues) => {
     updateGroupMutation.mutate(data)
@@ -212,10 +222,28 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
     setMemberEditDialogOpen(false)
   }
 
+  // Xử lý rời nhóm
   const handleLeaveGroup = () => {
-    if (window.confirm('Bạn có chắc muốn rời khỏi nhóm này?')) {
-      leaveGroupMutation.mutate()
+    if (isOwner) {
+      // Nếu là chủ nhóm, mở dialog chuyển quyền
+      setTransferOwnershipDialogOpen(true)
+    } else {
+      // Nếu không phải chủ nhóm, mở dialog xác nhận rời nhóm
+      setLeaveGroupConfirmOpen(true)
     }
+  }
+
+  // Xác nhận rời nhóm (cho thành viên không phải chủ nhóm)
+  const handleConfirmLeaveGroup = () => {
+    leaveGroupMutation.mutate()
+    setLeaveGroupConfirmOpen(false)
+  }
+
+  // Xử lý sau khi chuyển quyền chủ nhóm thành công
+  const handleTransferOwnershipComplete = () => {
+    toast.success('Đã chuyển quyền chủ nhóm thành công')
+    setTransferOwnershipDialogOpen(false)
+    if (onUpdate) onUpdate()
   }
 
   const handleCopyInviteLink = () => {
@@ -246,7 +274,33 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
   }
 
   const handleEditMember = (member: any) => {
-    setMemberToEdit(member)
+    // Chuẩn bị dữ liệu thành viên trước khi điền vào form
+    const preparedMember = {
+      ...member,
+      // Đảm bảo các trường cần thiết tồn tại
+      role: member.role || MEMBER_ROLE.MEMBER,
+      customTitle: member.customTitle || '',
+      permissions: member.permissions || {
+        changeGroupInfo: false,
+        deleteMessages: false,
+        banUsers: false,
+        inviteUsers: true,
+        pinMessages: false,
+        addNewAdmins: false,
+        approveJoinRequests: false
+      }
+    }
+
+    console.log('Editing member (prepared):', preparedMember)
+    setMemberToEdit(preparedMember)
+
+    // Điền dữ liệu trực tiếp vào form
+    memberEditForm.reset({
+      role: preparedMember.role,
+      customTitle: preparedMember.customTitle,
+      permissions: preparedMember.permissions
+    })
+
     setMemberEditDialogOpen(true)
   }
 
@@ -276,29 +330,24 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
     }
   }
 
-  const renderConfirmNewLinkDialog = () => (
-    <Dialog open={confirmNewLinkDialogOpen} onOpenChange={setConfirmNewLinkDialogOpen}>
-      <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
-          <DialogTitle>Tạo link mời mới</DialogTitle>
-          <DialogDescription>
-            Tạo link mới sẽ làm vô hiệu link cũ. Bạn có chắc chắn muốn tiếp tục?
-          </DialogDescription>
-        </DialogHeader>
-        <DialogFooter className="mt-4">
-          <Button variant="outline" onClick={() => setConfirmNewLinkDialogOpen(false)}>
-            Hủy
-          </Button>
-          <Button 
-            onClick={confirmGenerateNewLink}
-            disabled={generateInviteLinkMutation.isPending}
-          >
-            {generateInviteLinkMutation.isPending ? 'Đang tạo...' : 'Tạo link mới'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
+  const handleDisbandGroup = () => {
+    setDisbandGroupConfirmOpen(true)
+  }
+
+  const confirmDisbandGroup = () => {
+    disbandGroupMutation.mutate()
+    setDisbandGroupConfirmOpen(false)
+  }
+
+  // Thêm useEffect để tự động bật yêu cầu phê duyệt khi chọn nhóm riêng tư
+  useEffect(() => {
+    const currentGroupType = groupSettingsForm.watch('groupType')
+
+    // Nếu chọn nhóm riêng tư, tự động bật yêu cầu phê duyệt
+    if (currentGroupType === GROUP_TYPE.PRIVATE) {
+      groupSettingsForm.setValue('requireApproval', true)
+    }
+  }, [groupSettingsForm.watch('groupType')])
 
   return (
     <>
@@ -316,7 +365,7 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
         </Tooltip>
 
         <SheetContent side='right' className='w-full px-4 py-6'>
-          <SheetHeader className='p-0 pt-2'>
+          <SheetHeader className='px-0 pt-2'>
             <SheetTitle>Cài đặt nhóm</SheetTitle>
             <SheetDescription>
               Nhóm có {conversation?.participants?.length || 0} thành viên (tối đa {MAX_GROUP_MEMBERS})
@@ -331,7 +380,7 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
             </TabsList>
 
             <TabsContent value='general' className='mt-4'>
-              <div className='flex-1 space-y-6 overflow-y-auto py-2'>
+              <ScrollArea className='-mr-2 max-h-[calc(100vh-200px)] space-y-6 overflow-y-auto py-2 pr-2'>
                 {isAdmin ? (
                   <Form {...groupSettingsForm}>
                     <form onSubmit={groupSettingsForm.handleSubmit(onSubmitGroupSettings)} className='space-y-4'>
@@ -361,17 +410,29 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                                 defaultValue={field.value}
                                 className='flex flex-col space-y-1'
                               >
-                                <FormItem className='flex items-center space-y-0 space-x-3'>
+                                <FormItem className='flex items-start space-y-0 space-x-3'>
                                   <FormControl>
                                     <RadioGroupItem value={GROUP_TYPE.PUBLIC} />
                                   </FormControl>
-                                  <FormLabel className='font-normal'>Công khai</FormLabel>
+                                  <div>
+                                    <FormLabel className='font-normal'>Công khai</FormLabel>
+                                    <FormDescription className='text-xs'>
+                                      Nhóm có thể được tìm thấy trong tìm kiếm. Bạn có thể chọn yêu cầu phê duyệt hoặc
+                                      cho phép tham gia tự do.
+                                    </FormDescription>
+                                  </div>
                                 </FormItem>
-                                <FormItem className='flex items-center space-y-0 space-x-3'>
+                                <FormItem className='flex items-start space-y-0 space-x-3'>
                                   <FormControl>
                                     <RadioGroupItem value={GROUP_TYPE.PRIVATE} />
                                   </FormControl>
-                                  <FormLabel className='font-normal'>Riêng tư</FormLabel>
+                                  <div>
+                                    <FormLabel className='font-normal'>Riêng tư</FormLabel>
+                                    <FormDescription className='text-xs'>
+                                      Nhóm không hiển thị trong tìm kiếm. Chỉ những người được mời mới có thể thấy và
+                                      yêu cầu tham gia. Luôn yêu cầu phê duyệt.
+                                    </FormDescription>
+                                  </div>
                                 </FormItem>
                               </RadioGroup>
                             </FormControl>
@@ -388,13 +449,19 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                             <div className='space-y-0.5'>
                               <FormLabel>Yêu cầu phê duyệt khi tham gia</FormLabel>
                               <FormDescription>
-                                {field.value
-                                  ? 'Người dùng cần được phê duyệt trước khi tham gia nhóm'
-                                  : 'Người dùng có thể tham gia nhóm ngay lập tức qua link mời'}
+                                {groupSettingsForm.watch('groupType') === GROUP_TYPE.PRIVATE
+                                  ? 'Nhóm riêng tư luôn yêu cầu phê duyệt khi tham gia'
+                                  : field.value
+                                    ? 'Người dùng cần được phê duyệt trước khi tham gia nhóm'
+                                    : 'Người dùng có thể tham gia nhóm ngay lập tức qua link mời'}
                               </FormDescription>
                             </div>
                             <FormControl>
-                              <Switch checked={field.value} onCheckedChange={field.onChange} />
+                              <Switch
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                                disabled={groupSettingsForm.watch('groupType') === GROUP_TYPE.PRIVATE}
+                              />
                             </FormControl>
                           </FormItem>
                         )}
@@ -413,21 +480,46 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                   <p className='text-muted-foreground'>Chỉ admin mới có thể thay đổi thông tin nhóm</p>
                 )}
 
+                {isAdmin && <Separator className='my-4' />}
+
+                {isOwner && (
+                  <div className='space-y-2'>
+                    <h3 className='text-sm font-medium'>Giải tán nhóm</h3>
+                    <p className='text-muted-foreground text-sm'>
+                      Giải tán nhóm sẽ xóa vĩnh viễn nhóm và tất cả tin nhắn. Hành động này không thể hoàn tác.
+                    </p>
+                    <Button
+                      variant='destructive'
+                      onClick={handleDisbandGroup}
+                      disabled={disbandGroupMutation.isPending}
+                      className='w-full'
+                    >
+                      <Trash className='mr-2 h-4 w-4' />
+                      {disbandGroupMutation.isPending ? 'Đang xử lý...' : 'Giải tán nhóm'}
+                    </Button>
+                  </div>
+                )}
+
                 <Separator className='my-4' />
 
                 <div className='space-y-2'>
                   <h3 className='text-sm font-medium'>Rời khỏi nhóm</h3>
-                  <p className='text-muted-foreground text-sm'>Bạn sẽ không nhận được tin nhắn từ nhóm này nữa</p>
+                  <p className='text-muted-foreground text-sm'>
+                    {isOwner
+                      ? 'Bạn là chủ nhóm. Bạn cần chuyển quyền chủ nhóm trước khi rời nhóm.'
+                      : 'Bạn sẽ không nhận được tin nhắn từ nhóm này nữa'}
+                  </p>
                   <Button
                     variant='destructive'
                     onClick={handleLeaveGroup}
                     disabled={leaveGroupMutation.isPending}
                     className='w-full'
                   >
+                    <LogOut className='mr-2 h-4 w-4' />
                     {leaveGroupMutation.isPending ? 'Đang xử lý...' : 'Rời khỏi nhóm'}
                   </Button>
                 </div>
-              </div>
+              </ScrollArea>
             </TabsContent>
 
             <TabsContent value='members' className='mt-4'>
@@ -485,7 +577,6 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                             className='h-8 px-2'
                           >
                             <UserCog className='mr-1 h-4 w-4' />
-                            Chỉnh sửa
                           </Button>
 
                           <Button
@@ -495,7 +586,6 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                             className='text-destructive h-8 px-2'
                           >
                             <UserMinus className='mr-1 h-4 w-4' />
-                            Xóa
                           </Button>
                         </div>
                       )}
@@ -551,7 +641,7 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
 
       {/* Dialog chỉnh sửa thành viên */}
       <AlertDialog open={memberEditDialogOpen} onOpenChange={setMemberEditDialogOpen}>
-        <AlertDialogContent className='max-w-md'>
+        <AlertDialogContent className='max-h-[90vh] max-w-md overflow-y-auto'>
           <AlertDialogHeader>
             <AlertDialogTitle>Chỉnh sửa thành viên</AlertDialogTitle>
             <AlertDialogDescription>Cập nhật vai trò và quyền hạn cho {memberToEdit?.name}</AlertDialogDescription>
@@ -696,9 +786,66 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
       </AlertDialog>
 
       {/* Dialog xác nhận tạo link mới */}
-      {renderConfirmNewLinkDialog()}
+      <AlertDialog open={confirmNewLinkDialogOpen} onOpenChange={setConfirmNewLinkDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Tạo link mời mới</AlertDialogTitle>
+            <AlertDialogDescription>
+              Link mời cũ sẽ không còn hiệu lực. Bạn có chắc chắn muốn tạo link mới?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Hủy</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmGenerateNewLink}>Tạo mới</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Dialog xác nhận rời nhóm (cho thành viên không phải chủ nhóm) */}
+      <AlertDialog open={leaveGroupConfirmOpen} onOpenChange={setLeaveGroupConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Rời khỏi nhóm</AlertDialogTitle>
+            <AlertDialogDescription>
+              Bạn có chắc chắn muốn rời khỏi nhóm này? Bạn sẽ không nhận được tin nhắn từ nhóm này nữa.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Hủy</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmLeaveGroup}>Rời nhóm</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Dialog chuyển quyền chủ nhóm */}
+      <TransferOwnershipDialog
+        open={transferOwnershipDialogOpen}
+        onOpenChange={setTransferOwnershipDialogOpen}
+        conversation={conversation}
+        onComplete={handleTransferOwnershipComplete}
+      />
+
+      {/* Dialog xác nhận giải tán nhóm */}
+      <AlertDialog open={disbandGroupConfirmOpen} onOpenChange={setDisbandGroupConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Giải tán nhóm</AlertDialogTitle>
+            <AlertDialogDescription>
+              Bạn có chắc chắn muốn giải tán nhóm này? Hành động này sẽ xóa vĩnh viễn nhóm và tất cả tin nhắn. Không thể
+              hoàn tác.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Hủy</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDisbandGroup}
+              className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
+            >
+              Giải tán nhóm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   )
 }
-
-

@@ -217,7 +217,7 @@ export function ChatList() {
           <Search className='text-muted-foreground absolute top-2.5 left-2 h-4 w-4' />
           <Input placeholder='Tìm kiếm tin nhắn' value={searchQuery} onChange={handleSearchChange} className='pl-8' />
         </div>
-        <CreateGroupChatDialog variant='icon' />
+        <CreateGroupChatDialog />
       </div>
 
       {/* Hiển thị danh sách cuộc trò chuyện dựa trên chế độ xem hiện tại */}

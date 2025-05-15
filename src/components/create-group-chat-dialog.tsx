@@ -22,25 +22,31 @@ import { Label } from '~/components/ui/label'
 import { Tooltip, TooltipContent, TooltipTrigger } from '~/components/ui/tooltip'
 import { useFriendsQuery } from '~/hooks/data/friends.hook'
 import conversationService from '~/services/conversations.service'
+import { GROUP_TYPE } from '~/constants/enums'
+import { RadioGroup, RadioGroupItem } from './ui/radio-group'
+import { Switch } from './ui/switch'
+import { CreateGroupChatData } from '~/types/chat.types'
+import { ScrollArea } from './ui/scroll-area'
 
-export function CreateGroupChatDialog({ variant = "default" }) {
+export function CreateGroupChatDialog() {
   const [open, setOpen] = useState(false)
   const [groupName, setGroupName] = useState('')
   const [selectedFriends, setSelectedFriends] = useState<string[]>([])
   const [avatarUrl, setAvatarUrl] = useState('')
+  const [groupType, setGroupType] = useState(GROUP_TYPE.PUBLIC)
+  const [requireApproval, setRequireApproval] = useState(false)
   const { data: friends } = useFriendsQuery()
   const queryClient = useQueryClient()
   const router = useRouter()
 
   const createGroupMutation = useMutation({
-    mutationFn: (data: { participants: string[]; name: string; avatar?: string }) => 
-      conversationService.createGroupConversation(data),
+    mutationFn: (data: CreateGroupChatData) => conversationService.createGroupConversation(data),
     onSuccess: (response) => {
       toast.success('Tạo nhóm chat thành công')
       queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] })
       setOpen(false)
       // Chuyển hướng đến trang chat mới
-      router.push(`/messages/${response.data.data._id}`)
+      router.push(`/messages/${response.data?._id}`)
     },
     onError: (error: any) => {
       toast.error(error?.response?.data?.message || 'Có lỗi xảy ra khi tạo nhóm')
@@ -61,7 +67,9 @@ export function CreateGroupChatDialog({ variant = "default" }) {
     createGroupMutation.mutate({
       participants: selectedFriends,
       name: groupName,
-      avatar: avatarUrl
+      avatar: avatarUrl,
+      groupType: groupType,
+      requireApproval: requireApproval
     })
   }
 
@@ -71,7 +79,7 @@ export function CreateGroupChatDialog({ variant = "default" }) {
 
   // Xử lý khi click vào button
   const handleButtonClick = () => {
-    console.log("Opening dialog")
+    console.log('Opening dialog')
     setOpen(true)
   }
 
@@ -84,12 +92,18 @@ export function CreateGroupChatDialog({ variant = "default" }) {
     }
   }, [open])
 
+  useEffect(() => {
+    if (groupType === GROUP_TYPE.PRIVATE) {
+      setRequireApproval(true)
+    }
+  }, [groupType])
+
   return (
     <>
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button variant="ghost" size="icon" onClick={handleButtonClick}>
-            <UserPlus className="h-5 w-5" />
+          <Button variant='ghost' size='icon' onClick={handleButtonClick}>
+            <UserPlus className='h-5 w-5' />
           </Button>
         </TooltipTrigger>
         <TooltipContent>Tạo nhóm chat</TooltipContent>
@@ -101,39 +115,45 @@ export function CreateGroupChatDialog({ variant = "default" }) {
             <DialogTitle>Tạo nhóm chat mới</DialogTitle>
             <DialogDescription>Tạo nhóm chat với bạn bè của bạn. Nhóm cần có ít nhất 3 thành viên.</DialogDescription>
           </DialogHeader>
-          <div className='grid gap-4 py-4'>
+
+          <ScrollArea className='-mr-4 grid max-h-[55vh] gap-4 py-6 pr-4'>
             <div className='grid grid-cols-4 items-center gap-4'>
               <Label htmlFor='name' className='text-right'>
                 Tên nhóm
               </Label>
-              <Input id='name' value={groupName} onChange={(e) => setGroupName(e.target.value)} className='col-span-3' />
+              <Input
+                id='name'
+                value={groupName}
+                onChange={(e) => setGroupName(e.target.value)}
+                className='col-span-3'
+              />
             </div>
-            
-            <div className='grid grid-cols-4 items-center gap-4'>
+
+            <div className='mt-4 grid grid-cols-4 items-center gap-4'>
               <Label htmlFor='avatar' className='text-right'>
                 Avatar URL
               </Label>
-              <Input 
-                id='avatar' 
-                value={avatarUrl} 
-                onChange={(e) => setAvatarUrl(e.target.value)} 
-                placeholder='Nhập URL hình ảnh' 
-                className='col-span-3' 
+              <Input
+                id='avatar'
+                value={avatarUrl}
+                onChange={(e) => setAvatarUrl(e.target.value)}
+                placeholder='Nhập URL hình ảnh'
+                className='col-span-3'
               />
             </div>
-            
+
             {avatarUrl && (
-              <div className='flex justify-center my-2'>
+              <div className='my-2 flex justify-center'>
                 <Avatar className='h-20 w-20'>
-                  <AvatarImage src={avatarUrl} alt="Group avatar preview" />
+                  <AvatarImage src={avatarUrl} alt='Group avatar preview' />
                   <AvatarFallback>{groupName.charAt(0)}</AvatarFallback>
                 </Avatar>
               </div>
             )}
-            
+
             <div className='mt-4'>
               <Label>Chọn bạn bè</Label>
-              <div className='mt-2 max-h-60 overflow-y-auto'>
+              <div className='mt-2'>
                 {friends?.map((friend: any) => (
                   <div key={friend._id} className='flex items-center space-x-2 py-2'>
                     <Checkbox
@@ -152,7 +172,60 @@ export function CreateGroupChatDialog({ variant = "default" }) {
                 ))}
               </div>
             </div>
-          </div>
+
+            <div className='mt-4 space-y-4'>
+              <div className='space-y-4'>
+                <Label>Loại nhóm</Label>
+                <RadioGroup
+                  value={groupType}
+                  onValueChange={(value) => setGroupType(value as GROUP_TYPE)}
+                  className='flex flex-col space-y-2'
+                >
+                  <div className='flex items-start space-x-2'>
+                    <RadioGroupItem value={GROUP_TYPE.PUBLIC} id='public' className='mt-1' />
+                    <div>
+                      <Label htmlFor='public'>Công khai</Label>
+                      <p className='text-muted-foreground text-xs'>
+                        Nhóm có thể được tìm thấy trong tìm kiếm. Bạn có thể chọn yêu cầu phê duyệt hoặc cho phép tham
+                        gia tự do.
+                      </p>
+                    </div>
+                  </div>
+                  <div className='flex items-start space-x-2'>
+                    <RadioGroupItem value={GROUP_TYPE.PRIVATE} id='private' className='mt-1' />
+                    <div>
+                      <Label htmlFor='private'>Riêng tư</Label>
+                      <p className='text-muted-foreground text-xs'>
+                        Nhóm không hiển thị trong tìm kiếm. Chỉ những người được mời mới có thể thấy và yêu cầu tham
+                        gia. Luôn yêu cầu phê duyệt.
+                      </p>
+                    </div>
+                  </div>
+                </RadioGroup>
+              </div>
+
+              <div className='flex items-center justify-between rounded-lg border p-3'>
+                <div>
+                  <Label htmlFor='requireApproval' className='mb-1 block'>
+                    Yêu cầu phê duyệt khi tham gia
+                  </Label>
+                  <p className='text-muted-foreground text-xs'>
+                    {groupType === GROUP_TYPE.PRIVATE
+                      ? 'Nhóm riêng tư luôn yêu cầu phê duyệt khi tham gia'
+                      : requireApproval
+                        ? 'Người dùng cần được phê duyệt trước khi tham gia nhóm'
+                        : 'Người dùng có thể tham gia nhóm ngay lập tức qua link mời'}
+                  </p>
+                </div>
+                <Switch
+                  id='requireApproval'
+                  checked={requireApproval}
+                  onCheckedChange={setRequireApproval}
+                  disabled={groupType === GROUP_TYPE.PRIVATE}
+                />
+              </div>
+            </div>
+          </ScrollArea>
           <DialogFooter>
             <Button onClick={handleCreateGroup} disabled={createGroupMutation.isPending}>
               {createGroupMutation.isPending ? 'Đang tạo...' : 'Tạo nhóm'}
@@ -166,5 +239,3 @@ export function CreateGroupChatDialog({ variant = "default" }) {
 
 // Để hỗ trợ cả hai cách import
 export default CreateGroupChatDialog
-
-

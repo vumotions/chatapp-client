@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useRef, useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { useSocket } from '~/hooks/use-socket'
 import { useRouter } from '~/i18n/navigation'
@@ -35,7 +35,12 @@ export const useChatList = (filter = 'all', searchQuery = '') => {
     getNextPageParam: (lastPage, pages) => {
       return lastPage.hasMore ? pages.length + 1 : undefined
     },
-    enabled: true
+    enabled: true,
+    // Thêm các options để giảm số lần gọi API
+    staleTime: 1000 * 60, // 1 phút
+    refetchOnWindowFocus: false, // Không refetch khi focus lại window
+    refetchOnMount: false, // Không refetch khi component mount
+    refetchOnReconnect: false // Không refetch khi kết nối lại
   })
 }
 
@@ -339,13 +344,13 @@ export const useEditMessage = (chatId: string) => {
 // Hook để xóa cuộc trò chuyện với khả năng hoàn tác
 export const useDeleteConversation = () => {
   const queryClient = useQueryClient()
-  const router = useRouter()
   const [pendingDeletion, setPendingDeletion] = useState<string | null>(null)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const UNDO_TIMEOUT = 5000 // 5 giây để hoàn tác
+  const UNDO_TIMEOUT = 5000 // 5 giây
+  const router = useRouter()
 
   // Hàm để xóa cuộc trò chuyện với khả năng hoàn tác
-  const deleteWithUndo = (conversationId: string, searchParams?: string) => {
+  const deleteWithUndo = (conversationId: string, isGroup: boolean = false, isOwner: boolean = false) => {
     // Lưu ID cuộc trò chuyện đang chờ xóa
     setPendingDeletion(conversationId)
 
@@ -379,133 +384,144 @@ export const useDeleteConversation = () => {
       }
     })
 
-    // Chuyển hướng nếu đang ở trang chat bị xóa
-    if (window.location.pathname.includes(`/messages/${conversationId}`)) {
-      router.push(`/messages${searchParams ? `?${searchParams}` : ''}`)
-    }
-
-    // Hiển thị toast với nút hoàn tác
+    // Hiển thị toast với nút hoàn tác và nút đóng
     const toastId = toast.loading('Đang xóa cuộc trò chuyện...', {
       duration: UNDO_TIMEOUT,
       action: {
         label: 'Hoàn tác',
-        onClick: () => undoDelete(conversationId)
+        onClick: () => {
+          if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current)
+            timeoutRef.current = null
+          }
+          toast.dismiss(toastId)
+          undoDelete(conversationId)
+        }
+      },
+      cancel: {
+        label: 'Xóa ngay',
+        onClick: () => {
+          if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current)
+            timeoutRef.current = null
+          }
+          toast.dismiss(toastId)
+          confirmDelete(conversationId, isGroup, isOwner)
+        }
+      },
+      cancelButtonStyle: {
+        backgroundColor: 'red',
+        color: 'white'
       }
     })
 
-    // Lưu promise resolve/reject để có thể gọi từ nút hoàn tác
+    // Lưu timeout ID vào ref để có thể hủy nếu cần
     const timeoutId = setTimeout(() => {
+      // Đóng toast trước khi thực hiện xóa
+      toast.dismiss(toastId)
       // Thực hiện xóa sau thời gian nếu không hoàn tác
-      conversationsService
-        .deleteConversation(conversationId)
-        .then((data) => {
-          setPendingDeletion(null)
-          // Invalidate chat list query để cập nhật UI
-          queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] })
-          // Đóng toast sau khi xóa thành công
-          toast.dismiss(toastId)
-          toast.success('Đã xóa cuộc trò chuyện', { duration: 2000 })
-        })
-        .catch((error) => {
-          // Khôi phục cuộc trò chuyện nếu xóa thất bại
-          setPendingDeletion(null)
-          undoDelete(conversationId)
-          toast.error('Không thể xóa cuộc trò chuyện')
-        })
+      confirmDelete(conversationId, isGroup, isOwner)
     }, UNDO_TIMEOUT) // Đợi thời gian trước khi thực sự xóa
 
-    // Lưu timeout ID để có thể hủy nếu cần
+    // Lưu timeout ID vào ref để có thể hủy trong các hàm khác
     timeoutRef.current = timeoutId
   }
 
+  // Hàm để xác nhận xóa cuộc trò chuyện ngay lập tức
+  const confirmDelete = (conversationId: string, isGroup: boolean = false, isOwner: boolean = false) => {
+    // Thực hiện xóa ngay lập tức
+    let deletePromise
+
+    if (isGroup && isOwner) {
+      // Nếu là nhóm và người dùng là owner, sử dụng API xóa nhóm
+      deletePromise = conversationsService.deleteGroupConversation(conversationId)
+    } else {
+      // Nếu không, chỉ ẩn cuộc trò chuyện khỏi danh sách
+      deletePromise = conversationsService.deleteConversation(conversationId)
+    }
+
+    deletePromise
+      .then((data) => {
+        setPendingDeletion(null)
+
+        if (isGroup && isOwner) {
+          toast.success('Đã xóa nhóm chat thành công', { duration: 2000 })
+          // Chuyển hướng về trang messages nếu đang ở trong chat bị xóa
+          if (window.location.pathname.includes(`/messages/${conversationId}`)) {
+            router.push('/messages')
+          }
+        } else {
+          toast.success('Đã xóa cuộc trò chuyện khỏi danh sách', { duration: 2000 })
+        }
+
+        // Invalidate chat list query để cập nhật UI
+        queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] })
+      })
+      .catch((error) => {
+        // Khôi phục cuộc trò chuyện nếu xóa thất bại
+        setPendingDeletion(null)
+        undoDelete(conversationId)
+        toast.error(error?.response?.data?.message || 'Không thể xóa cuộc trò chuyện')
+      })
+  }
+
   // Hàm để hoàn tác việc xóa
-  const undoDelete = async (conversationId: string) => {
-    try {
-      // Hủy timeout nếu có
+  const undoDelete = (conversationId: string) => {
+    // Hủy timeout nếu có
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current)
+      timeoutRef.current = null
+    }
+
+    // Khôi phục cuộc trò chuyện trong UI
+    queryClient.setQueryData(['CHAT_LIST'], (oldData: any) => {
+      if (!oldData) return oldData
+
+      // Bỏ đánh dấu "đang chờ xóa"
+      const updatedPages = oldData.pages.map((page: any) => {
+        if (!page.conversations) return page
+
+        const updatedConversations = page.conversations.map((conv: any) => {
+          if (conv._id === conversationId) {
+            const { pendingDeletion, ...rest } = conv
+            return rest // Loại bỏ thuộc tính pendingDeletion
+          }
+          return conv
+        })
+
+        return {
+          ...page,
+          conversations: updatedConversations
+        }
+      })
+
+      return {
+        ...oldData,
+        pages: updatedPages
+      }
+    })
+
+    // Đặt lại trạng thái
+    setPendingDeletion(null)
+
+    // Hiển thị thông báo hoàn tác thành công
+    toast.success('Đã hoàn tác xóa cuộc trò chuyện')
+  }
+
+  // Cleanup effect to clear timeout when component unmounts
+  useEffect(() => {
+    return () => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current)
-        timeoutRef.current = null
       }
-
-      // Khôi phục cuộc trò chuyện trong UI
-      queryClient.setQueryData(['CHAT_LIST'], (oldData: any) => {
-        if (!oldData) return oldData
-
-        // Bỏ đánh dấu "đang chờ xóa"
-        const updatedPages = oldData.pages.map((page: any) => {
-          if (!page.conversations) return page
-
-          const updatedConversations = page.conversations.map((conv: any) => {
-            if (conv._id === conversationId) {
-              const { pendingDeletion, ...rest } = conv
-              return rest // Loại bỏ thuộc tính pendingDeletion
-            }
-            return conv
-          })
-
-          return {
-            ...page,
-            conversations: updatedConversations
-          }
-        })
-
-        return {
-          ...oldData,
-          pages: updatedPages
-        }
-      })
-
-      setPendingDeletion(null)
-      // Invalidate chat list query để cập nhật UI
-      queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] })
-
-      // Hiển thị thông báo hoàn tác thành công
-      toast.success('Đã hoàn tác xóa cuộc trò chuyện')
-    } catch (error) {
-      console.error('Error undoing conversation deletion:', error)
-
-      // Xóa cuộc trò chuyện khỏi UI vì không thể hoàn tác
-      queryClient.setQueryData(['CHAT_LIST'], (oldData: any) => {
-        if (!oldData) return oldData
-
-        const updatedPages = oldData.pages.map((page: any) => {
-          if (!page.conversations) return page
-
-          const updatedConversations = page.conversations.filter((conv: any) => conv._id !== conversationId)
-
-          return {
-            ...page,
-            conversations: updatedConversations
-          }
-        })
-
-        return {
-          ...oldData,
-          pages: updatedPages
-        }
-      })
-
-      // Hiển thị thông báo lỗi
-      toast.error('Không thể hoàn tác xóa cuộc trò chuyện')
     }
-  }
+  }, [])
 
   // Trả về các hàm và trạng thái
   return {
     deleteWithUndo,
     undoDelete,
-    pendingDeletion,
-    // Vẫn giữ mutation gốc cho các trường hợp cần xóa ngay lập tức
-    mutation: useMutation({
-      mutationFn: (conversationId: string) => conversationsService.deleteConversation(conversationId),
-      onSuccess: (_, conversationId) => {
-        queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] })
-        toast.success('Đã xóa cuộc trò chuyện')
-      },
-      onError: () => {
-        toast.error('Không thể xóa cuộc trò chuyện')
-      }
-    })
+    pendingDeletion
   }
 }
 
@@ -696,5 +712,19 @@ export const usePinnedMessages = (chatId: string) => {
     queryKey: ['PINNED_MESSAGES', chatId],
     queryFn: () => conversationsService.getPinnedMessages(chatId),
     enabled: !!chatId
+  })
+}
+
+// Thêm hook useCheckConversationAccess
+export const useCheckConversationAccess = (chatId: string | undefined) => {
+  return useQuery({
+    queryKey: ['CHAT_ACCESS', chatId],
+    queryFn: async () => {
+      if (!chatId) throw new Error('Chat ID is required')
+      return await conversationsService.checkChatAccess(chatId)
+    },
+    enabled: !!chatId,
+    retry: false,
+    refetchOnWindowFocus: true
   })
 }

@@ -155,28 +155,6 @@ export default function ConversationItem({
     }
   }, [socket, conversation._id, queryClient])
 
-  // Xử lý khi click vào nút archive/unarchive
-  const handleArchiveToggle = (e: React.MouseEvent) => {
-    e.stopPropagation() // Ngăn không cho sự kiện click lan tỏa lên parent
-
-    // Log để debug
-    console.log('Archive toggle clicked', {
-      isArchived,
-      conversationId: conversation._id,
-      onArchive: !!onArchive
-    })
-
-    if (onArchive) {
-      onArchive(conversation._id)
-    } else {
-      if (isArchived) {
-        unarchiveChat.mutate(conversation._id)
-      } else {
-        archiveChat.mutate(conversation._id)
-      }
-    }
-  }
-
   // Xác định tên và avatar của cuộc trò chuyện
   let name = conversation.name
   let avatar = conversation.avatar
