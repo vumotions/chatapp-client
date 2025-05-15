@@ -1,7 +1,7 @@
 'use client'
 import { format, formatDistanceToNow } from 'date-fns'
 import { Archive, ArrowDown, ArrowLeft, Check, CheckCheck, Copy, Heart, Phone, Pin, PinOff, Video } from 'lucide-react'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
 import { Button } from '~/components/ui/button'
@@ -25,13 +25,7 @@ import dynamic from 'next/dynamic'
 import { use } from 'react'
 import { Input } from '~/components/ui/input'
 import { Skeleton } from '~/components/ui/skeleton'
-import {
-  useArchiveChat,
-  useCheckConversationAccess,
-  useMarkChatAsRead,
-  useMessages,
-  usePinMessage
-} from '~/hooks/data/chat.hooks'
+import { useArchiveChat, useMarkChatAsRead, useMessages, usePinMessage } from '~/hooks/data/chat.hooks'
 import { useSocket } from '~/hooks/use-socket'
 
 import { useQueryClient } from '@tanstack/react-query'
@@ -50,6 +44,7 @@ import { CHAT_TYPE, FRIEND_REQUEST_STATUS, MEDIA_TYPE, MESSAGE_STATUS, MESSAGE_T
 import SOCKET_EVENTS from '~/constants/socket-events'
 import { useFriendStatus } from '~/hooks/data/friends.hook'
 import useMediaQuery from '~/hooks/use-media-query'
+import { useProtectedChat } from '~/hooks/use-protected-chat'
 import { useRouter } from '~/i18n/navigation'
 import { FriendActionButton } from './components/friend-action-button'
 import { PinnedMessages } from './components/pinned-messages'
@@ -100,7 +95,8 @@ function ChatDetail({ params }: Props) {
     lastActive: null
   })
 
-  const { isLoading: isCheckingAccess, isError: accessError } = useCheckConversationAccess(chatId)
+  // Sử dụng hook bảo vệ
+  const { isLoading: isCheckingAccess, hasAccess } = useProtectedChat(chatId)
 
   const [isAtBottom, setIsAtBottom] = useState(true)
   const [showScrollButton, setShowScrollButton] = useState(false)
@@ -1516,12 +1512,6 @@ function ChatDetail({ params }: Props) {
     [hasNextPage, isFetchingNextPage, handleFetchNextPage]
   )
 
-  // Check access route
-  useEffect(() => {
-    if (accessError) {
-      router.push('/messages')
-    }
-  }, [accessError])
   // Cleanup throttled functions when component unmounts
   useEffect(() => {
     return () => {
@@ -1583,7 +1573,8 @@ function ChatDetail({ params }: Props) {
     }
   }
 
-  if (isCheckingAccess) {
+  // Nếu đang kiểm tra quyền truy cập hoặc không có quyền, hiển thị skeleton
+  if (isCheckingAccess || !hasAccess) {
     return <ChatSkeleton />
   }
 
