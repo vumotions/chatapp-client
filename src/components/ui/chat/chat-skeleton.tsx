@@ -13,8 +13,8 @@ export default function ChatSkeleton() {
       </div>
       <Skeleton className='h-full w-full grow rounded-md' />
       <div className='flex space-x-2'>
-        <Skeleton className='h-10 w-full' />
-        <Skeleton className='h-10 w-10' />
+        <Skeleton className='h-10 w-full rounded-full' />
+        <Skeleton className='h-10 w-10 rounded-full' />
       </div>
     </div>
   )

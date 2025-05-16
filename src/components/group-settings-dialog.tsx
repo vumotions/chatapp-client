@@ -98,12 +98,18 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
 
   const { data: session } = useSession()
   const currentUserId = session?.user?._id
+  // Kiểm tra quyền
   const isOwner = conversation?.userId?.toString() === currentUserId?.toString()
-  const isAdmin = conversation?.members?.some(
-    (m: any) =>
-      m.userId?.toString() === currentUserId?.toString() &&
-      (m.role === MEMBER_ROLE.ADMIN || m.role === MEMBER_ROLE.OWNER)
+  const currentMember = conversation?.members?.find(
+    (m: any) => m.userId?.toString() === currentUserId?.toString()
   )
+  const isAdmin = 
+    isOwner || 
+    currentMember?.role === MEMBER_ROLE.ADMIN
+
+  const canChangeGroupInfo = 
+    isAdmin || 
+    currentMember?.permissions?.changeGroupInfo
 
   // Form cho cài đặt nhóm
   const groupSettingsForm = useForm<GroupSettingsValues>({

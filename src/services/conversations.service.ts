@@ -185,19 +185,19 @@ class ConversationsService {
 
   // Lấy danh sách yêu cầu tham gia
   async getJoinRequests(conversationId: string) {
-    const res = await httpRequest.get(`/chat/conversations/group/${conversationId}/join-requests`)
+    const res = await httpRequest.get(`/chat/group/${conversationId}/join-requests`)
     return res.data.data
   }
 
   // Phê duyệt yêu cầu tham gia
   async approveJoinRequest(conversationId: string, userId: string) {
-    const res = await httpRequest.post(`/chat/conversations/group/${conversationId}/approve-request/${userId}`)
+    const res = await httpRequest.post(`/chat/group/${conversationId}/approve-request/${userId}`)
     return res.data.data
   }
 
   // Từ chối yêu cầu tham gia
   async rejectJoinRequest(conversationId: string, userId: string) {
-    const res = await httpRequest.post(`/chat/conversations/group/${conversationId}/reject-request/${userId}`)
+    const res = await httpRequest.post(`/chat/group/${conversationId}/reject-request/${userId}`)
     return res.data.data
   }
 

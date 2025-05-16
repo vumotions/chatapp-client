@@ -20,27 +20,31 @@ export const useMessages = (chatId: string) => {
       return undefined
     },
     enabled: !!chatId,
-    staleTime: Infinity, // Đặt staleTime là Infinity để ngăn refetch tự động
-    gcTime: Infinity // Đặt gcTime là Infinity để giữ dữ liệu trong cache
+    staleTime: 1000 * 60 * 5, // 5 phút
+    gcTime: 1000 * 60 * 10, // 10 phút
+    refetchOnWindowFocus: false, // Tắt refetch khi focus
+    refetchInterval: false // Tắt polling tự động
   })
 }
 
-export const useChatList = (filter = 'all', searchQuery = '') => {
+export const useChatList = (filter: string = '') => {
   return useInfiniteQuery({
-    queryKey: ['CHAT_LIST', filter, searchQuery],
+    queryKey: ['CHAT_LIST', filter],
     queryFn: async ({ pageParam = 1 }) => {
-      return conversationsService.getConversations(pageParam, 10, filter, searchQuery)
+      const response = await conversationsService.getConversations(pageParam, 10, filter)
+      return response
     },
     initialPageParam: 1,
     getNextPageParam: (lastPage, pages) => {
-      return lastPage.hasMore ? pages.length + 1 : undefined
+      if (lastPage && lastPage.hasMore) {
+        return pages.length + 1
+      }
+      return undefined
     },
-    enabled: true,
-    // Thêm các options để giảm số lần gọi API
-    staleTime: 1000 * 60, // 1 phút
-    refetchOnWindowFocus: false, // Không refetch khi focus lại window
-    refetchOnMount: false, // Không refetch khi component mount
-    refetchOnReconnect: false // Không refetch khi kết nối lại
+    staleTime: 1000 * 60 * 2, // 2 phút
+    gcTime: 1000 * 60 * 5, // 5 phút
+    refetchOnWindowFocus: false, // Tắt refetch khi focus
+    refetchInterval: false // Tắt polling tự động
   })
 }
 

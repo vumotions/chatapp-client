@@ -1,6 +1,19 @@
 'use client'
 import { format, formatDistanceToNow } from 'date-fns'
-import { Archive, ArrowDown, ArrowLeft, Check, CheckCheck, Copy, Heart, Phone, Pin, PinOff, Video } from 'lucide-react'
+import {
+  Archive,
+  ArrowDown,
+  ArrowLeft,
+  Check,
+  CheckCheck,
+  Copy,
+  Heart,
+  Phone,
+  Pin,
+  PinOff,
+  Send,
+  Video
+} from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
@@ -635,9 +648,6 @@ function ChatDetail({ params }: Props) {
     }
   }, [socket, chatId, data])
 
-  // Thêm useEffect để theo dõi thay đổi của isOnline và lastActive
-  useEffect(() => {}, [userStatus.isOnline, userStatus.lastActive])
-
   // Thêm useEffect để đánh dấu tin nhắn đã đọc khi người dùng xem
   useEffect(() => {
     if (!socket || !chatId || !allMessages.length || !isAtBottom) return
@@ -1025,6 +1035,29 @@ function ChatDetail({ params }: Props) {
         isTyping: false
       })
     }, 3000)
+  }
+
+  const handleSendHeartEmoji = () => {
+    // Tạo tin nhắn tạm thời với ID duy nhất
+    const tempId = uuidv4()
+
+    // Thêm tempId vào danh sách đã gửi
+    setSentTempIds((prev) => new Set([...prev, tempId]))
+
+    // Gửi tin nhắn tim qua socket với tempId
+    socket?.emit(SOCKET_EVENTS.SEND_MESSAGE, {
+      chatId,
+      content: '❤️',
+      type: 'TEXT',
+      tempId,
+      senderName: session?.user?.name,
+      senderAvatar: session?.user?.avatar,
+      status: MESSAGE_STATUS.DELIVERED
+    })
+
+    // Cập nhật danh sách chat
+    queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] })
+    queryClient.invalidateQueries({ queryKey: ['ARCHIVED_CHAT_LIST'] })
   }
 
   const handleSendMessage = () => {
@@ -2093,13 +2126,26 @@ function ChatDetail({ params }: Props) {
           <div className='p-4'>
             <div className='flex items-end gap-4'>
               <Input
-                className='flex-1 resize-none p-4'
+                className='flex-1 resize-none rounded-full p-4'
                 placeholder='Nhập tin nhắn...'
                 value={message}
                 onChange={handleInputChange}
                 onKeyDown={handleKeyPress}
               />
-              <Button onClick={handleSendMessage}>Gửi</Button>
+              {message.trim() ? (
+                <Button onClick={handleSendMessage} size='icon' className='rounded-full'>
+                  <Send className='h-5 w-5' />
+                </Button>
+              ) : (
+                <Button
+                  onClick={handleSendHeartEmoji}
+                  variant='outline'
+                  size='icon'
+                  className='rounded-full hover:bg-pink-100 dark:hover:bg-pink-900/30'
+                >
+                  <Heart className='h-5 w-5 fill-pink-500 text-pink-500' />
+                </Button>
+              )}
             </div>
           </div>
         </div>

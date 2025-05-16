@@ -5,10 +5,18 @@ import notificationService from '~/services/notifications.service'
 export const useNotificationsQuery = () => {
   return useQuery({
     queryKey: ['notifications'],
-    queryFn: () => notificationService.getNotifications(),
-    select: (res) => res.data.data
-  })
-}
+    queryFn: async () => {
+      console.log('Fetching notifications...');
+      const response = await notificationService.getNotifications();
+      console.log('Notifications response:', response.data);
+      return response.data;
+    },
+    select: (res) => {
+      console.log('Processing notifications data:', res.data);
+      return res.data;
+    }
+  });
+};
 
 export const useMarkNotificationAsReadMutation = () => {
   const queryClient = useQueryClient()

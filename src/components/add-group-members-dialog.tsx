@@ -1,12 +1,10 @@
 'use client'
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Check, Trash, Users, UserPlus, X } from 'lucide-react'
+import { Trash, Users } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
-import { formatDistanceToNow } from 'date-fns'
-import { vi } from 'date-fns/locale'
 
 import {
   AlertDialog,
@@ -32,16 +30,14 @@ import {
 } from '~/components/ui/dialog'
 import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
-import { ScrollArea } from '~/components/ui/scroll-area'
-import { Separator } from '~/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipTrigger } from '~/components/ui/tooltip'
+import httpRequest from '~/config/http-request'
 import { MAX_GROUP_MEMBERS } from '~/constants/app.constants'
 import { MEMBER_ROLE } from '~/constants/enums'
 import { useFriendsQuery } from '~/hooks/data/friends.hook'
 import conversationsService from '~/services/conversations.service'
-import httpRequest from '~/config/http-request'
-import FriendHoverCard from './friend-hover-card'
+import GroupJoinRequests from './group-join-requests'
 
 type JoinRequest = {
   _id: string
@@ -89,15 +85,15 @@ export function AddGroupMembersDialog({ conversation }: { conversation: any }) {
     queryKey: ['JOIN_REQUESTS', conversation._id],
     queryFn: async () => {
       const response = await httpRequest.get(`/chat/group/${conversation._id}/join-requests`)
-      return response.data.data
+      return response.data.data // Trả về mảng trong trường data
     },
     enabled: !!conversation._id && open && activeTab === 'requests'
   })
 
-  // Lọc danh sách yêu cầu theo trạng thái
-  const pendingRequests = joinRequestsData?.requests?.filter((req: JoinRequest) => req.status === 'PENDING') || []
-  const approvedRequests = joinRequestsData?.requests?.filter((req: JoinRequest) => req.status === 'APPROVED') || []
-  const rejectedRequests = joinRequestsData?.requests?.filter((req: JoinRequest) => req.status === 'REJECTED') || []
+  // Lọc danh sách yêu cầu theo trạng thái - sửa lại cách lọc
+  const pendingRequests = joinRequestsData?.filter((req: JoinRequest) => req.status === 'PENDING') || []
+  const approvedRequests = joinRequestsData?.filter((req: JoinRequest) => req.status === 'APPROVED') || []
+  const rejectedRequests = joinRequestsData?.filter((req: JoinRequest) => req.status === 'REJECTED') || []
 
   useEffect(() => {
     if (conversation?.participants?.length >= MAX_GROUP_MEMBERS) {
@@ -155,7 +151,7 @@ export function AddGroupMembersDialog({ conversation }: { conversation: any }) {
   // Mutation để phê duyệt yêu cầu tham gia
   const approveMutation = useMutation({
     mutationFn: async (userId: string) => {
-      return httpRequest.post(`/chat/group/${conversation._id}/approve-join`, { userId })
+      return httpRequest.post(`/chat/group/${conversation._id}/approve-request/${userId}`)
     },
     onSuccess: () => {
       toast.success('Đã chấp nhận yêu cầu tham gia')
@@ -171,7 +167,7 @@ export function AddGroupMembersDialog({ conversation }: { conversation: any }) {
   // Mutation để từ chối yêu cầu tham gia
   const rejectMutation = useMutation({
     mutationFn: async (userId: string) => {
-      return httpRequest.post(`/chat/group/${conversation._id}/reject-join`, { userId })
+      return httpRequest.post(`/chat/group/${conversation._id}/reject-request/${userId}`)
     },
     onSuccess: () => {
       toast.success('Đã từ chối yêu cầu tham gia')
@@ -215,14 +211,7 @@ export function AddGroupMembersDialog({ conversation }: { conversation: any }) {
     }
   }
 
-  const handleApprove = (userId: string) => {
-    approveMutation.mutate(userId)
-  }
-
-  const handleReject = (userId: string) => {
-    rejectMutation.mutate(userId)
-  }
-
+  console.log({ pendingRequests, rejectedRequests, approvedRequests })
   return (
     <>
       <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -281,10 +270,10 @@ export function AddGroupMembersDialog({ conversation }: { conversation: any }) {
                         <p className='font-medium'>
                           {participant.name}
                           {participant._id === conversation.userId && (
-                            <span className='ml-2 text-xs text-muted-foreground'>(Admin)</span>
+                            <span className='text-muted-foreground ml-2 text-xs'>(Admin)</span>
                           )}
                           {participant._id === currentUserId && (
-                            <span className='ml-2 text-xs text-muted-foreground'>(Bạn)</span>
+                            <span className='text-muted-foreground ml-2 text-xs'>(Bạn)</span>
                           )}
                         </p>
                       </div>
@@ -317,7 +306,7 @@ export function AddGroupMembersDialog({ conversation }: { conversation: any }) {
                 {isLoading ? (
                   <div className='flex justify-center p-4'>Đang tải...</div>
                 ) : availableFriends.length === 0 ? (
-                  <div className='p-4 text-center text-muted-foreground'>
+                  <div className='text-muted-foreground p-4 text-center'>
                     {searchQuery ? 'Không tìm thấy bạn bè phù hợp' : 'Không có bạn bè nào để thêm vào nhóm'}
                   </div>
                 ) : (
@@ -353,203 +342,25 @@ export function AddGroupMembersDialog({ conversation }: { conversation: any }) {
             {/* Tab yêu cầu tham gia - chỉ hiển thị cho người có quyền */}
             {canApproveRequests && (
               <TabsContent value='requests' className='py-4'>
-                <Tabs defaultValue='pending'>
-                  <TabsList className='grid w-full grid-cols-3'>
-                    <TabsTrigger value='pending' className='relative'>
-                      Đang chờ
-                      {pendingRequests.length > 0 && (
-                        <Badge
-                          variant='destructive'
-                          className='absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center p-0'
-                        >
-                          {pendingRequests.length}
-                        </Badge>
-                      )}
-                    </TabsTrigger>
-                    <TabsTrigger value='approved'>Đã duyệt</TabsTrigger>
-                    <TabsTrigger value='rejected'>Đã từ chối</TabsTrigger>
-                  </TabsList>
-
-                  <TabsContent value='pending'>
-                    <ScrollArea className='h-[250px] pr-4'>
-                      {isLoadingRequests ? (
-                        <div className='flex justify-center p-4'>Đang tải...</div>
-                      ) : pendingRequests.length === 0 ? (
-                        <div className='py-8 text-center text-muted-foreground'>
-                          <Users className='mx-auto h-10 w-10 opacity-50' />
-                          <p className='mt-2'>Không có yêu cầu tham gia nào</p>
-                        </div>
-                      ) : (
-                        <div className='mt-4 space-y-4'>
-                          {pendingRequests.map((request: JoinRequest) => (
-                            <div key={request.userId._id} className='flex flex-col gap-2'>
-                              <div className='flex items-center justify-between'>
-                                <div className='flex items-center gap-3'>
-                                  <FriendHoverCard friend={request.userId}>
-                                    <Avatar className='h-10 w-10 cursor-pointer'>
-                                      <AvatarImage src={request.userId.avatar} alt={request.userId.name} />
-                                      <AvatarFallback>{request.userId.name[0]}</AvatarFallback>
-                                    </Avatar>
-                                  </FriendHoverCard>
-                                  <div>
-                                    <p className='font-medium'>{request.userId.name}</p>
-                                    <p className='text-xs text-muted-foreground'>
-                                      {formatDistanceToNow(new Date(request.requestedAt), {
-                                        addSuffix: true,
-                                        locale: vi
-                                      })}
-                                    </p>
-                                  </div>
-                                </div>
-                                <div className='flex gap-2'>
-                                  <Button
-                                    size='icon'
-                                    variant='outline'
-                                    onClick={() => handleApprove(request.userId._id)}
-                                    disabled={approveMutation.isPending}
-                                  >
-                                    <Check className='h-4 w-4 text-green-500' />
-                                  </Button>
-                                  <Button
-                                    size='icon'
-                                    variant='outline'
-                                    onClick={() => handleReject(request.userId._id)}
-                                    disabled={rejectMutation.isPending}
-                                  >
-                                    <X className='h-4 w-4 text-red-500' />
-                                  </Button>
-                                </div>
-                              </div>
-
-                              {request.invitedBy && (
-                                <div className='ml-12 text-xs text-muted-foreground'>
-                                  Được mời bởi:
-                                  <FriendHoverCard friend={request.invitedBy}>
-                                    <span className='ml-1 cursor-pointer font-medium hover:underline'>
-                                      {request.invitedBy.name}
-                                    </span>
-                                  </FriendHoverCard>
-                                </div>
-                              )}
-
-                              <Separator className='mt-2' />
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </ScrollArea>
-                  </TabsContent>
-
-                  <TabsContent value='approved'>
-                    <ScrollArea className='h-[250px] pr-4'>
-                      {isLoadingRequests ? (
-                        <div className='flex justify-center p-4'>Đang tải...</div>
-                      ) : approvedRequests.length === 0 ? (
-                        <div className='py-8 text-center text-muted-foreground'>
-                          <Users className='mx-auto h-10 w-10 opacity-50' />
-                          <p className='mt-2'>Không có yêu cầu đã duyệt nào</p>
-                        </div>
-                      ) : (
-                        <div className='mt-4 space-y-4'>
-                          {approvedRequests.map((request: JoinRequest) => (
-                            <div key={request.userId._id} className='flex flex-col gap-2'>
-                              <div className='flex items-center justify-between'>
-                                <div className='flex items-center gap-3'>
-                                  <FriendHoverCard friend={request.userId}>
-                                    <Avatar className='h-10 w-10 cursor-pointer'>
-                                      <AvatarImage src={request.userId.avatar} alt={request.userId.name} />
-                                      <AvatarFallback>{request.userId.name[0]}</AvatarFallback>
-                                    </Avatar>
-                                  </FriendHoverCard>
-                                  <div>
-                                    <p className='font-medium'>{request.userId.name}</p>
-                                    <p className='text-xs text-muted-foreground'>
-                                      {formatDistanceToNow(new Date(request.requestedAt), {
-                                        addSuffix: true,
-                                        locale: vi
-                                      })}
-                                    </p>
-                                  </div>
-                                </div>
-                                <Badge variant='outline' className='border-green-500/20 bg-green-500/10 text-green-500'>
-                                  Đã duyệt
-                                </Badge>
-                              </div>
-
-                              {request.invitedBy && (
-                                <div className='ml-12 text-xs text-muted-foreground'>
-                                  Được mời bởi:
-                                  <FriendHoverCard friend={request.invitedBy}>
-                                    <span className='ml-1 cursor-pointer font-medium hover:underline'>
-                                      {request.invitedBy.name}
-                                    </span>
-                                  </FriendHoverCard>
-                                </div>
-                              )}
-
-                              <Separator className='mt-2' />
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </ScrollArea>
-                  </TabsContent>
-
-                  <TabsContent value='rejected'>
-                    <ScrollArea className='h-[250px] pr-4'>
-                      {isLoadingRequests ? (
-                        <div className='flex justify-center p-4'>Đang tải...</div>
-                      ) : rejectedRequests.length === 0 ? (
-                        <div className='py-8 text-center text-muted-foreground'>
-                          <Users className='mx-auto h-10 w-10 opacity-50' />
-                          <p className='mt-2'>Không có yêu cầu đã từ chối nào</p>
-                        </div>
-                      ) : (
-                        <div className='mt-4 space-y-4'>
-                          {rejectedRequests.map((request: JoinRequest) => (
-                            <div key={request.userId._id} className='flex flex-col gap-2'>
-                              <div className='flex items-center justify-between'>
-                                <div className='flex items-center gap-3'>
-                                  <FriendHoverCard friend={request.userId}>
-                                    <Avatar className='h-10 w-10 cursor-pointer'>
-                                      <AvatarImage src={request.userId.avatar} alt={request.userId.name} />
-                                      <AvatarFallback>{request.userId.name[0]}</AvatarFallback>
-                                    </Avatar>
-                                  </FriendHoverCard>
-                                  <div>
-                                    <p className='font-medium'>{request.userId.name}</p>
-                                    <p className='text-xs text-muted-foreground'>
-                                      {formatDistanceToNow(new Date(request.requestedAt), {
-                                        addSuffix: true,
-                                        locale: vi
-                                      })}
-                                    </p>
-                                  </div>
-                                </div>
-                                <Badge variant='outline' className='border-red-500/20 bg-red-500/10 text-red-500'>
-                                  Đã từ chối
-                                </Badge>
-                              </div>
-
-                              {request.invitedBy && (
-                                <div className='ml-12 text-xs text-muted-foreground'>
-                                  Được mời bởi:
-                                  <FriendHoverCard friend={request.invitedBy}>
-                                    <span className='ml-1 cursor-pointer font-medium hover:underline'>
-                                      {request.invitedBy.name}
-                                    </span>
-                                  </FriendHoverCard>
-                                </div>
-                              )}
-
-                              <Separator className='mt-2' />
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </ScrollArea>
-                  </TabsContent>
-                </Tabs>
+                <GroupJoinRequests
+                  pendingRequests={pendingRequests}
+                  approvedRequests={approvedRequests}
+                  rejectedRequests={rejectedRequests}
+                  isLoading={isLoadingRequests}
+                  canApproveRequests={canApproveRequests}
+                  onApprove={async (userId) => {
+                    await approveMutation.mutateAsync(userId);
+                  }}
+                  onReject={async (userId) => {
+                    await rejectMutation.mutateAsync(userId);
+                  }}
+                  onRequestsChange={() => {
+                    // Cập nhật lại dữ liệu khi có thay đổi
+                    queryClient.invalidateQueries({ queryKey: ['MESSAGES', conversation._id] })
+                    queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] })
+                    refetchRequests()
+                  }}
+                />
               </TabsContent>
             )}
           </Tabs>
@@ -573,4 +384,6 @@ export function AddGroupMembersDialog({ conversation }: { conversation: any }) {
     </>
   )
 }
+
+
 

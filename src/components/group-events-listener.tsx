@@ -63,13 +63,41 @@ export default function GroupEventsListener() {
 
       // Cập nhật thông tin chat hiện tại nếu đang ở trong chat này
       if (pathname?.includes(`/messages/${data.conversationId}`)) {
+        // Cập nhật danh sách tin nhắn
         queryClient.invalidateQueries({ queryKey: ['MESSAGES', data.conversationId] })
+        
+        // Cập nhật danh sách thành viên
         queryClient.invalidateQueries({ queryKey: ['FRIENDS_WITH_ROLES', data.conversationId] })
+        
+        // Thêm tin nhắn hệ thống vào cache nếu có
+        if (data.message) {
+          queryClient.setQueryData(['MESSAGES', data.conversationId], (oldData: any) => {
+            if (!oldData) return oldData;
+            
+            // Thêm tin nhắn hệ thống vào trang đầu tiên
+            const updatedPages = [...oldData.pages];
+            if (updatedPages.length > 0 && updatedPages[0].messages) {
+              updatedPages[0].messages = [data.message, ...updatedPages[0].messages];
+            }
+            
+            return {
+              ...oldData,
+              pages: updatedPages
+            };
+          });
+        }
       }
 
       // Hiển thị thông báo nếu người dùng bị xóa
-      if (data.userId === currentUserId) {
+      if (data.removedUserId === currentUserId) {
         toast.error('Bạn đã bị xóa khỏi nhóm')
+        // Chuyển hướng về trang messages nếu đang ở trong chat bị xóa
+        if (pathname?.includes(`/messages/${data.conversationId}`)) {
+          router.push('/messages')
+        }
+      } else {
+        // Hiển thị thông báo cho các thành viên khác
+        toast.info(`${data.message?.content || 'Một thành viên đã bị xóa khỏi nhóm'}`)
       }
     }
 
@@ -90,11 +118,110 @@ export default function GroupEventsListener() {
       }
     }
 
+    // Thêm listener cho sự kiện MEMBER_JOINED
+    const handleMemberJoined = (data: any) => {
+      console.log('MEMBER_JOINED event received:', data)
+
+      // Cập nhật danh sách chat
+      queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] })
+
+      // Cập nhật thông tin chat hiện tại nếu đang ở trong chat này
+      if (pathname?.includes(`/messages/${data.conversationId}`)) {
+        // Cập nhật danh sách tin nhắn với tin nhắn hệ thống mới
+        queryClient.setQueryData(['MESSAGES', data.conversationId], (oldData: any) => {
+          if (!oldData) return oldData
+          
+          // Thêm tin nhắn hệ thống vào trang đầu tiên
+          const firstPage = oldData.pages[0]
+          if (firstPage && firstPage.messages) {
+            return {
+              ...oldData,
+              pages: [
+                {
+                  ...firstPage,
+                  messages: [data.message, ...firstPage.messages]
+                },
+                ...oldData.pages.slice(1)
+              ]
+            }
+          }
+          return oldData
+        })
+        
+        // Cập nhật danh sách thành viên
+        queryClient.invalidateQueries({ queryKey: ['FRIENDS_WITH_ROLES', data.conversationId] })
+      }
+    }
+
+    // Thêm listener cho sự kiện JOIN_REQUEST_RECEIVED
+    const handleJoinRequestReceived = (data: any) => {
+      console.log('JOIN_REQUEST_RECEIVED event received:', data)
+      
+      // Cập nhật danh sách yêu cầu tham gia
+      queryClient.invalidateQueries({ queryKey: ['JOIN_REQUESTS', data.conversationId] })
+    }
+
+    // Lắng nghe sự kiện MEMBERS_ADDED
+    const handleMembersAdded = (data: any) => {
+      console.log('MEMBERS_ADDED event received:', data)
+
+      // Cập nhật danh sách chat
+      queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] })
+
+      // Cập nhật thông tin chat hiện tại nếu đang ở trong chat này
+      if (pathname?.includes(`/messages/${data.conversationId}`)) {
+        // Cập nhật danh sách thành viên
+        queryClient.invalidateQueries({ queryKey: ['FRIENDS_WITH_ROLES', data.conversationId] })
+        
+        // Cập nhật danh sách bạn bè để thêm vào nhóm
+        queryClient.invalidateQueries({ queryKey: ['FRIENDS'] })
+        
+        // Thêm tin nhắn hệ thống vào cache nếu có
+        if (data.message) {
+          // Cập nhật danh sách tin nhắn
+          queryClient.invalidateQueries({ queryKey: ['MESSAGES', data.conversationId] })
+          
+          // Thêm tin nhắn hệ thống vào cache
+          queryClient.setQueryData(['MESSAGES', data.conversationId], (oldData: any) => {
+            if (!oldData) return oldData;
+            
+            // Thêm tin nhắn hệ thống vào trang đầu tiên
+            const updatedPages = [...oldData.pages];
+            if (updatedPages.length > 0 && updatedPages[0].messages) {
+              // Kiểm tra xem tin nhắn đã tồn tại chưa
+              const messageExists = updatedPages[0].messages.some(
+                (msg: any) => msg._id === data.message._id
+              );
+              
+              if (!messageExists) {
+                updatedPages[0].messages = [data.message, ...updatedPages[0].messages];
+              }
+            }
+            
+            return {
+              ...oldData,
+              pages: updatedPages
+            };
+          });
+        }
+      }
+
+      // Hiển thị thông báo
+      if (data.newMembers?.includes(currentUserId)) {
+        toast.success('Bạn đã được thêm vào nhóm')
+      } else {
+        toast.info(`${data.message?.content || 'Có thành viên mới được thêm vào nhóm'}`)
+      }
+    }
+
     // Đăng ký lắng nghe các sự kiện
     socket.on(SOCKET_EVENTS.OWNERSHIP_TRANSFERRED, handleOwnershipTransferred)
     socket.on(SOCKET_EVENTS.MEMBER_LEFT, handleMemberLeft)
     socket.on(SOCKET_EVENTS.MEMBER_REMOVED, handleMemberRemoved)
     socket.on(SOCKET_EVENTS.GROUP_DISBANDED, handleGroupDisbanded)
+    socket.on(SOCKET_EVENTS.MEMBER_JOINED, handleMemberJoined)
+    socket.on(SOCKET_EVENTS.JOIN_REQUEST_RECEIVED, handleJoinRequestReceived)
+    socket.on(SOCKET_EVENTS.MEMBERS_ADDED, handleMembersAdded)
 
     // Cleanup khi component unmount
     return () => {
@@ -102,8 +229,21 @@ export default function GroupEventsListener() {
       socket.off(SOCKET_EVENTS.MEMBER_LEFT, handleMemberLeft)
       socket.off(SOCKET_EVENTS.MEMBER_REMOVED, handleMemberRemoved)
       socket.off(SOCKET_EVENTS.GROUP_DISBANDED, handleGroupDisbanded)
+      socket.off(SOCKET_EVENTS.MEMBER_JOINED, handleMemberJoined)
+      socket.off(SOCKET_EVENTS.JOIN_REQUEST_RECEIVED, handleJoinRequestReceived)
+      socket.off(SOCKET_EVENTS.MEMBERS_ADDED, handleMembersAdded)
     }
-  }, [socket, pathname, currentUserId])
+  }, [socket, currentUserId, pathname, router, queryClient])
 
   return null
 }
+
+
+
+
+
+
+
+
+
+

@@ -6,9 +6,12 @@ import { Button } from '~/components/ui/button'
 import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '~/components/ui/dialog'
 import { Popover, PopoverContent, PopoverTrigger } from '~/components/ui/popover'
 import { Textarea } from '~/components/ui/textarea'
-import { MESSAGE_TYPE } from '~/constants/enums'
+import { MESSAGE_TYPE, MEMBER_ROLE } from '~/constants/enums'
 import { useDeleteMessage, useEditMessage, usePinMessage } from '~/hooks/data/chat.hooks'
 import { Message } from '~/types/common.types'
+import { useSession } from 'next-auth/react'
+import { useQuery } from '@tanstack/react-query'
+import httpRequest from '~/config/http-request'
 
 interface MessageActionsProps {
   message: Message
@@ -22,14 +25,34 @@ export function MessageActions({ message, chatId, isSentByMe, onEditStart }: Mes
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [editedContent, setEditedContent] = useState(message.content)
   const [isPopoverOpen, setIsPopoverOpen] = useState(false)
+  const { data: session } = useSession()
+  const currentUserId = session?.user?._id
 
   // Sử dụng hook đã cập nhật
   const { deleteWithUndo, pendingDeletion, mutation: deleteMessage } = useDeleteMessage(chatId)
   const editMessage = useEditMessage(chatId)
   const { mutate: pinMessage } = usePinMessage(chatId)
 
-  // Chỉ cho phép xóa/sửa tin nhắn của chính mình
+  // Kiểm tra quyền của người dùng hiện tại trong nhóm chat
+  const { data: conversation } = useQuery({
+    queryKey: ['GROUP_DETAILS', chatId],
+    queryFn: async () => {
+      const response = await httpRequest.get(`/chat/${chatId}`)
+      return response.data.data
+    },
+    enabled: !!chatId && message.type === MESSAGE_TYPE.TEXT
+  })
+
+  const currentMember = conversation?.members?.find((m: any) => m.userId._id === currentUserId)
+
+  // Kiểm tra quyền
+  const isOwnerOrAdmin = currentMember?.role === MEMBER_ROLE.OWNER || currentMember?.role === MEMBER_ROLE.ADMIN
+
+  // Chỉ cho phép xóa/sửa tin nhắn của chính mình hoặc nếu có quyền
   const canModify = isSentByMe && message.type === MESSAGE_TYPE.TEXT
+  const canDelete = canModify || isOwnerOrAdmin || currentMember?.permissions?.deleteMessages
+  const canEdit = canModify // Chỉ cho phép chỉnh sửa tin nhắn của chính mình
+  const canPin = isOwnerOrAdmin || currentMember?.permissions?.pinMessages
 
   // Xử lý khi xóa tin nhắn
   const handleDelete = () => {
@@ -106,15 +129,18 @@ export function MessageActions({ message, chatId, isSentByMe, onEditStart }: Mes
 
   return (
     <>
-      <Popover open={isPopoverOpen && !isPendingDeletion} onOpenChange={(open) => {
-        // Chỉ cho phép mở popover nếu tin nhắn không đang chờ xóa
-        if (isPendingDeletion && open) return
-        setIsPopoverOpen(open)
-      }}>
+      <Popover
+        open={isPopoverOpen && !isPendingDeletion}
+        onOpenChange={(open) => {
+          // Chỉ cho phép mở popover nếu tin nhắn không đang chờ xóa
+          if (isPendingDeletion && open) return
+          setIsPopoverOpen(open)
+        }}
+      >
         <PopoverTrigger asChild>
-          <Button 
-            variant='ghost' 
-            className={`h-8 w-8 p-0 ${isPendingDeletion ? 'opacity-50 cursor-not-allowed' : ''}`}
+          <Button
+            variant='ghost'
+            className={`h-8 w-8 p-0 ${isPendingDeletion ? 'cursor-not-allowed opacity-50' : ''}`}
             disabled={isPendingDeletion}
           >
             <span className='sr-only'>Mở menu</span>
@@ -123,45 +149,53 @@ export function MessageActions({ message, chatId, isSentByMe, onEditStart }: Mes
         </PopoverTrigger>
         <PopoverContent className='w-36 p-0'>
           <div className='grid gap-1'>
-            <Button
-              variant='ghost'
-              className='flex cursor-pointer items-center justify-start gap-2 px-2 py-1.5 text-sm'
-              onClick={() => {
-                setIsEditDialogOpen(true)
-                setIsPopoverOpen(false)
-              }}
-              disabled={isPendingDeletion}
-            >
-              <Pencil className='h-4 w-4' />
-              <span>Chỉnh sửa</span>
-            </Button>
-            <Button
-              variant='ghost'
-              className='flex cursor-pointer items-center justify-start gap-2 px-2 py-1.5 text-sm'
-              onClick={handlePin}
-              disabled={isPendingDeletion}
-            >
-              {message.isPinned ? (
-                <>
-                  <PinOff className='h-4 w-4' />
-                  <span>Bỏ ghim</span>
-                </>
-              ) : (
-                <>
-                  <Pin className='h-4 w-4' />
-                  <span>Ghim tin nhắn</span>
-                </>
-              )}
-            </Button>
-            <Button
-              variant='ghost'
-              className='text-destructive hover:text-destructive flex cursor-pointer items-center justify-start gap-2 px-2 py-1.5 text-sm'
-              onClick={handleDelete}
-              disabled={isPendingDeletion}
-            >
-              <Trash className='h-4 w-4' />
-              <span>Xóa</span>
-            </Button>
+            {canEdit && (
+              <Button
+                variant='ghost'
+                className='flex cursor-pointer items-center justify-start gap-2 px-2 py-1.5 text-sm'
+                onClick={() => {
+                  setIsEditDialogOpen(true)
+                  setIsPopoverOpen(false)
+                }}
+                disabled={isPendingDeletion}
+              >
+                <Pencil className='h-4 w-4' />
+                <span>Chỉnh sửa</span>
+              </Button>
+            )}
+
+            {canPin && (
+              <Button
+                variant='ghost'
+                className='flex cursor-pointer items-center justify-start gap-2 px-2 py-1.5 text-sm'
+                onClick={handlePin}
+                disabled={isPendingDeletion}
+              >
+                {message.isPinned ? (
+                  <>
+                    <PinOff className='h-4 w-4' />
+                    <span>Bỏ ghim</span>
+                  </>
+                ) : (
+                  <>
+                    <Pin className='h-4 w-4' />
+                    <span>Ghim tin nhắn</span>
+                  </>
+                )}
+              </Button>
+            )}
+
+            {canDelete && (
+              <Button
+                variant='ghost'
+                className='text-destructive hover:text-destructive flex cursor-pointer items-center justify-start gap-2 px-2 py-1.5 text-sm'
+                onClick={handleDelete}
+                disabled={isPendingDeletion}
+              >
+                <Trash className='h-4 w-4' />
+                <span>Xóa</span>
+              </Button>
+            )}
           </div>
         </PopoverContent>
       </Popover>
@@ -203,7 +237,3 @@ export function MessageActions({ message, chatId, isSentByMe, onEditStart }: Mes
     </>
   )
 }
-
-
-
-

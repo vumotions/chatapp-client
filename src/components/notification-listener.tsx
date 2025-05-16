@@ -1,85 +1,148 @@
 'use client'
 
+import { useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import { toast } from 'sonner'
 import { useSocket } from '~/hooks/use-socket'
-import SOCKET_EVENTS from '~/constants/socket-events'
-import { useQueryClient } from '@tanstack/react-query'
 import { NOTIFICATION_TYPE } from '~/constants/enums'
+import SOCKET_EVENTS from '~/constants/socket-events'
+import { useSession } from 'next-auth/react'
 
 export default function NotificationListener() {
   const { socket } = useSocket()
   const queryClient = useQueryClient()
+  const { data: session } = useSession()
+  const currentUserId = session?.user?._id
 
   useEffect(() => {
-    if (!socket) return
+    if (!socket || !currentUserId) return
 
     const handleNewNotification = (notification: any) => {
-      console.log('New notification received:', notification);
-      
-      // Xác định tên người gửi
-      let senderName = 'Ai đó';
-      
-      if (notification.senderId && typeof notification.senderId === 'object' && notification.senderId.name) {
-        senderName = notification.senderId.name;
-      }
-      
-      // Kiểm tra loại thông báo
-      if (notification.type === NOTIFICATION_TYPE.FRIEND_REQUEST) {
-        // Kiểm tra xem người dùng đã thực hiện hành động gửi lời mời kết bạn chưa
-        // Nếu đã thực hiện, không hiển thị toast
-        const friendSuggestions = queryClient.getQueryData(['FRIEND_SUGGESTIONS']);
-        
-        if (friendSuggestions) {
-          const hasJustSent = (friendSuggestions as any)?.pages?.flatMap((page: { suggestions: any[] }) => page.suggestions || []).some(
-            (user: any) => user._id === notification.senderId._id && user.status === 'PENDING'
-          );
-          
-          if (hasJustSent) {
-            console.log('Skipping notification toast as user just sent the request');
-            return;
-          }
-        }
-      }
-      
+      console.log('Received new notification via socket:', notification)
+
       // Hiển thị toast thông báo
-      if (notification.type !== NOTIFICATION_TYPE.NEW_MESSAGE) {
-        let message = 'Bạn có thông báo mới';
-        
+      if (notification) {
+        let message = ''
+        const senderName = notification.sender?.name || notification.senderId?.name || 'Ai đó'
+
         switch (notification.type) {
           case NOTIFICATION_TYPE.FRIEND_REQUEST:
-            message = `${senderName} đã gửi cho bạn lời mời kết bạn`;
-            break;
+            message = `${senderName} đã gửi lời mời kết bạn`
+            break
           case NOTIFICATION_TYPE.FRIEND_ACCEPTED:
-            message = `${senderName} đã chấp nhận lời mời kết bạn của bạn`;
-            break;
+            message = `${senderName} đã chấp nhận lời mời kết bạn của bạn`
+            break
+          case NOTIFICATION_TYPE.JOIN_REQUEST:
+            if (notification.metadata?.chatName) {
+              if (notification.metadata.userIds && notification.metadata.userIds.length > 0) {
+                message = `${senderName} đã mời ${notification.metadata.userIds.length} người vào nhóm "${notification.metadata.chatName}"`
+              } else {
+                message = `${senderName} muốn tham gia nhóm "${notification.metadata.chatName}"`
+              }
+            } else {
+              message = `${senderName} muốn tham gia nhóm của bạn`
+            }
+            break
+          case NOTIFICATION_TYPE.NEW_MESSAGE:
+            message = `${senderName} đã gửi tin nhắn mới`
+            break
+          default:
+            message = notification.content || 'Bạn có thông báo mới'
         }
-        
+
         toast(message, {
           description: 'Nhấp để xem chi tiết',
           action: {
             label: 'Xem',
             onClick: () => {
-              document.getElementById('notification-trigger')?.click();
+              document.getElementById('notification-trigger')?.click()
             }
           }
-        });
+        })
       }
-      
-      // Cập nhật cache thông báo
-      queryClient.invalidateQueries({ queryKey: ['NOTIFICATIONS'] });
-    };
+
+      // Cập nhật cache thông báo trực tiếp
+      updateNotificationCache(notification)
+    }
+
+    // Hàm cập nhật cache thông báo
+    const updateNotificationCache = (newNotification: any) => {
+      console.log('Updating notification cache with:', newNotification)
+
+      // Cập nhật cache cho danh sách thông báo vô hạn
+      queryClient.setQueryData(['NOTIFICATIONS'], (oldData: any) => {
+        if (!oldData) return { pages: [{ notifications: [newNotification], hasMore: true }] }
+
+        // Thêm thông báo mới vào trang đầu tiên
+        const updatedPages = [...oldData.pages]
+        if (updatedPages.length > 0) {
+          // Thêm thông báo mới vào đầu danh sách
+          updatedPages[0] = {
+            ...updatedPages[0],
+            notifications: [newNotification, ...(updatedPages[0].notifications || [])]
+          }
+        }
+
+        return {
+          ...oldData,
+          pages: updatedPages
+        }
+      })
+
+      // Cập nhật số lượng thông báo chưa đọc
+      queryClient.setQueryData(['UNREAD_NOTIFICATIONS_COUNT'], (oldCount: number = 0) => {
+        return newNotification.read ? oldCount : oldCount + 1
+      })
+    }
 
     // Đăng ký lắng nghe sự kiện NOTIFICATION_NEW
-    socket.on(SOCKET_EVENTS.NOTIFICATION_NEW, handleNewNotification);
+    socket.on(SOCKET_EVENTS.NOTIFICATION_NEW, handleNewNotification)
 
-    // Hủy đăng ký khi component unmount
+    // Đăng ký lắng nghe sự kiện NEW_JOIN_REQUEST
+    socket.on(SOCKET_EVENTS.NEW_JOIN_REQUEST, (data: any) => {
+      console.log('Received NEW_JOIN_REQUEST event:', data)
+
+      // Nếu không có thông báo đầy đủ, tạo một thông báo tạm thời
+      if (!data.type) {
+        const tempNotification = {
+          _id: Date.now().toString(),
+          userId: currentUserId,
+          sender: {
+            _id: data.invitedBy || data.userId,
+            name: 'Người dùng',
+            avatar: ''
+          },
+          type: NOTIFICATION_TYPE.JOIN_REQUEST,
+          content: 'Có yêu cầu tham gia mới vào nhóm',
+          metadata: {
+            conversationId: data.conversationId,
+            userIds: data.userIds || [data.userId]
+          },
+          read: false,
+          createdAt: new Date().toISOString()
+        }
+
+        // Cập nhật cache với thông báo tạm thời
+        updateNotificationCache(tempNotification)
+
+        // Hiển thị toast
+        toast('Có yêu cầu tham gia mới vào nhóm', {
+          description: 'Nhấp để xem chi tiết',
+          action: {
+            label: 'Xem',
+            onClick: () => {
+              document.getElementById('notification-trigger')?.click()
+            }
+          }
+        })
+      }
+    })
+
     return () => {
-      socket.off(SOCKET_EVENTS.NOTIFICATION_NEW, handleNewNotification);
-    };
-  }, [socket, queryClient]);
+      socket.off(SOCKET_EVENTS.NOTIFICATION_NEW, handleNewNotification)
+      socket.off(SOCKET_EVENTS.NEW_JOIN_REQUEST)
+    }
+  }, [socket, queryClient, currentUserId])
 
-  return null;
+  return null
 }
-
-

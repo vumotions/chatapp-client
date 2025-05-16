@@ -6,10 +6,9 @@ import { useRouter } from '~/i18n/navigation'
 // Hook để cập nhật thông tin nhóm
 export const useUpdateGroupMutation = (conversationId: string, onUpdate?: () => void) => {
   const queryClient = useQueryClient()
-  
+
   return useMutation({
-    mutationFn: (data: any) => 
-      conversationsService.updateGroupConversation(conversationId, data),
+    mutationFn: (data: any) => conversationsService.updateGroupConversation(conversationId, data),
     onSuccess: () => {
       toast.success('Cập nhật nhóm thành công')
       queryClient.invalidateQueries({ queryKey: ['MESSAGES', conversationId] })
@@ -26,31 +25,31 @@ export const useUpdateGroupMutation = (conversationId: string, onUpdate?: () => 
 export const useGenerateInviteLinkMutation = (conversationId: string, onSuccess?: (link: string) => void) => {
   return useMutation({
     mutationFn: () => {
-      console.log('Generating invite link for conversation:', conversationId);
-      return conversationsService.generateInviteLink(conversationId);
+      console.log('Generating invite link for conversation:', conversationId)
+      return conversationsService.generateInviteLink(conversationId)
     },
     onSuccess: (response) => {
-      console.log('Generate invite link success:', response);
+      console.log('Generate invite link success:', response)
       // Đảm bảo cấu trúc response đúng
-      const inviteLink = response.data?.inviteLink;
+      const inviteLink = response.data?.inviteLink
       if (inviteLink && onSuccess) {
-        onSuccess(inviteLink);
+        onSuccess(inviteLink)
       }
-      toast.success('Đã tạo link mời mới');
+      toast.success('Đã tạo link mời mới')
     },
     onError: (error: any) => {
-      console.error('Generate invite link error:', error);
-      console.error('Error response:', error.response?.data);
-      toast.error(error?.response?.data?.message || 'Có lỗi xảy ra khi tạo link mời');
+      console.error('Generate invite link error:', error)
+      console.error('Error response:', error.response?.data)
+      toast.error(error?.response?.data?.message || 'Có lỗi xảy ra khi tạo link mời')
     }
-  });
+  })
 }
 
 // Hook để rời khỏi nhóm
 export const useLeaveGroupMutation = (conversationId: string) => {
   const queryClient = useQueryClient()
   const router = useRouter()
-  
+
   return useMutation({
     mutationFn: () => conversationsService.leaveGroupConversation(conversationId),
     onSuccess: () => {
@@ -68,7 +67,7 @@ export const useLeaveGroupMutation = (conversationId: string) => {
 export const useDeleteGroupMutation = (conversationId: string) => {
   const queryClient = useQueryClient()
   const router = useRouter()
-  
+
   return useMutation({
     mutationFn: () => conversationsService.deleteGroupConversation(conversationId),
     onSuccess: () => {
@@ -85,10 +84,9 @@ export const useDeleteGroupMutation = (conversationId: string) => {
 // Hook để xóa thành viên khỏi nhóm
 export const useRemoveGroupMemberMutation = (conversationId: string) => {
   const queryClient = useQueryClient()
-  
+
   return useMutation({
-    mutationFn: (userId: string) => 
-      conversationsService.removeGroupMember(conversationId, userId),
+    mutationFn: (userId: string) => conversationsService.removeGroupMember(conversationId, userId),
     onSuccess: () => {
       toast.success('Đã xóa thành viên khỏi nhóm')
       queryClient.invalidateQueries({ queryKey: ['MESSAGES', conversationId] })
@@ -104,13 +102,13 @@ export const useRemoveGroupMemberMutation = (conversationId: string) => {
 // Hook để cập nhật vai trò thành viên
 export const useUpdateMemberRoleMutation = (conversationId: string) => {
   const queryClient = useQueryClient()
-  
+
   return useMutation({
-    mutationFn: (data: { 
-      userId: string; 
-      role: string; 
-      permissions: Record<string, boolean>; 
-      customTitle?: string 
+    mutationFn: (data: {
+      userId: string
+      role: string
+      permissions: Record<string, boolean>
+      customTitle?: string
     }) => {
       console.log('Updating member role:', { conversationId, ...data })
       return conversationsService.updateGroupMemberRole(conversationId, data)
@@ -143,10 +141,9 @@ export const useGetGroupByInviteLinkQuery = (inviteLink: string) => {
 // Hook để tham gia nhóm qua link mời
 export const useJoinGroupByInviteLinkMutation = () => {
   const queryClient = useQueryClient()
-  
+
   return useMutation({
-    mutationFn: (inviteLink: string) => 
-      conversationsService.joinGroupByInviteLink(inviteLink),
+    mutationFn: (inviteLink: string) => conversationsService.joinGroupByInviteLink(inviteLink),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] })
     },
@@ -159,10 +156,9 @@ export const useJoinGroupByInviteLinkMutation = () => {
 // Hook để chuyển quyền chủ nhóm
 export const useTransferOwnershipMutation = (conversationId: string) => {
   const queryClient = useQueryClient()
-  
+
   return useMutation({
-    mutationFn: (newOwnerId: string) => 
-      conversationsService.transferOwnership(conversationId, newOwnerId),
+    mutationFn: (newOwnerId: string) => conversationsService.transferOwnership(conversationId, newOwnerId),
     onSuccess: () => {
       toast.success('Đã chuyển quyền chủ nhóm thành công')
       queryClient.invalidateQueries({ queryKey: ['MESSAGES', conversationId] })
@@ -181,7 +177,7 @@ export const useTransferOwnershipMutation = (conversationId: string) => {
 export const useDisbandGroupMutation = (conversationId: string) => {
   const queryClient = useQueryClient()
   const router = useRouter()
-  
+
   return useMutation({
     mutationFn: () => conversationsService.disbandGroup(conversationId),
     onSuccess: () => {
@@ -196,19 +192,14 @@ export const useDisbandGroupMutation = (conversationId: string) => {
 }
 
 // Hook để kiểm tra trạng thái yêu cầu tham gia
-export const useCheckJoinRequestStatusQuery = (
-  conversationId: string | undefined,
-  options?: { enabled?: boolean }
-) => {
+export const useCheckJoinRequestStatusQuery = (conversationId: string | undefined, options?: { enabled?: boolean }) => {
   return useQuery({
     queryKey: ['JOIN_REQUEST_STATUS', conversationId],
     queryFn: async () => {
       if (!conversationId) throw new Error('Conversation ID is required')
       return conversationsService.checkJoinRequestStatus(conversationId)
     },
-    enabled: !!conversationId && (options?.enabled !== false),
-    staleTime: 1000 * 60 * 5, // 5 phút
+    enabled: !!conversationId && options?.enabled !== false,
+    staleTime: 1000 * 60 * 5 // 5 phút
   })
 }
-
-

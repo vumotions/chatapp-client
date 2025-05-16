@@ -225,6 +225,44 @@ function NotificationPopover() {
     return false
   }
 
+  // Hàm lấy nội dung thông báo
+  const getNotificationContent = (notification: any) => {
+    // Xác định tên người gửi
+    let senderName = 'Ai đó';
+
+    if (notification.senderId && typeof notification.senderId === 'object') {
+      senderName = notification.senderId.name || 'Người dùng';
+    }
+
+    switch (notification.type) {
+      case NOTIFICATION_TYPE.FRIEND_REQUEST:
+        return `${senderName} đã gửi cho bạn lời mời kết bạn`;
+      case NOTIFICATION_TYPE.FRIEND_ACCEPTED:
+        return `${senderName} đã chấp nhận lời mời kết bạn của bạn`;
+      case NOTIFICATION_TYPE.JOIN_REQUEST:
+        if (notification.metadata?.chatName) {
+          if (notification.metadata.invitedUsers && notification.metadata.invitedUsers.length > 0) {
+            return `${senderName} đã mời ${notification.metadata.invitedUsers.length} người vào nhóm "${notification.metadata.chatName}"`;
+          }
+          return `${senderName} muốn tham gia nhóm "${notification.metadata.chatName}"`;
+        }
+        return `${senderName} muốn tham gia nhóm của bạn`;
+      case NOTIFICATION_TYPE.NEW_MESSAGE:
+        if (notification.metadata?.chatName) {
+          return `${senderName} đã gửi tin nhắn trong nhóm "${notification.metadata.chatName}"`;
+        }
+        return `${senderName} đã gửi cho bạn một tin nhắn mới`;
+      case NOTIFICATION_TYPE.LIKE:
+        return `${senderName} đã thích bài viết của bạn`;
+      case NOTIFICATION_TYPE.NEW_COMMENT:
+        return `${senderName} đã bình luận về bài viết của bạn`;
+      case NOTIFICATION_TYPE.MENTION:
+        return `${senderName} đã nhắc đến bạn trong một bình luận`;
+      default:
+        return notification.content || `Bạn có một thông báo mới (${notification.type})`;
+    }
+  };
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -339,7 +377,38 @@ function NotificationPopover() {
                 // Tạo biến tạm thời để kiểm tra trạng thái xử lý
                 const isProcessed =
                   item.processed === true ||
-                  (item.relatedId && item.relatedId.status && item.relatedId.status !== FRIEND_REQUEST_STATUS.PENDING)
+                  (item.relatedId && item.relatedId.status && item.relatedId.status !== FRIEND_REQUEST_STATUS.PENDING) ||
+                  processedIds.includes(item._id);
+
+                // Lấy thông tin người gửi
+                const senderName = item.senderId?.name || 'Người dùng';
+                
+                // Tạo nội dung thông báo dựa trên loại
+                let notificationText = '';
+                
+                if (item.type === NOTIFICATION_TYPE.FRIEND_REQUEST) {
+                  notificationText = `${senderName} đã gửi cho bạn lời mời kết bạn`;
+                } else if (item.type === NOTIFICATION_TYPE.FRIEND_ACCEPTED) {
+                  notificationText = `${senderName} đã chấp nhận lời mời kết bạn của bạn`;
+                } else if (item.type === NOTIFICATION_TYPE.JOIN_REQUEST) {
+                  if (item.metadata?.chatName) {
+                    if (item.metadata.invitedUsers && item.metadata.invitedUsers.length > 0) {
+                      notificationText = `${senderName} đã mời ${item.metadata.invitedUsers.length} người vào nhóm "${item.metadata.chatName}"`;
+                    } else {
+                      notificationText = `${senderName} muốn tham gia nhóm "${item.metadata.chatName}"`;
+                    }
+                  } else {
+                    notificationText = `${senderName} muốn tham gia nhóm của bạn`;
+                  }
+                } else if (item.type === NOTIFICATION_TYPE.NEW_MESSAGE) {
+                  if (item.metadata?.chatName) {
+                    notificationText = `${senderName} đã gửi tin nhắn trong nhóm "${item.metadata.chatName}"`;
+                  } else {
+                    notificationText = `${senderName} đã gửi cho bạn một tin nhắn mới`;
+                  }
+                } else {
+                  notificationText = item.content || `Bạn có một thông báo mới (${item.type})`;
+                }
 
                 return (
                   <div
@@ -354,11 +423,13 @@ function NotificationPopover() {
                       <AvatarFallback>{item.senderId?.name?.[0] || '?'}</AvatarFallback>
                     </Avatar>
                     <div className='ml-3 flex-1'>
-                      <p className='text-muted-foreground text-sm'>{getNotificationContent(item)}</p>
+                      <p className={cn('text-sm', !item.read ? 'font-medium' : 'text-muted-foreground')}>
+                        {notificationText}
+                      </p>
                       <span className='text-xs text-gray-500 dark:text-gray-400'>{formatTime(item.createdAt)}</span>
 
                       {/* Hiển thị nút chỉ khi là lời mời kết bạn và chưa được xử lý */}
-                      {item.type === NOTIFICATION_TYPE.FRIEND_REQUEST && !processedIds.includes(item._id) && (
+                      {item.type === NOTIFICATION_TYPE.FRIEND_REQUEST && !isProcessed && (
                         <div className='mt-2 flex space-x-2'>
                           <Button
                             size='sm'
@@ -388,16 +459,16 @@ function NotificationPopover() {
                       )}
 
                       {/* Hiển thị trạng thái đã xử lý */}
-                      {item.type === NOTIFICATION_TYPE.FRIEND_REQUEST && processedIds.includes(item._id) && (
+                      {item.type === NOTIFICATION_TYPE.FRIEND_REQUEST && isProcessed && (
                         <p className='text-muted-foreground mt-2 text-xs italic'>Đã xử lý lời mời kết bạn này</p>
                       )}
                     </div>
                     <div className='flex items-center'>
                       {!item.read && <div className='mx-2 h-2 w-2 rounded-full bg-blue-500' />}
                       <Button
-                        variant='destructive'
+                        variant='ghost'
                         size='icon'
-                        className='ml-2 h-8 w-8 cursor-pointer rounded-full hover:opacity-70'
+                        className='ml-2 h-8 w-8 cursor-pointer rounded-full hover:bg-red-100 hover:text-red-500'
                         onClick={(e) => handleDeleteNotification(e, item._id)}
                       >
                         <Trash className='h-4 w-4' />
@@ -412,33 +483,6 @@ function NotificationPopover() {
       </PopoverContent>
     </Popover>
   )
-}
-
-// Hàm lấy nội dung thông báo
-const getNotificationContent = (notification: any) => {
-  // Log để kiểm tra dữ liệu
-  console.log('Getting content for notification:', notification)
-  console.log('Sender info:', notification.senderId)
-
-  // Xác định tên người gửi
-  let senderName = 'Ai đó'
-
-  if (notification.senderId && typeof notification.senderId === 'object') {
-    senderName = notification.senderId.name || 'Người dùng'
-  }
-
-  console.log('Using sender name:', senderName)
-
-  switch (notification.type) {
-    case NOTIFICATION_TYPE.FRIEND_REQUEST:
-      return `${senderName} đã gửi cho bạn lời mời kết bạn`
-    case NOTIFICATION_TYPE.FRIEND_ACCEPTED:
-      return `${senderName} đã chấp nhận lời mời kết bạn của bạn`
-    case NOTIFICATION_TYPE.NEW_MESSAGE:
-      return `${senderName} đã gửi cho bạn một tin nhắn mới`
-    default:
-      return 'Bạn có một thông báo mới'
-  }
 }
 
 export default NotificationPopover
