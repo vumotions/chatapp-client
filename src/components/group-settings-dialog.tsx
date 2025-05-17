@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Copy, Crown, LogOut, RefreshCw, Settings, Shield, Trash, UserCog, UserMinus } from 'lucide-react'
+import { Copy, Crown, LogOut, RefreshCw, Scroll, Settings, Shield, Trash, UserCog, UserMinus } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
@@ -136,7 +136,7 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
   })
 
   // Lấy danh sách thành viên với roles
-  const { data, isError, isLoading: isLoadingMembers } = useFriendsWithRolesQuery(open ? conversation?._id : undefined)
+  const { data, isLoading: isLoadingMembers } = useFriendsWithRolesQuery(open ? conversation?._id : undefined)
 
   // Trích xuất members từ data
   const membersWithRoles = data?.members || []
@@ -690,7 +690,6 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
             <AlertDialogTitle>Chỉnh sửa thành viên</AlertDialogTitle>
             <AlertDialogDescription>Cập nhật vai trò và quyền hạn cho {memberToEdit?.name}</AlertDialogDescription>
           </AlertDialogHeader>
-
           <Form {...memberEditForm}>
             <form onSubmit={memberEditForm.handleSubmit(onSubmitMemberEdit)} className='space-y-4 py-4'>
               <FormField
@@ -743,80 +742,114 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                 <div className='space-y-3'>
                   <FormLabel>Quyền hạn</FormLabel>
 
-                  <FormField
-                    control={memberEditForm.control}
-                    name='permissions.changeGroupInfo'
-                    render={({ field }) => (
-                      <FormItem className='flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm'>
-                        <div className='space-y-0.5'>
-                          <FormLabel>Thay đổi thông tin nhóm</FormLabel>
-                        </div>
-                        <FormControl>
-                          <Switch checked={field.value} onCheckedChange={field.onChange} />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
+                  <ScrollArea className='h-[250px] rounded-md border'>
+                    <div className='space-y-3 p-4'>
+                      <FormField
+                        control={memberEditForm.control}
+                        name='permissions.changeGroupInfo'
+                        render={({ field }) => (
+                          <FormItem className='flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm'>
+                            <div className='space-y-0.5'>
+                              <FormLabel>Thay đổi thông tin nhóm</FormLabel>
+                            </div>
+                            <FormControl>
+                              <Switch checked={field.value} onCheckedChange={field.onChange} />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
 
-                  <FormField
-                    control={memberEditForm.control}
-                    name='permissions.deleteMessages'
-                    render={({ field }) => (
-                      <FormItem className='flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm'>
-                        <div className='space-y-0.5'>
-                          <FormLabel>Xóa tin nhắn</FormLabel>
-                        </div>
-                        <FormControl>
-                          <Switch checked={field.value} onCheckedChange={field.onChange} />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
+                      <FormField
+                        control={memberEditForm.control}
+                        name='permissions.deleteMessages'
+                        render={({ field }) => (
+                          <FormItem className='flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm'>
+                            <div className='space-y-0.5'>
+                              <FormLabel>Xóa tin nhắn</FormLabel>
+                            </div>
+                            <FormControl>
+                              <Switch checked={field.value} onCheckedChange={field.onChange} />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
 
-                  <FormField
-                    control={memberEditForm.control}
-                    name='permissions.banUsers'
-                    render={({ field }) => (
-                      <FormItem className='flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm'>
-                        <div className='space-y-0.5'>
-                          <FormLabel>Cấm người dùng</FormLabel>
-                        </div>
-                        <FormControl>
-                          <Switch checked={field.value} onCheckedChange={field.onChange} />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
+                      <FormField
+                        control={memberEditForm.control}
+                        name='permissions.banUsers'
+                        render={({ field }) => (
+                          <FormItem className='flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm'>
+                            <div className='space-y-0.5'>
+                              <FormLabel>Cấm người dùng</FormLabel>
+                            </div>
+                            <FormControl>
+                              <Switch checked={field.value} onCheckedChange={field.onChange} />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
 
-                  <FormField
-                    control={memberEditForm.control}
-                    name='permissions.pinMessages'
-                    render={({ field }) => (
-                      <FormItem className='flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm'>
-                        <div className='space-y-0.5'>
-                          <FormLabel>Ghim tin nhắn</FormLabel>
-                        </div>
-                        <FormControl>
-                          <Switch checked={field.value} onCheckedChange={field.onChange} />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
+                      <FormField
+                        control={memberEditForm.control}
+                        name='permissions.inviteUsers'
+                        render={({ field }) => (
+                          <FormItem className='flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm'>
+                            <div className='space-y-0.5'>
+                              <FormLabel>Mời người dùng</FormLabel>
+                            </div>
+                            <FormControl>
+                              <Switch checked={field.value} onCheckedChange={field.onChange} />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
 
-                  <FormField
-                    control={memberEditForm.control}
-                    name='permissions.approveJoinRequests'
-                    render={({ field }) => (
-                      <FormItem className='flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm'>
-                        <div className='space-y-0.5'>
-                          <FormLabel>Phê duyệt yêu cầu tham gia</FormLabel>
-                        </div>
-                        <FormControl>
-                          <Switch checked={field.value} onCheckedChange={field.onChange} />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
+                      <FormField
+                        control={memberEditForm.control}
+                        name='permissions.pinMessages'
+                        render={({ field }) => (
+                          <FormItem className='flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm'>
+                            <div className='space-y-0.5'>
+                              <FormLabel>Ghim tin nhắn</FormLabel>
+                            </div>
+                            <FormControl>
+                              <Switch checked={field.value} onCheckedChange={field.onChange} />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={memberEditForm.control}
+                        name='permissions.addNewAdmins'
+                        render={({ field }) => (
+                          <FormItem className='flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm'>
+                            <div className='space-y-0.5'>
+                              <FormLabel>Thêm quản trị viên mới</FormLabel>
+                            </div>
+                            <FormControl>
+                              <Switch checked={field.value} onCheckedChange={field.onChange} />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={memberEditForm.control}
+                        name='permissions.approveJoinRequests'
+                        render={({ field }) => (
+                          <FormItem className='flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm'>
+                            <div className='space-y-0.5'>
+                              <FormLabel>Phê duyệt yêu cầu tham gia</FormLabel>
+                            </div>
+                            <FormControl>
+                              <Switch checked={field.value} onCheckedChange={field.onChange} />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </ScrollArea>
                 </div>
               )}
 
