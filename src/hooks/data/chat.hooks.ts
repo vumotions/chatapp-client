@@ -41,7 +41,7 @@ export const useChatList = (filter: string = '') => {
       }
       return undefined
     },
-    staleTime: 1000 * 60 * 2, // 2 phút
+    staleTime: 1000 * 60 * 5, // 5 phút
     gcTime: 1000 * 60 * 5, // 5 phút
     refetchOnWindowFocus: false, // Tắt refetch khi focus
     refetchInterval: false // Tắt polling tự động

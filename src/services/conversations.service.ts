@@ -230,6 +230,22 @@ class ConversationsService {
     console.log('API response for checkJoinRequestStatus:', res.data)
     return res.data.data
   }
+
+  // Cấm chat thành viên trong nhóm
+  async muteGroupMember(groupId: string, userId: string, duration: number = 0) {
+    console.log('Calling muteGroupMember API with:', { groupId, userId, duration })
+    const res = await httpRequest.post(`/chat/group/${groupId}/members/${userId}/mute`, { duration })
+    console.log('API response for muteGroupMember:', res.data)
+    return res.data
+  }
+
+  // Bỏ cấm chat thành viên trong nhóm
+  async unmuteGroupMember(groupId: string, userId: string) {
+    console.log('Calling unmuteGroupMember API with:', { groupId, userId })
+    const res = await httpRequest.post(`/chat/group/${groupId}/members/${userId}/unmute`)
+    console.log('API response for unmuteGroupMember:', res.data)
+    return res.data
+  }
 }
 
 const conversationsService = new ConversationsService()

@@ -1,12 +1,12 @@
 'use client'
 
+import { useQueryClient } from '@tanstack/react-query'
 import { formatDistanceToNow } from 'date-fns'
 import { vi } from 'date-fns/locale'
 import { Archive } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
 import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
 import { ConversationActions } from '~/components/ui/chat/conversation-actions'
 import SOCKET_EVENTS from '~/constants/socket-events'
@@ -124,34 +124,79 @@ export default function ConversationItem({
 
     // Lắng nghe sự kiện tin nhắn mới
     const handleNewMessage = (message: any) => {
+      console.log('Received new message in conversation-item:', message)
+
       if (message.chatId === conversation._id) {
-        // Cập nhật last message trong conversation list
-        queryClient.setQueryData(['conversations'], (oldData: any) => {
-          if (!oldData) return oldData
-          return {
-            ...oldData,
-            pages: oldData.pages.map((page: any) => ({
-              ...page,
-              conversations: page.conversations.map((conv: any) => {
-                if (conv._id === conversation._id) {
-                  return {
-                    ...conv,
-                    lastMessage: message,
-                    updatedAt: message.createdAt
-                  }
-                }
-                return conv
+        console.log('Updating lastMessage for conversation:', conversation._id)
+
+        // Cập nhật tất cả các query có key bắt đầu bằng CHAT_LIST
+        queryClient
+          .getQueryCache()
+          .findAll({ queryKey: ['CHAT_LIST'] })
+          .forEach((query) => {
+            console.log('Found query with key:', query.queryKey)
+
+            queryClient.setQueryData(query.queryKey, (oldData: any) => {
+              console.log('Query data for key', query.queryKey, ':', oldData)
+              if (!oldData) {
+                console.log('No existing data found for query key:', query.queryKey)
+                return oldData
+              }
+
+              console.log('Updating cache with new message for query key:', query.queryKey)
+              console.log({
+                ...oldData,
+                pages: oldData.pages.map((page: any) => ({
+                  ...page,
+                  conversations: page.conversations.map((conv: any) => {
+                    if (conv._id === conversation._id) {
+                      console.log('Found conversation to update:', conv._id)
+                      return {
+                        ...conv,
+                        lastMessage: message,
+                        updatedAt: message.createdAt
+                      }
+                    }
+                    return conv
+                  })
+                }))
               })
-            }))
-          }
+              return {
+                ...oldData,
+                pages: oldData.pages.map((page: any) => ({
+                  ...page,
+                  conversations: page.conversations.map((conv: any) => {
+                    if (conv._id === conversation._id) {
+                      console.log('Found conversation to update:', conv._id)
+                      return {
+                        ...conv,
+                        lastMessage: message,
+                        updatedAt: message.createdAt
+                      }
+                    }
+                    return conv
+                  })
+                }))
+              }
+            })
+          })
+
+        // Invalidate tất cả các query có key bắt đầu bằng CHAT_LIST
+        queryClient.invalidateQueries({
+          queryKey: ['CHAT_LIST'],
+          exact: false
         })
       }
     }
 
     socket.on(SOCKET_EVENTS.RECEIVE_MESSAGE, handleNewMessage)
 
+    // Thêm log để xác nhận đã đăng ký lắng nghe sự kiện
+    console.log('Registered RECEIVE_MESSAGE listener for conversation:', conversation._id)
+
     return () => {
       socket.off(SOCKET_EVENTS.RECEIVE_MESSAGE, handleNewMessage)
+      console.log('Unregistered RECEIVE_MESSAGE listener for conversation:', conversation._id)
     }
   }, [socket, conversation._id, queryClient])
 

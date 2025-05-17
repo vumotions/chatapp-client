@@ -1,14 +1,13 @@
 'use client'
 
-import { useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { usePathname } from 'next/navigation'
-import { toast } from 'sonner'
 import { useSession } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
+import { useEffect } from 'react'
+import { toast } from 'sonner'
 
-import { useSocket } from '~/hooks/use-socket'
 import SOCKET_EVENTS from '~/constants/socket-events'
+import { useSocket } from '~/hooks/use-socket'
 
 export default function GroupEventsListener() {
   const { socket } = useSocket()
@@ -56,8 +55,6 @@ export default function GroupEventsListener() {
 
     // Lắng nghe sự kiện MEMBER_REMOVED
     const handleMemberRemoved = (data: any) => {
-      console.log('MEMBER_REMOVED event received:', data)
-
       // Cập nhật danh sách chat
       queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] })
 
@@ -65,26 +62,26 @@ export default function GroupEventsListener() {
       if (pathname?.includes(`/messages/${data.conversationId}`)) {
         // Cập nhật danh sách tin nhắn
         queryClient.invalidateQueries({ queryKey: ['MESSAGES', data.conversationId] })
-        
+
         // Cập nhật danh sách thành viên
         queryClient.invalidateQueries({ queryKey: ['FRIENDS_WITH_ROLES', data.conversationId] })
-        
+
         // Thêm tin nhắn hệ thống vào cache nếu có
         if (data.message) {
           queryClient.setQueryData(['MESSAGES', data.conversationId], (oldData: any) => {
-            if (!oldData) return oldData;
-            
+            if (!oldData) return oldData
+
             // Thêm tin nhắn hệ thống vào trang đầu tiên
-            const updatedPages = [...oldData.pages];
+            const updatedPages = [...oldData.pages]
             if (updatedPages.length > 0 && updatedPages[0].messages) {
-              updatedPages[0].messages = [data.message, ...updatedPages[0].messages];
+              updatedPages[0].messages = [data.message, ...updatedPages[0].messages]
             }
-            
+
             return {
               ...oldData,
               pages: updatedPages
-            };
-          });
+            }
+          })
         }
       }
 
@@ -130,7 +127,7 @@ export default function GroupEventsListener() {
         // Cập nhật danh sách tin nhắn với tin nhắn hệ thống mới
         queryClient.setQueryData(['MESSAGES', data.conversationId], (oldData: any) => {
           if (!oldData) return oldData
-          
+
           // Thêm tin nhắn hệ thống vào trang đầu tiên
           const firstPage = oldData.pages[0]
           if (firstPage && firstPage.messages) {
@@ -147,7 +144,7 @@ export default function GroupEventsListener() {
           }
           return oldData
         })
-        
+
         // Cập nhật danh sách thành viên
         queryClient.invalidateQueries({ queryKey: ['FRIENDS_WITH_ROLES', data.conversationId] })
       }
@@ -156,7 +153,7 @@ export default function GroupEventsListener() {
     // Thêm listener cho sự kiện JOIN_REQUEST_RECEIVED
     const handleJoinRequestReceived = (data: any) => {
       console.log('JOIN_REQUEST_RECEIVED event received:', data)
-      
+
       // Cập nhật danh sách yêu cầu tham gia
       queryClient.invalidateQueries({ queryKey: ['JOIN_REQUESTS', data.conversationId] })
     }
@@ -172,37 +169,35 @@ export default function GroupEventsListener() {
       if (pathname?.includes(`/messages/${data.conversationId}`)) {
         // Cập nhật danh sách thành viên
         queryClient.invalidateQueries({ queryKey: ['FRIENDS_WITH_ROLES', data.conversationId] })
-        
+
         // Cập nhật danh sách bạn bè để thêm vào nhóm
         queryClient.invalidateQueries({ queryKey: ['FRIENDS'] })
-        
+
         // Thêm tin nhắn hệ thống vào cache nếu có
         if (data.message) {
           // Cập nhật danh sách tin nhắn
           queryClient.invalidateQueries({ queryKey: ['MESSAGES', data.conversationId] })
-          
+
           // Thêm tin nhắn hệ thống vào cache
           queryClient.setQueryData(['MESSAGES', data.conversationId], (oldData: any) => {
-            if (!oldData) return oldData;
-            
+            if (!oldData) return oldData
+
             // Thêm tin nhắn hệ thống vào trang đầu tiên
-            const updatedPages = [...oldData.pages];
+            const updatedPages = [...oldData.pages]
             if (updatedPages.length > 0 && updatedPages[0].messages) {
               // Kiểm tra xem tin nhắn đã tồn tại chưa
-              const messageExists = updatedPages[0].messages.some(
-                (msg: any) => msg._id === data.message._id
-              );
-              
+              const messageExists = updatedPages[0].messages.some((msg: any) => msg._id === data.message._id)
+
               if (!messageExists) {
-                updatedPages[0].messages = [data.message, ...updatedPages[0].messages];
+                updatedPages[0].messages = [data.message, ...updatedPages[0].messages]
               }
             }
-            
+
             return {
               ...oldData,
               pages: updatedPages
-            };
-          });
+            }
+          })
         }
       }
 
@@ -214,6 +209,80 @@ export default function GroupEventsListener() {
       }
     }
 
+    // Lắng nghe sự kiện MEMBER_ROLE_UPDATED
+    const handleMemberRoleUpdated = (data: any) => {
+      console.log('MEMBER_ROLE_UPDATED event received:', data)
+
+      // Cập nhật danh sách chat
+      queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] })
+
+      // Cập nhật thông tin chat hiện tại nếu đang ở trong chat này
+      if (pathname?.includes(`/messages/${data.conversationId}`)) {
+        queryClient.invalidateQueries({ queryKey: ['MESSAGES', data.conversationId] })
+        queryClient.invalidateQueries({ queryKey: ['FRIENDS_WITH_ROLES', data.conversationId] })
+
+        // Thêm tin nhắn hệ thống vào cache nếu có
+        if (data.message) {
+          queryClient.setQueryData(['MESSAGES', data.conversationId], (oldData: any) => {
+            if (!oldData) return oldData
+
+            // Thêm tin nhắn hệ thống vào trang đầu tiên
+            const updatedPages = [...oldData.pages]
+            if (updatedPages.length > 0 && updatedPages[0].messages) {
+              updatedPages[0].messages = [data.message, ...updatedPages[0].messages]
+            }
+
+            return {
+              ...oldData,
+              pages: updatedPages
+            }
+          })
+        }
+      }
+    }
+
+    // Thêm listener cho sự kiện GROUP_UPDATED
+    const handleGroupUpdated = (data: any) => {
+      console.log('GROUP_UPDATED event received:', data)
+
+      // Cập nhật danh sách chat
+      queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] })
+
+      // Cập nhật thông tin chat hiện tại nếu đang ở trong chat này
+      if (pathname?.includes(`/messages/${data.conversationId}`)) {
+        // Nếu có tin nhắn hệ thống, thêm vào danh sách tin nhắn
+        if (data.message) {
+          queryClient.setQueryData(['MESSAGES', data.conversationId], (oldData: any) => {
+            if (!oldData) return oldData
+
+            // Thêm tin nhắn hệ thống vào trang đầu tiên
+            const firstPage = oldData.pages[0]
+            if (firstPage && firstPage.messages) {
+              return {
+                ...oldData,
+                pages: [
+                  {
+                    ...firstPage,
+                    messages: [data.message, ...firstPage.messages]
+                  },
+                  ...oldData.pages.slice(1)
+                ]
+              }
+            }
+            return oldData
+          })
+        } else {
+          // Nếu không có tin nhắn, chỉ cần invalidate để lấy dữ liệu mới
+          queryClient.invalidateQueries({ queryKey: ['MESSAGES', data.conversationId] })
+        }
+      }
+
+      // Chỉ hiển thị thông báo nếu KHÔNG phải người dùng hiện tại cập nhật
+      if (data.updatedBy !== currentUserId && data.message?.content) {
+        toast.info(data.message.content)
+      }
+    }
+
     // Đăng ký lắng nghe các sự kiện
     socket.on(SOCKET_EVENTS.OWNERSHIP_TRANSFERRED, handleOwnershipTransferred)
     socket.on(SOCKET_EVENTS.MEMBER_LEFT, handleMemberLeft)
@@ -222,6 +291,8 @@ export default function GroupEventsListener() {
     socket.on(SOCKET_EVENTS.MEMBER_JOINED, handleMemberJoined)
     socket.on(SOCKET_EVENTS.JOIN_REQUEST_RECEIVED, handleJoinRequestReceived)
     socket.on(SOCKET_EVENTS.MEMBERS_ADDED, handleMembersAdded)
+    socket.on(SOCKET_EVENTS.MEMBER_ROLE_UPDATED, handleMemberRoleUpdated)
+    socket.on(SOCKET_EVENTS.GROUP_UPDATED, handleGroupUpdated)
 
     // Cleanup khi component unmount
     return () => {
@@ -232,18 +303,12 @@ export default function GroupEventsListener() {
       socket.off(SOCKET_EVENTS.MEMBER_JOINED, handleMemberJoined)
       socket.off(SOCKET_EVENTS.JOIN_REQUEST_RECEIVED, handleJoinRequestReceived)
       socket.off(SOCKET_EVENTS.MEMBERS_ADDED, handleMembersAdded)
+      socket.off(SOCKET_EVENTS.MEMBER_ROLE_UPDATED, handleMemberRoleUpdated)
+      socket.off(SOCKET_EVENTS.GROUP_UPDATED, handleGroupUpdated)
     }
-  }, [socket, currentUserId, pathname, router, queryClient])
+  }, [socket, currentUserId, pathname])
 
   return null
 }
-
-
-
-
-
-
-
-
 
 

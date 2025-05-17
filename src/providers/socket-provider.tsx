@@ -6,6 +6,7 @@ import { io, Socket } from 'socket.io-client'
 import { toast } from 'sonner'
 import nextEnv from '~/config/next-env'
 import SOCKET_EVENTS from '~/constants/socket-events'
+import { useQueryClient } from '@tanstack/react-query'
 
 type Props = {
   children: ReactNode
@@ -22,6 +23,8 @@ export const SocketContext = createContext<SocketContextType>({
 function SocketProvider({ children }: Props) {
   const { data: session } = useSession()
   const [socket, setSocket] = useState<Socket | null>(null)
+  const queryClient = useQueryClient()
+  const [, setLastMessage] = useState<any | null>(null)
 
   useEffect(() => {
     const accessToken = session?.accessToken
@@ -33,7 +36,7 @@ function SocketProvider({ children }: Props) {
     const socketInstance = io(socketUrl, {
       auth: {
         Authorization: `Bearer ${accessToken}`
-      },
+      }
     })
 
     setSocket(socketInstance)
@@ -76,8 +79,77 @@ function SocketProvider({ children }: Props) {
 
     // Lắng nghe sự kiện RECEIVE_MESSAGE để cập nhật tin nhắn cuối cùng
     socket.on(SOCKET_EVENTS.RECEIVE_MESSAGE, (message) => {
-      console.log('RECEIVE_MESSAGE event received in provider:', message)
-      // Tin nhắn mới đã được xử lý trong chat-list.tsx
+
+      // Cập nhật state để các component con có thể phản ứng
+      setLastMessage(message)
+
+      // Cập nhật cache cho danh sách chat
+      queryClient
+        .getQueryCache()
+        .findAll({ queryKey: ['CHAT_LIST'] })
+        .forEach((query) => {
+          queryClient.setQueryData(query.queryKey, (oldData: any) => {
+            if (!oldData) return oldData
+
+            // Cập nhật cache logic...
+            return {
+              ...oldData,
+              pages: oldData.pages.map((page: any) => ({
+                ...page,
+                conversations: page.conversations.map((conv: any) => {
+                  if (conv._id === message.chatId) {
+                    return {
+                      ...conv,
+                      lastMessage: message,
+                      updatedAt: message.createdAt,
+                      read: message.senderId === session?.user?._id // Đánh dấu đã đọc nếu là tin nhắn của chính mình
+                    }
+                  }
+                  return conv
+                })
+              }))
+            }
+          })
+        })
+
+      // Cập nhật cache cho tin nhắn
+      queryClient
+        .getQueryCache()
+        .findAll({ queryKey: ['MESSAGES', message.chatId] })
+        .forEach((query) => {
+          queryClient.setQueryData(query.queryKey, (oldData: any) => {
+            if (!oldData) return oldData
+
+            // Tìm trang cuối cùng
+            const lastPageIndex = oldData.pages.length - 1
+            const lastPage = oldData.pages[lastPageIndex]
+
+            // Kiểm tra xem tin nhắn đã tồn tại chưa
+            const messageExists = lastPage.messages.some((msg: any) => msg._id === message._id)
+            if (messageExists) return oldData
+
+            // Thêm tin nhắn mới vào trang cuối cùng
+            const updatedLastPage = {
+              ...lastPage,
+              messages: [...lastPage.messages, message]
+            }
+
+            // Cập nhật pages
+            const updatedPages = [...oldData.pages]
+            updatedPages[lastPageIndex] = updatedLastPage
+
+            return {
+              ...oldData,
+              pages: updatedPages
+            }
+          })
+        })
+
+      // Phát ra âm thanh thông báo nếu tin nhắn không phải từ người dùng hiện tại
+      if (message.senderId !== session?.user?._id) {
+        const audio = new Audio('/sounds/notification.mp3')
+        audio.play().catch((err) => console.error('Error playing notification sound:', err))
+      }
     })
 
     // Lắng nghe sự kiện USER_ONLINE để cập nhật trạng thái online
@@ -122,7 +194,7 @@ function SocketProvider({ children }: Props) {
       socket.off(SOCKET_EVENTS.CONVERSATION_DELETED)
       socket.off(SOCKET_EVENTS.OWNERSHIP_TRANSFERRED)
     }
-  }, [socket])
+  }, [socket, queryClient, session])
 
   return <SocketContext.Provider value={{ socket }}>{children}</SocketContext.Provider>
 }

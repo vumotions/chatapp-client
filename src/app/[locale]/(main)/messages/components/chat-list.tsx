@@ -177,21 +177,14 @@ export function ChatList() {
 
     const handleReceiveMessage = (message: any) => {
       console.log('Received new message in chat list:', message)
-
-      // Invalidate query để React Query tự refetch
       queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] })
-
-      // Thêm invalidate cho ARCHIVED_CHAT_LIST nếu tin nhắn có thể thuộc về chat đã lưu trữ
       queryClient.invalidateQueries({ queryKey: ['ARCHIVED_CHAT_LIST'] })
-
-      // Cập nhật refreshKey để force re-render
       setRefreshKey((prev) => prev + 1)
     }
 
-    // Lắng nghe cả sự kiện tin nhắn mới và tin nhắn được cập nhật
+    // Lắng nghe các sự kiện liên quan đến tin nhắn
     socket.on(SOCKET_EVENTS.RECEIVE_MESSAGE, handleReceiveMessage)
     socket.on('MESSAGE_UPDATED', (data) => {
-      console.log('Message updated in chat list:', data)
       queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] })
       queryClient.invalidateQueries({ queryKey: ['ARCHIVED_CHAT_LIST'] })
       setRefreshKey((prev) => prev + 1)
@@ -278,5 +271,4 @@ export function ChatList() {
   )
 }
 
-// Thêm export default để hỗ trợ cả hai cách import
 export default ChatList

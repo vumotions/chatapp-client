@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Copy, Crown, LogOut, RefreshCw, Settings, Shield, UserCog, UserMinus, Trash } from 'lucide-react'
+import { Copy, Crown, LogOut, RefreshCw, Settings, Shield, Trash, UserCog, UserMinus } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
@@ -29,19 +29,19 @@ import { Switch } from '~/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipTrigger } from '~/components/ui/tooltip'
 
+import { useQueryClient } from '@tanstack/react-query'
 import { MAX_GROUP_MEMBERS } from '~/constants/app.constants'
 import { GROUP_TYPE, MEMBER_ROLE } from '~/constants/enums'
 import { useFriendsWithRolesQuery } from '~/hooks/data/friends.hook'
 import {
+  useDisbandGroupMutation,
   useGenerateInviteLinkMutation,
   useLeaveGroupMutation,
   useRemoveGroupMemberMutation,
   useUpdateGroupMutation,
-  useUpdateMemberRoleMutation,
-  useDisbandGroupMutation
+  useUpdateMemberRoleMutation
 } from '~/hooks/data/group-chat.hooks'
 import { TransferOwnershipDialog } from './transfer-ownership-dialog'
-import GroupJoinRequests from './group-join-requests'
 import { Badge } from './ui/badge'
 
 // Zod schema cho form cài đặt nhóm
@@ -115,6 +115,7 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
       requireApproval: conversation?.requireApproval || false
     }
   })
+  const queryClient = useQueryClient()
 
   // Form cho chỉnh sửa thành viên
   const memberEditForm = useForm<MemberEditValues>({
@@ -162,7 +163,6 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
   // Cập nhật form chỉnh sửa thành viên khi chọn thành viên
   useEffect(() => {
     if (memberToEdit) {
-      console.log('Filling form with member data:', memberToEdit)
       memberEditForm.reset({
         role: memberToEdit.role || MEMBER_ROLE.MEMBER,
         customTitle: memberToEdit.customTitle || '',
@@ -187,21 +187,21 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
   const updateMemberRoleMutation = useUpdateMemberRoleMutation(conversation?._id)
   const disbandGroupMutation = useDisbandGroupMutation(conversation?._id)
 
-  const onSubmitGroupSettings = (data: GroupSettingsValues) => {
-    updateGroupMutation.mutate(data)
+  const onSubmitGroupSettings = async (data: GroupSettingsValues) => {
+    await updateGroupMutation.mutateAsync(data)
+    // Revalidate chat list
+    queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'], exact: false })
+    // Revalidate chat details
+    queryClient.invalidateQueries({ queryKey: ['MESSAGES', conversation._id] })
+    // Revalidate members
+    queryClient.invalidateQueries({ queryKey: ['FRIENDS_WITH_ROLES', conversation._id] })
   }
 
-  const onSubmitMemberEdit = (data: MemberEditValues) => {
+  const onSubmitMemberEdit = async (data: MemberEditValues) => {
     if (!memberToEdit) {
       console.error('No member to edit')
       return
     }
-
-    console.log('Submitting member edit:', {
-      conversationId: conversation._id,
-      memberToEdit,
-      formData: data
-    })
 
     // Đảm bảo permissions luôn có giá trị
     const permissions = data.permissions || {
@@ -214,12 +214,18 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
       approveJoinRequests: false
     }
 
-    updateMemberRoleMutation.mutate({
+    await updateMemberRoleMutation.mutateAsync({
       userId: memberToEdit._id,
       role: data.role,
       permissions: permissions,
       customTitle: data.customTitle
     })
+    // Revalidate member list
+    queryClient.invalidateQueries({ queryKey: ['FRIENDS_WITH_ROLES', conversation._id] })
+    // Revalidate messages to show system message about role change
+    queryClient.invalidateQueries({ queryKey: ['MESSAGES', conversation._id] })
+    // Revalidate chat list to update any UI elements showing member roles
+    queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'], exact: false })
 
     setMemberEditDialogOpen(false)
   }
@@ -448,8 +454,8 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                                   <div>
                                     <FormLabel className='font-normal'>Công khai</FormLabel>
                                     <FormDescription className='text-xs'>
-                                      Nhóm có thể được tìm thấy trong tìm kiếm. Bạn có thể chọn yêu cầu phê duyệt hoặc cho
-                                      phép tham gia tự do.
+                                      Nhóm có thể được tìm thấy trong tìm kiếm. Bạn có thể chọn yêu cầu phê duyệt hoặc
+                                      cho phép tham gia tự do.
                                     </FormDescription>
                                   </div>
                                 </FormItem>
@@ -460,8 +466,8 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                                   <div>
                                     <FormLabel className='font-normal'>Riêng tư</FormLabel>
                                     <FormDescription className='text-xs'>
-                                      Nhóm không hiển thị trong tìm kiếm. Chỉ những người được mời mới có thể thấy và yêu
-                                      cầu tham gia. Luôn yêu cầu phê duyệt.
+                                      Nhóm không hiển thị trong tìm kiếm. Chỉ những người được mời mới có thể thấy và
+                                      yêu cầu tham gia. Luôn yêu cầu phê duyệt.
                                     </FormDescription>
                                   </div>
                                 </FormItem>

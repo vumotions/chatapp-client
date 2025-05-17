@@ -289,7 +289,7 @@ export function AddGroupMembersDialog({ conversation }: { conversation: any }) {
                         </p>
                       </div>
                     </div>
-                    {isAdmin && participant._id !== currentUserId && (
+                    {(isOwner || isAdmin) && participant._id !== currentUserId && (
                       <Button
                         variant='destructive'
                         size='sm'
@@ -384,6 +384,9 @@ export function AddGroupMembersDialog({ conversation }: { conversation: any }) {
     </>
   )
 }
+
+
+
 
 
 

@@ -15,7 +15,6 @@ import SocketProvider from '~/providers/socket-provider'
 import { ThemeProvider } from '~/providers/theme-provider'
 import './globals.css'
 
-
 const geistSans = Geist({
   variable: '--font-geist-sans',
   subsets: ['latin']
@@ -61,8 +60,8 @@ function Layout({ params, children }: Props) {
                   <TokenRefresher />
                   <NotificationListener />
                 </ReactQueryProvider>
-                <Toaster 
-                  position="bottom-right" 
+                <Toaster
+                  position='bottom-left'
                   toastOptions={{
                     style: {
                       background: 'var(--background)',
@@ -73,7 +72,7 @@ function Layout({ params, children }: Props) {
                       backgroundColor: 'var(--primary)',
                       color: 'var(--primary-foreground)'
                     }
-                  }} 
+                  }}
                 />
               </BProgressProvider>
             </ThemeProvider>
@@ -85,6 +84,3 @@ function Layout({ params, children }: Props) {
 }
 
 export default Layout
-
-
-
