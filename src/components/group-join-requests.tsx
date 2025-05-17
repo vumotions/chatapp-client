@@ -2,17 +2,20 @@
 
 import { formatDistanceToNow } from 'date-fns'
 import { vi } from 'date-fns/locale'
-import { Check, Loader2, UserPlus, Users, X } from 'lucide-react'
-import { useState } from 'react'
+import { Check, Loader2, RefreshCw, Users, X } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
 import { Button } from '~/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '~/components/ui/card'
+import { Card, CardContent } from '~/components/ui/card'
 import { Skeleton } from '~/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/components/ui/tabs'
-import { Link } from '~/i18n/navigation'
-import FriendHoverCard from './friend-hover-card'
 import { Badge } from './ui/badge'
 import { ScrollArea } from './ui/scroll-area'
+import { Link } from '~/i18n/navigation'
+import FriendHoverCard from './friend-hover-card'
+import conversationsService from '~/services/conversations.service'
 
 // Định nghĩa kiểu dữ liệu cho request
 type JoinRequest = {
@@ -33,33 +36,148 @@ type JoinRequest = {
 }
 
 type GroupJoinRequestsProps = {
-  pendingRequests: JoinRequest[]
-  approvedRequests: JoinRequest[]
-  rejectedRequests: JoinRequest[]
-  isLoading: boolean
+  conversationId: string
   canApproveRequests: boolean
-  onApprove: (userId: string) => void
-  onReject: (userId: string) => void
+  onDataChange?: () => void
 }
 
 export default function GroupJoinRequests({
-  pendingRequests = [],
-  approvedRequests = [],
-  rejectedRequests = [],
-  isLoading,
+  conversationId,
   canApproveRequests,
-  onApprove,
-  onReject
+  onDataChange
 }: GroupJoinRequestsProps) {
   const [activeTab, setActiveTab] = useState('pending')
+  const [processedUserIds, setProcessedUserIds] = useState<Set<string>>(new Set())
+  const queryClient = useQueryClient()
 
-  // Thêm các hàm xử lý sự kiện
+  // Lấy danh sách yêu cầu tham gia
+  const {
+    data: joinRequestsData,
+    isLoading,
+    refetch,
+    isFetching
+  } = useQuery({
+    queryKey: ['JOIN_REQUESTS', conversationId],
+    queryFn: async () => {
+      const response = await conversationsService.getJoinRequests(conversationId)
+      return response
+    },
+    enabled: !!conversationId && canApproveRequests,
+    refetchOnWindowFocus: true,
+    staleTime: 10000 // 10 giây
+  })
+
+  // Phân loại yêu cầu theo trạng thái
+  const pendingRequests =
+    joinRequestsData?.filter((req: JoinRequest) => req.status === 'PENDING' && !processedUserIds.has(req.userId._id)) ||
+    []
+
+  const approvedRequests = joinRequestsData?.filter((req: JoinRequest) => req.status === 'APPROVED') || []
+
+  const rejectedRequests = joinRequestsData?.filter((req: JoinRequest) => req.status === 'REJECTED') || []
+
+  // Mutation để phê duyệt yêu cầu tham gia
+  const approveMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      return conversationsService.approveJoinRequest(conversationId, userId)
+    },
+    onMutate: (userId) => {
+      // Đánh dấu yêu cầu đã được xử lý
+      setProcessedUserIds((prev) => {
+        const newSet = new Set(prev)
+        newSet.add(userId)
+        return newSet
+      })
+    },
+    onSuccess: () => {
+      toast.success('Đã chấp nhận yêu cầu tham gia')
+
+      // Cập nhật lại danh sách yêu cầu tham gia
+      refetch()
+
+      // Thông báo cho component cha
+      if (onDataChange) {
+        onDataChange()
+      }
+
+      // Cập nhật lại danh sách tin nhắn và danh sách chat
+      queryClient.invalidateQueries({ queryKey: ['MESSAGES', conversationId] })
+      queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] })
+    },
+    onError: (error: any, userId) => {
+      console.error('Error approving request:', error)
+
+      // Nếu có lỗi, xóa khỏi danh sách đã xử lý
+      setProcessedUserIds((prev) => {
+        const newSet = new Set(prev)
+        newSet.delete(userId)
+        return newSet
+      })
+
+      toast.error(error.response?.data?.message || 'Có lỗi xảy ra khi chấp nhận yêu cầu')
+    }
+  })
+
+  // Mutation để từ chối yêu cầu tham gia
+  const rejectMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      return conversationsService.rejectJoinRequest(conversationId, userId)
+    },
+    onMutate: (userId) => {
+      // Đánh dấu yêu cầu đã được xử lý
+      setProcessedUserIds((prev) => {
+        const newSet = new Set(prev)
+        newSet.add(userId)
+        return newSet
+      })
+    },
+    onSuccess: () => {
+      toast.success('Đã từ chối yêu cầu tham gia')
+
+      // Cập nhật lại danh sách yêu cầu tham gia
+      refetch()
+
+      // Thông báo cho component cha
+      if (onDataChange) {
+        onDataChange()
+      }
+    },
+    onError: (error: any, userId) => {
+      console.error('Error rejecting request:', error)
+
+      // Nếu có lỗi, xóa khỏi danh sách đã xử lý
+      setProcessedUserIds((prev) => {
+        const newSet = new Set(prev)
+        newSet.delete(userId)
+        return newSet
+      })
+
+      toast.error(error.response?.data?.message || 'Có lỗi xảy ra khi từ chối yêu cầu')
+    }
+  })
+
+  // Xử lý khi component unmount hoặc khi conversationId thay đổi
+  useEffect(() => {
+    return () => {
+      // Xóa danh sách đã xử lý khi component unmount
+      setProcessedUserIds(new Set())
+    }
+  }, [conversationId])
+
+  // Hàm xử lý phê duyệt yêu cầu
   const handleApprove = (userId: string) => {
-    onApprove(userId)
+    approveMutation.mutate(userId)
   }
 
+  // Hàm xử lý từ chối yêu cầu
   const handleReject = (userId: string) => {
-    onReject(userId)
+    rejectMutation.mutate(userId)
+  }
+
+  // Hàm xử lý làm mới danh sách
+  const handleRefresh = () => {
+    setProcessedUserIds(new Set())
+    refetch()
   }
 
   if (isLoading) {
@@ -91,6 +209,18 @@ export default function GroupJoinRequests({
           <TabsTrigger value='rejected'>Đã từ chối</TabsTrigger>
         </TabsList>
 
+        <div className='mt-2 flex justify-end'>
+          <Button
+            variant='outline'
+            size='sm'
+            onClick={handleRefresh}
+            disabled={isFetching || approveMutation.isPending || rejectMutation.isPending}
+          >
+            {isFetching ? <Loader2 className='mr-2 h-4 w-4 animate-spin' /> : <RefreshCw className='mr-2 h-4 w-4' />}
+            Làm mới
+          </Button>
+        </div>
+
         <TabsContent value='pending'>
           <ScrollArea className='h-[300px] pr-4'>
             {pendingRequests.length === 0 ? (
@@ -107,6 +237,7 @@ export default function GroupJoinRequests({
                     status='PENDING'
                     onApprove={canApproveRequests ? handleApprove : undefined}
                     onReject={canApproveRequests ? handleReject : undefined}
+                    isProcessing={approveMutation.isPending || rejectMutation.isPending}
                   />
                 ))}
               </div>
@@ -164,31 +295,40 @@ const RequestItem = ({
   request,
   status,
   onApprove,
-  onReject
+  onReject,
+  isProcessing = false
 }: {
   request: JoinRequest
   status: 'PENDING' | 'APPROVED' | 'REJECTED'
   onApprove?: (userId: string) => void
   onReject?: (userId: string) => void
+  isProcessing?: boolean
 }) => {
-  const [isApproving, setIsApproving] = useState(false)
-  const [isRejecting, setIsRejecting] = useState(false)
+  const [localProcessing, setLocalProcessing] = useState(false)
 
   const handleApprove = async () => {
-    setIsApproving(true)
+    if (!onApprove || isProcessing || localProcessing) return
+
+    setLocalProcessing(true)
     try {
-      await onApprove?.(request.userId._id)
+      await onApprove(request.userId._id)
+    } catch (error) {
+      console.error('Error in handleApprove:', error)
     } finally {
-      setIsApproving(false)
+      setLocalProcessing(false)
     }
   }
 
   const handleReject = async () => {
-    setIsRejecting(true)
+    if (!onReject || isProcessing || localProcessing) return
+
+    setLocalProcessing(true)
     try {
-      await onReject?.(request.userId._id)
+      await onReject(request.userId._id)
+    } catch (error) {
+      console.error('Error in handleReject:', error)
     } finally {
-      setIsRejecting(false)
+      setLocalProcessing(false)
     }
   }
 
@@ -220,8 +360,14 @@ const RequestItem = ({
       {status === 'PENDING' && (
         <div className='flex gap-2'>
           {onApprove && (
-            <Button size='icon' variant='outline' onClick={handleApprove} disabled={isApproving || isRejecting}>
-              {isApproving ? (
+            <Button
+              size='icon'
+              variant='outline'
+              onClick={handleApprove}
+              disabled={isProcessing || localProcessing}
+              className={isProcessing || localProcessing ? 'opacity-70' : ''}
+            >
+              {localProcessing ? (
                 <Loader2 className='h-4 w-4 animate-spin' />
               ) : (
                 <Check className='h-4 w-4 text-green-500' />
@@ -230,8 +376,14 @@ const RequestItem = ({
           )}
 
           {onReject && (
-            <Button size='icon' variant='outline' onClick={handleReject} disabled={isApproving || isRejecting}>
-              {isRejecting ? <Loader2 className='h-4 w-4 animate-spin' /> : <X className='h-4 w-4 text-red-500' />}
+            <Button
+              size='icon'
+              variant='outline'
+              onClick={handleReject}
+              disabled={isProcessing || localProcessing}
+              className={isProcessing || localProcessing ? 'opacity-70' : ''}
+            >
+              {localProcessing ? <Loader2 className='h-4 w-4 animate-spin' /> : <X className='h-4 w-4 text-red-500' />}
             </Button>
           )}
         </div>
@@ -251,5 +403,4 @@ const RequestItem = ({
     </div>
   )
 }
-
 

@@ -44,13 +44,14 @@ export default function NotificationListener() {
             }
             break
           case NOTIFICATION_TYPE.NEW_MESSAGE:
-            message = `${senderName} đã gửi tin nhắn mới`
-            break
+            // Bỏ qua thông báo tin nhắn mới vì đã được xử lý trong socket-provider
+            return
           default:
             message = notification.content || 'Bạn có thông báo mới'
         }
 
         toast(message, {
+          position: 'bottom-left',
           description: 'Nhấp để xem chi tiết',
           action: {
             label: 'Xem',
@@ -67,8 +68,6 @@ export default function NotificationListener() {
 
     // Hàm cập nhật cache thông báo
     const updateNotificationCache = (newNotification: any) => {
-      console.log('Updating notification cache with:', newNotification)
-
       // Cập nhật cache cho danh sách thông báo vô hạn
       queryClient.setQueryData(['NOTIFICATIONS'], (oldData: any) => {
         if (!oldData) return { pages: [{ notifications: [newNotification], hasMore: true }] }
@@ -127,6 +126,7 @@ export default function NotificationListener() {
 
         // Hiển thị toast
         toast('Có yêu cầu tham gia mới vào nhóm', {
+          position: 'bottom-left',
           description: 'Nhấp để xem chi tiết',
           action: {
             label: 'Xem',

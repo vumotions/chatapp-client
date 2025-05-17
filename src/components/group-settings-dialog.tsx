@@ -372,7 +372,7 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
           <TooltipContent>Cài đặt nhóm</TooltipContent>
         </Tooltip>
 
-        <SheetContent side='right' className='w-full px-4 py-6'>
+        <SheetContent side='right' className='max-h-screen w-full overflow-y-auto px-4 py-6'>
           <SheetHeader className='px-0 pt-2'>
             <SheetTitle>Cài đặt nhóm</SheetTitle>
             <SheetDescription>

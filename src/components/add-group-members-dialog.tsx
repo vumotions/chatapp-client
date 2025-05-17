@@ -77,22 +77,12 @@ export function AddGroupMembersDialog({ conversation }: { conversation: any }) {
   const isOwnerOrAdmin = isOwner || isAdmin
   const canApproveRequests = isOwner || (isAdmin && currentMember?.permissions?.approveJoinRequests)
 
-  // Thêm log để debug
-  console.log('Permission check for approveJoinRequests:', {
-    currentUserId,
-    isOwner,
-    currentMember,
-    isAdmin,
-    isOwnerOrAdmin,
-    canApproveRequests,
-    permissions: currentMember?.permissions
-  })
-
   // Lấy danh sách yêu cầu tham gia
   const {
     data: joinRequestsData,
     isLoading: isLoadingRequests,
-    refetch: refetchRequests
+    refetch: refetchRequests,
+    isFetching: isRefreshingRequests
   } = useQuery({
     queryKey: ['JOIN_REQUESTS', conversation._id],
     queryFn: async () => {
@@ -163,7 +153,7 @@ export function AddGroupMembersDialog({ conversation }: { conversation: any }) {
   // Mutation để phê duyệt yêu cầu tham gia
   const approveMutation = useMutation({
     mutationFn: async (userId: string) => {
-      return httpRequest.post(`/chat/group/${conversation._id}/approve-request/${userId}`)
+      return conversationsService.approveJoinRequest(conversation._id, userId)
     },
     onSuccess: () => {
       toast.success('Đã chấp nhận yêu cầu tham gia')
@@ -179,7 +169,7 @@ export function AddGroupMembersDialog({ conversation }: { conversation: any }) {
   // Mutation để từ chối yêu cầu tham gia
   const rejectMutation = useMutation({
     mutationFn: async (userId: string) => {
-      return httpRequest.post(`/chat/group/${conversation._id}/reject-request/${userId}`)
+      return conversationsService.rejectJoinRequest(conversation._id, userId)
     },
     onSuccess: () => {
       toast.success('Đã từ chối yêu cầu tham gia')
@@ -352,14 +342,14 @@ export function AddGroupMembersDialog({ conversation }: { conversation: any }) {
 
             {canApproveRequests && (
               <TabsContent value='requests' className='mt-4'>
-                <GroupJoinRequests 
-                  pendingRequests={pendingRequests}
-                  approvedRequests={approvedRequests}
-                  rejectedRequests={rejectedRequests}
-                  onApprove={(userId) => approveMutation.mutate(userId)}
-                  onReject={(userId) => rejectMutation.mutate(userId)}
-                  isLoading={isLoadingRequests || approveMutation.isPending || rejectMutation.isPending}
+                <GroupJoinRequests
+                  conversationId={conversation._id}
                   canApproveRequests={canApproveRequests}
+                  onDataChange={() => {
+                    // Cập nhật lại danh sách chat khi có thay đổi
+                    queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] })
+                    queryClient.invalidateQueries({ queryKey: ['MESSAGES', conversation._id] })
+                  }}
                 />
               </TabsContent>
             )}
@@ -384,9 +374,5 @@ export function AddGroupMembersDialog({ conversation }: { conversation: any }) {
     </>
   )
 }
-
-
-
-
 
 

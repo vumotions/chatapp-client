@@ -1,12 +1,96 @@
 'use client'
 
+import { useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
 import { createContext, ReactNode, useEffect, useState } from 'react'
 import { io, Socket } from 'socket.io-client'
 import { toast } from 'sonner'
 import nextEnv from '~/config/next-env'
 import SOCKET_EVENTS from '~/constants/socket-events'
-import { useQueryClient } from '@tanstack/react-query'
+import { useRouter } from '~/i18n/navigation'
+
+// Biến toàn cục để theo dõi tương tác người dùng
+let hasUserInteracted = false
+
+// Đăng ký sự kiện để theo dõi tương tác người dùng
+if (typeof window !== 'undefined') {
+  const interactionEvents = ['click', 'keydown', 'touchstart', 'scroll']
+
+  const markInteraction = () => {
+    hasUserInteracted = true
+    console.log('Người dùng đã tương tác với trang')
+
+    // Sau khi đã đánh dấu, không cần lắng nghe sự kiện nữa
+    interactionEvents.forEach((event) => {
+      window.removeEventListener(event, markInteraction)
+    })
+  }
+
+  interactionEvents.forEach((event) => {
+    window.addEventListener(event, markInteraction)
+  })
+}
+
+// Biến toàn cục để lưu trữ AudioContext và buffer
+let audioContext: AudioContext | null = null
+let notificationBuffer: AudioBuffer | null = null
+
+// Hàm để tải âm thanh thông báo
+const loadNotificationSound = async () => {
+  try {
+    // Tạo AudioContext nếu chưa có
+    if (!audioContext) {
+      audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+    }
+
+    // Tải file âm thanh
+    const response = await fetch('/audio/notification.mp3')
+    if (!response.ok) {
+      throw new Error('Không thể tải file âm thanh')
+    }
+
+    const arrayBuffer = await response.arrayBuffer()
+
+    // Giải mã âm thanh
+    notificationBuffer = await audioContext.decodeAudioData(arrayBuffer)
+    console.log('Đã tải âm thanh thông báo thành công')
+  } catch (error) {
+    console.error('Không thể tải âm thanh thông báo:', error)
+  }
+}
+
+// Hàm để phát âm thanh thông báo
+const playNotificationSound = () => {
+  if (!audioContext || !notificationBuffer) {
+    console.log('AudioContext hoặc buffer chưa được khởi tạo')
+    return
+  }
+
+  try {
+    // Đảm bảo AudioContext đang chạy
+    if (audioContext.state === 'suspended') {
+      audioContext.resume()
+    }
+
+    // Tạo nguồn âm thanh
+    const source = audioContext.createBufferSource()
+    source.buffer = notificationBuffer
+
+    // Tạo bộ điều khiển âm lượng
+    const gainNode = audioContext.createGain()
+    gainNode.gain.value = 1.0 // Âm lượng tối đa
+
+    // Kết nối các node
+    source.connect(gainNode)
+    gainNode.connect(audioContext.destination)
+
+    // Phát âm thanh
+    source.start(0)
+    console.log('Đang phát âm thanh thông báo')
+  } catch (error) {
+    console.error('Không thể phát âm thanh thông báo:', error)
+  }
+}
 
 type Props = {
   children: ReactNode
@@ -24,7 +108,8 @@ function SocketProvider({ children }: Props) {
   const { data: session } = useSession()
   const [socket, setSocket] = useState<Socket | null>(null)
   const queryClient = useQueryClient()
-  const [, setLastMessage] = useState<any | null>(null)
+  const [message, setLastMessage] = useState<any | null>(null)
+  const router = useRouter()
 
   useEffect(() => {
     const accessToken = session?.accessToken
@@ -79,7 +164,6 @@ function SocketProvider({ children }: Props) {
 
     // Lắng nghe sự kiện RECEIVE_MESSAGE để cập nhật tin nhắn cuối cùng
     socket.on(SOCKET_EVENTS.RECEIVE_MESSAGE, (message) => {
-
       // Cập nhật state để các component con có thể phản ứng
       setLastMessage(message)
 
@@ -145,10 +229,87 @@ function SocketProvider({ children }: Props) {
           })
         })
 
-      // Phát ra âm thanh thông báo nếu tin nhắn không phải từ người dùng hiện tại
+      // Phát ra thông báo nếu tin nhắn không phải từ người dùng hiện tại
       if (message.senderId !== session?.user?._id) {
-        const audio = new Audio('/sounds/notification.mp3')
-        audio.play().catch((err) => console.error('Error playing notification sound:', err))
+        // Hiển thị toast thông báo
+        toast(`Tin nhắn mới từ ${message.senderName || 'Ai đó'}`, {
+          description: message.content || 'Bạn có tin nhắn mới',
+          position: 'bottom-left',
+          duration: 5000,
+          action: {
+            label: 'Xem',
+            onClick: () => {
+              if (message.chatId) {
+                router.push(`/messages/${message.chatId}`)
+              } else {
+                router.push(`/messages`)
+              }
+            }
+          }
+        })
+
+        // 2. Phát âm thanh đơn giản
+        try {
+          const audio = new Audio('/audio/notification.mp3')
+          const playPromise = audio.play()
+
+          if (playPromise !== undefined) {
+            playPromise
+              .then(() => console.log('Âm thanh đã phát thành công'))
+              .catch((err) => {
+                // Nếu không thể phát tự động, hiển thị nút để người dùng phát
+                toast('Nhấp để bật âm thanh thông báo', {
+                  action: {
+                    label: 'Phát',
+                    onClick: () => {
+                      const manualAudio = new Audio('/audio/notification.mp3')
+                      manualAudio.play()
+                    }
+                  }
+                })
+              })
+          }
+        } catch (error) {
+          console.error('Lỗi khi tạo đối tượng Audio:', error)
+        }
+
+        // 3. Thử hiển thị thông báo Web Notification
+        if ('Notification' in window) {
+          console.log('Trạng thái quyền thông báo:', Notification.permission)
+
+          if (Notification.permission === 'granted') {
+            try {
+              const notification = new Notification('Tin nhắn mới', {
+                body: `${message.senderName || 'Ai đó'}: ${message.content || 'Bạn có tin nhắn mới'}`,
+                icon: '/favicon.ico'
+              })
+
+              notification.onclick = () => {
+                window.focus()
+                if (message.chatId) {
+                  router.push(`/messages/${message.chatId}`)
+                } else {
+                  router.push(`/messages`)
+                }
+                notification.close()
+              }
+            } catch (error) {
+              console.error('Lỗi khi hiển thị thông báo:', error)
+            }
+          } else if (Notification.permission !== 'denied') {
+            // Yêu cầu quyền thông báo
+            toast('Cho phép thông báo để nhận tin nhắn mới', {
+              action: {
+                label: 'Cho phép',
+                onClick: () => {
+                  Notification.requestPermission().then((permission) => {
+                    console.log('Kết quả yêu cầu quyền thông báo:', permission)
+                  })
+                }
+              }
+            })
+          }
+        }
       }
     })
 
@@ -195,6 +356,22 @@ function SocketProvider({ children }: Props) {
       socket.off(SOCKET_EVENTS.OWNERSHIP_TRANSFERRED)
     }
   }, [socket, queryClient, session])
+
+  // Tải âm thanh khi component được mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      loadNotificationSound()
+    }
+
+    return () => {
+      // Đóng AudioContext khi component unmount
+      if (audioContext) {
+        audioContext.close()
+        audioContext = null
+        notificationBuffer = null
+      }
+    }
+  }, [])
 
   return <SocketContext.Provider value={{ socket }}>{children}</SocketContext.Provider>
 }

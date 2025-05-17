@@ -88,7 +88,6 @@ export const useRemoveGroupMemberMutation = (conversationId: string) => {
   return useMutation({
     mutationFn: (userId: string) => conversationsService.removeGroupMember(conversationId, userId),
     onSuccess: () => {
-      toast.success('Đã xóa thành viên khỏi nhóm')
       queryClient.invalidateQueries({ queryKey: ['MESSAGES', conversationId] })
       queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] })
       queryClient.invalidateQueries({ queryKey: ['FRIENDS_WITH_ROLES', conversationId] })
@@ -203,5 +202,4 @@ export const useCheckJoinRequestStatusQuery = (conversationId: string | undefine
     staleTime: 1000 * 60 * 5 // 5 phút
   })
 }
-
 

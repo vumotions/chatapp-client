@@ -6,7 +6,7 @@ import { vi } from 'date-fns/locale'
 import { Archive } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { usePathname, useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
 import { ConversationActions } from '~/components/ui/chat/conversation-actions'
 import SOCKET_EVENTS from '~/constants/socket-events'
@@ -38,6 +38,7 @@ export default function ConversationItem({
   const { socket } = useSocket()
   const [isOnline, setIsOnline] = useState(false)
   const [otherUserId, setOtherUserId] = useState<string | null>(null)
+  const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set())
   const queryClient = useQueryClient()
 
   // Kiểm tra xem người dùng có đang ở trong cuộc trò chuyện này không
@@ -98,20 +99,45 @@ export default function ConversationItem({
       // Kiểm tra trạng thái online của tất cả thành viên trong nhóm
       const participants = conversation.participants.filter((p: any) => p._id !== session?.user?._id)
 
-      // Đếm số người online trong nhóm
-      let onlineCount = 0
-
+      // Kiểm tra trạng thái online ban đầu cho tất cả thành viên
       participants.forEach((participant: any) => {
         socket.emit(SOCKET_EVENTS.CHECK_ONLINE, participant._id, (isUserOnline: boolean) => {
           if (isUserOnline) {
-            onlineCount++
-            // Cập nhật state nếu có ít nhất một người online
-            if (onlineCount > 0) {
-              setIsOnline(true)
-            }
+            setOnlineUsers(prev => new Set([...prev, participant._id]))
+            setIsOnline(true)
           }
         })
       })
+
+      // Lắng nghe sự kiện online cho group
+      const handleGroupUserOnline = (userId: string) => {
+        const isGroupMember = participants.some((p: any) => p._id === userId)
+        if (isGroupMember) {
+          setOnlineUsers(prev => new Set([...prev, userId]))
+          setIsOnline(true)
+        }
+      }
+
+      // Lắng nghe sự kiện offline cho group
+      const handleGroupUserOffline = (userId: string) => {
+        setOnlineUsers(prev => {
+          const newSet = new Set([...prev])
+          newSet.delete(userId)
+          // Nếu không còn ai online, cập nhật trạng thái
+          if (newSet.size === 0) {
+            setIsOnline(false)
+          }
+          return newSet
+        })
+      }
+
+      socket.on(SOCKET_EVENTS.USER_ONLINE, handleGroupUserOnline)
+      socket.on(SOCKET_EVENTS.USER_OFFLINE, handleGroupUserOffline)
+
+      return () => {
+        socket.off(SOCKET_EVENTS.USER_ONLINE, handleGroupUserOnline)
+        socket.off(SOCKET_EVENTS.USER_OFFLINE, handleGroupUserOffline)
+      }
     }
   }, [socket, otherUserId, conversation.type, conversation.participants, session?.user?._id])
 
@@ -319,3 +345,7 @@ export default function ConversationItem({
     </div>
   )
 }
+
+
+
+

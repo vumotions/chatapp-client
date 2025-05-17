@@ -185,6 +185,7 @@ export function ChatList() {
     // Lắng nghe các sự kiện liên quan đến tin nhắn
     socket.on(SOCKET_EVENTS.RECEIVE_MESSAGE, handleReceiveMessage)
     socket.on('MESSAGE_UPDATED', (data) => {
+      
       queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] })
       queryClient.invalidateQueries({ queryKey: ['ARCHIVED_CHAT_LIST'] })
       setRefreshKey((prev) => prev + 1)

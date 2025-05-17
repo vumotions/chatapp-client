@@ -650,7 +650,7 @@ function ChatDetail({ params }: Props) {
 
   // Thêm useEffect để đánh dấu tin nhắn đã đọc khi người dùng xem
   useEffect(() => {
-    if (!socket || !chatId || !allMessages.length || !isAtBottom) return
+    if (!socket || !chatId || !allMessages.length || !isAtBottom) return;
 
     // Lấy các tin nhắn chưa đọc từ người khác
     const unreadMessages = allMessages.filter(
@@ -997,16 +997,18 @@ function ChatDetail({ params }: Props) {
 
   // 4. Tất cả các hàm xử lý sự kiện
   // Hàm kiểm tra xem tin nhắn có phải do người dùng hiện tại gửi không
-  const isMessageFromCurrentUser = (message: any) => {
-    const currentUserId = session?.user?._id || session?.user?._id
-
+  const isMessageFromCurrentUser = useCallback((message: any) => {
+    if (!message || !session?.user?._id) return false;
+    
+    const currentUserId = session.user._id;
+    
     // Kiểm tra cấu trúc của senderId
-    if (typeof message.senderId === 'object' && message.senderId._id) {
-      return String(message.senderId._id) === String(currentUserId)
+    if (typeof message.senderId === 'object' && message.senderId?._id) {
+      return String(message.senderId._id) === String(currentUserId);
     } else {
-      return String(message.senderId) === String(currentUserId)
+      return String(message.senderId) === String(currentUserId);
     }
-  }
+  }, [session?.user?._id]);
 
   // Thêm các hàm xử lý
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1815,7 +1817,8 @@ function ChatDetail({ params }: Props) {
                     )
                   }
 
-                  const isSentByMe = msg.senderId._id === session?.user?._id
+                  // Kiểm tra xem tin nhắn có phải của người dùng hiện tại không
+                  const isSentByMe = isMessageFromCurrentUser(msg)
 
                   // Kiểm tra xem tin nhắn có phải là tin nhắn đầu tiên trong nhóm không
                   const isFirstMessageInGroup =
@@ -1826,8 +1829,8 @@ function ChatDetail({ params }: Props) {
                     index === filteredMessages.length - 1 ||
                     filteredMessages[index + 1]?.senderId._id !== msg.senderId._id
 
-                  // Tính toán margin bottom - giảm khoảng cách giữa các tin nhắn
-                  const marginBottom = isLastMessageInGroup ? 'mb-2' : 'mb-0.5'
+                  // Thêm margin bottom cho tin nhắn cuối cùng trong nhóm
+                  const marginBottom = isLastMessageInGroup ? 'mb-4' : 'mb-1'
 
                   return (
                     <div
@@ -1842,7 +1845,9 @@ function ChatDetail({ params }: Props) {
                             <FriendHoverCard friend={msg.senderId}>
                               <Avatar className='h-8 w-8 flex-shrink-0'>
                                 <AvatarImage src={msg.senderId.avatar} alt={msg.senderId.name || 'User'} />
-                                <AvatarFallback>{msg.senderId.name?.[0] || 'U'}</AvatarFallback>
+                                <AvatarFallback>
+                                  {msg.senderId.name?.[0] || (msg.senderId.name ? msg.senderId.name.charAt(0) : 'U')}
+                                </AvatarFallback>
                               </Avatar>
                             </FriendHoverCard>
                           ) : (
@@ -2084,7 +2089,7 @@ function ChatDetail({ params }: Props) {
                         <div key={userId} className='flex items-end gap-2'>
                           <Avatar className='h-8 w-8 flex-shrink-0'>
                             <AvatarImage src={typingUser?.avatar} alt={typingUser?.name || 'User'} />
-                            <AvatarFallback>{typingUser?.name?.[0] || 'U'}</AvatarFallback>
+                            <AvatarFallback>{typingUser?.name?.[0] || 'User'}</AvatarFallback>
                           </Avatar>
                           <div className='bg-muted flex cursor-pointer items-center rounded-full px-2 py-0.5 text-xs'>
                             <MessageLoading />
