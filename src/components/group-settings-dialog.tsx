@@ -42,6 +42,7 @@ import {
 } from '~/hooks/data/group-chat.hooks'
 import { TransferOwnershipDialog } from './transfer-ownership-dialog'
 import GroupJoinRequests from './group-join-requests'
+import { Badge } from './ui/badge'
 
 // Zod schema cho form cài đặt nhóm
 const groupSettingsSchema = z.object({
@@ -100,16 +101,10 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
   const currentUserId = session?.user?._id
   // Kiểm tra quyền
   const isOwner = conversation?.userId?.toString() === currentUserId?.toString()
-  const currentMember = conversation?.members?.find(
-    (m: any) => m.userId?.toString() === currentUserId?.toString()
-  )
-  const isAdmin = 
-    isOwner || 
-    currentMember?.role === MEMBER_ROLE.ADMIN
+  const currentMember = conversation?.members?.find((m: any) => m.userId?.toString() === currentUserId?.toString())
+  const isAdmin = isOwner || currentMember?.role === MEMBER_ROLE.ADMIN
 
-  const canChangeGroupInfo = 
-    isAdmin || 
-    currentMember?.permissions?.changeGroupInfo
+  const canChangeGroupInfo = isAdmin && currentMember?.permissions?.changeGroupInfo
 
   // Form cho cài đặt nhóm
   const groupSettingsForm = useForm<GroupSettingsValues>({
@@ -388,9 +383,37 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
 
             <TabsContent value='general' className='mt-4'>
               <ScrollArea className='-mr-2 max-h-[calc(100vh-200px)] space-y-6 overflow-y-auto py-2 pr-2'>
-                {isAdmin ? (
+                {/* Hiển thị thông tin nhóm chỉ cho thành viên thường */}
+                {!isAdmin && (
+                  <div className='mb-4 space-y-3'>
+                    <div className='flex items-center gap-2'>
+                      <span className='text-sm font-medium'>Loại nhóm:</span>
+                      {conversation?.groupType === GROUP_TYPE.PRIVATE ? (
+                        <Badge variant='outline' className='border-blue-500/20 bg-blue-500/10 text-blue-500'>
+                          Nhóm riêng tư
+                        </Badge>
+                      ) : (
+                        <Badge variant='outline' className='border-green-500/20 bg-green-500/10 text-green-500'>
+                          Nhóm công khai
+                        </Badge>
+                      )}
+                    </div>
+
+                    {conversation?.requireApproval && (
+                      <div className='flex items-center gap-2'>
+                        <span className='text-sm font-medium'>Tham gia:</span>
+                        <Badge variant='outline' className='border-orange-500/20 bg-orange-500/10 text-orange-500'>
+                          Yêu cầu phê duyệt
+                        </Badge>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Form cài đặt nhóm chỉ hiển thị cho admin */}
+                {isAdmin && (
                   <Form {...groupSettingsForm}>
-                    <form onSubmit={groupSettingsForm.handleSubmit(onSubmitGroupSettings)} className='space-y-4'>
+                    <form onSubmit={groupSettingsForm.handleSubmit(onSubmitGroupSettings)} className='space-y-6'>
                       <FormField
                         control={groupSettingsForm.control}
                         name='name'
@@ -398,7 +421,7 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                           <FormItem>
                             <FormLabel>Tên nhóm</FormLabel>
                             <FormControl>
-                              <Input {...field} />
+                              <Input {...field} disabled={!canChangeGroupInfo} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -416,28 +439,29 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                                 onValueChange={field.onChange}
                                 defaultValue={field.value}
                                 className='flex flex-col space-y-1'
+                                disabled={!canChangeGroupInfo}
                               >
                                 <FormItem className='flex items-start space-y-0 space-x-3'>
                                   <FormControl>
-                                    <RadioGroupItem value={GROUP_TYPE.PUBLIC} />
+                                    <RadioGroupItem value={GROUP_TYPE.PUBLIC} disabled={!canChangeGroupInfo} />
                                   </FormControl>
                                   <div>
                                     <FormLabel className='font-normal'>Công khai</FormLabel>
                                     <FormDescription className='text-xs'>
-                                      Nhóm có thể được tìm thấy trong tìm kiếm. Bạn có thể chọn yêu cầu phê duyệt hoặc
-                                      cho phép tham gia tự do.
+                                      Nhóm có thể được tìm thấy trong tìm kiếm. Bạn có thể chọn yêu cầu phê duyệt hoặc cho
+                                      phép tham gia tự do.
                                     </FormDescription>
                                   </div>
                                 </FormItem>
                                 <FormItem className='flex items-start space-y-0 space-x-3'>
                                   <FormControl>
-                                    <RadioGroupItem value={GROUP_TYPE.PRIVATE} />
+                                    <RadioGroupItem value={GROUP_TYPE.PRIVATE} disabled={!canChangeGroupInfo} />
                                   </FormControl>
                                   <div>
                                     <FormLabel className='font-normal'>Riêng tư</FormLabel>
                                     <FormDescription className='text-xs'>
-                                      Nhóm không hiển thị trong tìm kiếm. Chỉ những người được mời mới có thể thấy và
-                                      yêu cầu tham gia. Luôn yêu cầu phê duyệt.
+                                      Nhóm không hiển thị trong tìm kiếm. Chỉ những người được mời mới có thể thấy và yêu
+                                      cầu tham gia. Luôn yêu cầu phê duyệt.
                                     </FormDescription>
                                   </div>
                                 </FormItem>
@@ -467,7 +491,9 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                               <Switch
                                 checked={field.value}
                                 onCheckedChange={field.onChange}
-                                disabled={groupSettingsForm.watch('groupType') === GROUP_TYPE.PRIVATE}
+                                disabled={
+                                  groupSettingsForm.watch('groupType') === GROUP_TYPE.PRIVATE || !canChangeGroupInfo
+                                }
                               />
                             </FormControl>
                           </FormItem>
@@ -476,35 +502,40 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
 
                       <Button
                         type='submit'
-                        disabled={updateGroupMutation.isPending || !groupSettingsForm.formState.isDirty}
+                        disabled={
+                          updateGroupMutation.isPending || !groupSettingsForm.formState.isDirty || !canChangeGroupInfo
+                        }
                         className='w-full'
                       >
                         {updateGroupMutation.isPending ? 'Đang cập nhật...' : 'Lưu thay đổi'}
                       </Button>
                     </form>
                   </Form>
-                ) : (
-                  <p className='text-muted-foreground'>Chỉ admin mới có thể thay đổi thông tin nhóm</p>
                 )}
 
-                {isAdmin && <Separator className='my-4' />}
+                {!canChangeGroupInfo && (
+                  <p className='text-muted-foreground mt-2 text-sm'>Bạn không có quyền thay đổi thông tin nhóm</p>
+                )}
 
                 {isOwner && (
-                  <div className='space-y-2'>
-                    <h3 className='text-sm font-medium'>Giải tán nhóm</h3>
-                    <p className='text-muted-foreground text-sm'>
-                      Giải tán nhóm sẽ xóa vĩnh viễn nhóm và tất cả tin nhắn. Hành động này không thể hoàn tác.
-                    </p>
-                    <Button
-                      variant='destructive'
-                      onClick={handleDisbandGroup}
-                      disabled={disbandGroupMutation.isPending}
-                      className='w-full'
-                    >
-                      <Trash className='mr-2 h-4 w-4' />
-                      {disbandGroupMutation.isPending ? 'Đang xử lý...' : 'Giải tán nhóm'}
-                    </Button>
-                  </div>
+                  <>
+                    <Separator className='my-4' />
+                    <div className='space-y-2'>
+                      <h3 className='text-sm font-medium'>Giải tán nhóm</h3>
+                      <p className='text-muted-foreground text-sm'>
+                        Giải tán nhóm sẽ xóa vĩnh viễn nhóm và tất cả tin nhắn. Hành động này không thể hoàn tác.
+                      </p>
+                      <Button
+                        variant='destructive'
+                        onClick={handleDisbandGroup}
+                        disabled={disbandGroupMutation.isPending}
+                        className='w-full'
+                      >
+                        <Trash className='mr-2 h-4 w-4' />
+                        {disbandGroupMutation.isPending ? 'Đang xử lý...' : 'Giải tán nhóm'}
+                      </Button>
+                    </div>
+                  </>
                 )}
 
                 <Separator className='my-4' />

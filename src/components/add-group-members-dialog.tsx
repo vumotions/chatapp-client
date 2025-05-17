@@ -69,12 +69,24 @@ export function AddGroupMembersDialog({ conversation }: { conversation: any }) {
   const queryClient = useQueryClient()
   const { data: friends = [], isLoading } = useFriendsQuery()
   const currentUserId = session?.user?._id
-  const isAdmin = conversation?.userId === currentUserId
+  const isOwner = conversation?.userId === currentUserId
+  const currentMember = conversation?.members?.find(
+    (m: any) => m.userId === currentUserId || m.userId.toString() === currentUserId
+  )
+  const isAdmin = currentMember?.role === MEMBER_ROLE.ADMIN
+  const isOwnerOrAdmin = isOwner || isAdmin
+  const canApproveRequests = isOwner || (isAdmin && currentMember?.permissions?.approveJoinRequests)
 
-  // Kiểm tra quyền của người dùng hiện tại
-  const currentMember = conversation?.participants?.find((p: any) => p._id === currentUserId)
-  const isOwnerOrAdmin = isAdmin || currentMember?.role === MEMBER_ROLE.ADMIN
-  const canApproveRequests = isOwnerOrAdmin || currentMember?.permissions?.approveJoinRequests
+  // Thêm log để debug
+  console.log('Permission check for approveJoinRequests:', {
+    currentUserId,
+    isOwner,
+    currentMember,
+    isAdmin,
+    isOwnerOrAdmin,
+    canApproveRequests,
+    permissions: currentMember?.permissions
+  })
 
   // Lấy danh sách yêu cầu tham gia
   const {
@@ -211,7 +223,6 @@ export function AddGroupMembersDialog({ conversation }: { conversation: any }) {
     }
   }
 
-  console.log({ pendingRequests, rejectedRequests, approvedRequests })
   return (
     <>
       <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -257,7 +268,7 @@ export function AddGroupMembersDialog({ conversation }: { conversation: any }) {
               )}
             </TabsList>
 
-            <TabsContent value='members' className='py-4'>
+            <TabsContent value='members' className='mt-4'>
               <div className='max-h-[300px] overflow-y-auto'>
                 {conversation?.participants?.map((participant: any) => (
                   <div key={participant._id} className='flex items-center justify-between py-2'>
@@ -294,7 +305,7 @@ export function AddGroupMembersDialog({ conversation }: { conversation: any }) {
               </div>
             </TabsContent>
 
-            <TabsContent value='add' className='py-4'>
+            <TabsContent value='add' className='mt-4'>
               <Input
                 placeholder='Tìm kiếm bạn bè...'
                 value={searchQuery}
@@ -339,27 +350,16 @@ export function AddGroupMembersDialog({ conversation }: { conversation: any }) {
               </div>
             </TabsContent>
 
-            {/* Tab yêu cầu tham gia - chỉ hiển thị cho người có quyền */}
             {canApproveRequests && (
-              <TabsContent value='requests' className='py-4'>
-                <GroupJoinRequests
+              <TabsContent value='requests' className='mt-4'>
+                <GroupJoinRequests 
                   pendingRequests={pendingRequests}
                   approvedRequests={approvedRequests}
                   rejectedRequests={rejectedRequests}
-                  isLoading={isLoadingRequests}
+                  onApprove={(userId) => approveMutation.mutate(userId)}
+                  onReject={(userId) => rejectMutation.mutate(userId)}
+                  isLoading={isLoadingRequests || approveMutation.isPending || rejectMutation.isPending}
                   canApproveRequests={canApproveRequests}
-                  onApprove={async (userId) => {
-                    await approveMutation.mutateAsync(userId);
-                  }}
-                  onReject={async (userId) => {
-                    await rejectMutation.mutateAsync(userId);
-                  }}
-                  onRequestsChange={() => {
-                    // Cập nhật lại dữ liệu khi có thay đổi
-                    queryClient.invalidateQueries({ queryKey: ['MESSAGES', conversation._id] })
-                    queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] })
-                    refetchRequests()
-                  }}
                 />
               </TabsContent>
             )}
