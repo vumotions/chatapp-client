@@ -4,7 +4,7 @@ import { status } from 'http-status'
 import Cookies from 'js-cookie'
 import { match } from 'path-to-regexp'
 import { twMerge } from 'tailwind-merge'
-import httpRequest from '~/config/http-request'
+import nextEnv from '~/config/next-env'
 import { LOCALES } from '~/constants/locales'
 import routes from '~/routes'
 import { RememberedAccount } from '~/types/user.types'
@@ -86,17 +86,32 @@ export const removeRememberedAccountFromCookie = () => {
   Cookies.remove('credentials')
 }
 
-export async function refreshToken(refreshToken: string) {
-  const response = await httpRequest.post('/auth/refresh-token', {
-    refreshToken
-  })
+export const refreshToken = async (token: any) => {
+  try {
+    if (!token.refreshToken) {
+      throw new Error('No refresh token available')
+    }
 
-  const data = response.data.data
+    const response = await axios.post(
+      `${nextEnv.NEXT_PUBLIC_SERVER_URL}/api/auth/refresh-token`,
+      { refreshToken: token.refreshToken }
+    )
 
-  return {
-    accessToken: data.tokens.accessToken,
-    refreshToken: data.tokens.refreshToken,
-    accessTokenExpiresAt: data.tokens.accessTokenExpiresAt
+    const { tokens } = response.data.data
+
+    return {
+      ...token,
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      accessTokenExpiresAt: tokens.accessTokenExpiresAt,
+      error: undefined
+    }
+  } catch (error) {
+    console.error('Error refreshing token:', error)
+    return {
+      ...token,
+      error: 'RefreshAccessTokenError'
+    }
   }
 }
 

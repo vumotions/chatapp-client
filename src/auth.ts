@@ -18,35 +18,34 @@ const auth: AuthOptions = {
     CredentialsProvider({
       name: 'Credentials',
       credentials: {
-        email: {
-          label: 'Email',
-          type: 'email',
-          placeholder: 'Enter your email'
-        },
-        password: {
-          label: 'Password',
-          type: 'password',
-          placeholder: 'Enter your password'
-        }
+        email: { label: 'Email', type: 'email' },
+        password: { label: 'Password', type: 'password' }
       },
       async authorize(credentials) {
         try {
-          const response = await httpRequest.post<LoginResponse>('/auth/login', credentials)
+          const response = await httpRequest.post('/auth/login', credentials)
+          
+          // Đảm bảo trả về đúng định dạng dữ liệu
           return {
+            id: response.data.data.user._id,
             ...response.data.data.user,
-            ...response.data.data.tokens
-          } as any
+            accessToken: response.data.data.tokens.accessToken,
+            refreshToken: response.data.data.tokens.refreshToken,
+            accessTokenExpiresAt: response.data.data.tokens.accessTokenExpiresAt
+          }
         } catch (error: any) {
+          console.error('Login error:', error)
           if (error?.isAxiosError) {
-            throw new Error(
-              JSON.stringify({
-                status: error.response?.status,
-                data: error.response?.data
-              })
-            )
+            const errorData = {
+              status: error.response?.status,
+              data: error.response?.data
+            };
+            throw new Error(JSON.stringify(errorData));
           }
 
-          throw new Error(error?.message || 'An unexpected error occurred')
+          throw new Error(JSON.stringify({
+            message: error?.message || 'An unexpected error occurred'
+          }));
         }
       }
     }),
@@ -55,107 +54,69 @@ const auth: AuthOptions = {
       clientSecret: nextEnv.GOOGLE_CLIENT_SECRET
     })
   ],
-  session: {
-    strategy: 'jwt'
-  },
-  secret: nextEnv.NEXTAUTH_SECRET,
   callbacks: {
-    async signIn({ account, profile, user }: any) {
-      if (account.provider === 'google' || account?.provider === 'github') {
-        const response = await httpRequest.post<LoginResponse>('/auth/oauth-login', {
-          provider: account.provider,
-          providerId: account.providerAccountId,
-          email: profile.email,
-          name: profile.name,
-          avatar: profile.picture
-        })
-        const data = response.data.data
-
-        if (data) {
-          // Cập nhật trực tiếp thông tin của user từ API vào đối tượng user
-          user._id = data.user._id
-          user.username = data.user.username
-          user.email = data.user.email
-          user.name = data.user.name
-          user.dateOfBirth = data.user.dateOfBirth
-          user.verify = data.user.verify
-          user.avatar = data.user.avatar
-          user.isBot = data.user.isBot
-          user.createdBy = data.user.createdBy
-          user.emailLockedUntil = data.user.emailLockedUntil
-          user.createdAt = data.user.createdAt
-          user.updatedAt = data.user.updatedAt
-          user.__v = data.user.__v
-          user.accessToken = data.tokens.accessToken
-          user.refreshToken = data.tokens.refreshToken
-          user.accessTokenExpiresAt = data.tokens.accessTokenExpiresAt
+    async jwt({ token, user, account }) {
+      if (account && user) {
+        if (account.provider === 'credentials') {
+          return {
+            ...token,
+            ...user,
+            accessToken: user.accessToken,
+            refreshToken: user.refreshToken,
+            accessTokenExpiresAt: user.accessTokenExpiresAt
+          }
         }
 
-        return profile.email_verified
+        if (account.provider === 'google') {
+          try {
+            const response = await authService.loginWithGoogle({
+              accessToken: account.access_token as string
+            })
+
+            const { user: userData, tokens } = response.data.data
+
+            return {
+              ...token,
+              ...omit(userData, ['password']),
+              accessToken: tokens.accessToken,
+              refreshToken: tokens.refreshToken,
+              accessTokenExpiresAt: tokens.accessTokenExpiresAt
+            }
+          } catch (error) {
+            console.error('Error in Google login:', error)
+            return { ...token, error: 'GoogleLoginError' }
+          }
+        }
       }
-      return true
+
+      // Return previous token if the access token has not expired yet
+      if (token.accessTokenExpiresAt && Date.now() / 1000 < (token.accessTokenExpiresAt as number)) {
+        return token
+      }
+
+      // Access token has expired, try to update it
+      try {
+        const refreshedToken = await refreshToken(token)
+        return refreshedToken
+      } catch (error) {
+        console.error('Error refreshing token:', error)
+        return { ...token, error: 'RefreshAccessTokenError' }
+      }
     },
-
-    async redirect({ url, baseUrl }: any) {
-      if (url.startsWith('/')) {
-        return `${baseUrl}${url}`
-      }
-
-      if (new URL(url).origin === baseUrl) {
-        return url
-      }
-
-      return baseUrl
-    },
-    /**
-     * The session callback is called whenever a session is checked
-     * e.g.: calls to getSession(), useSession(), or request to /api/auth/session
-     * Refer: https://next-auth.js.org/configuration/callbacks#session-callback
-     */
-    async session({ session, token, user }: any) {
-      // Send properties to the client, like an access_token from a provider.
-      session.user = token.user
-      session.accessToken = token.accessToken
-      session.refreshToken = token.refreshToken
-      session.accessTokenExpiresAt = token.accessTokenExpiresAt
+    async session({ session, token }) {
+      session.user = token as any
+      session.accessToken = token.accessToken as string
+      session.refreshToken = token.refreshToken as string
+      session.accessTokenExpiresAt = token.accessTokenExpiresAt as number
+      session.error = token.error
       return session
-    },
-    /**
-     * This callback is called whenever a JSON Web Token is created (i.e. at sign in) or updated (i.e whenever a session is accessed in the client)
-     * e.g.: requests to /api/auth/signin, /api/auth/session and calls to getSession(), getServerSession(), useSession()
-     * Refer: https://next-auth.js.org/configuration/callbacks#jwt-callback
-     */
-    async jwt({ token, user, account, session, trigger }: any) {
-      // Update tokens after refresh token
-      if (trigger === 'update' && session?.accessToken && session?.refreshToken) {
-        token.accessToken = session.accessToken
-        token.refreshToken = session.refreshToken
-        token.accessTokenExpiresAt = session.accessTokenExpiresAt
-      }
-      // Persist the OAuth access_token to the token right after signin
-      if (user) {
-        token.accessToken = user?.access_token || user?.accessToken
-        token.refreshToken = user?.refresh_token || user?.refreshToken
-        token.accessTokenExpiresAt = user?.accessTokenExpiresAt
-        token.user = omit(user, ['accessToken', 'refreshToken', 'accessTokenExpiresAt'])
-      } else if (account) {
-        token.accessToken = account.access_token || account.accessToken
-        token.refreshToken = token?.refresh_token || token?.refreshToken
-      }
-
-      return token
     }
   },
-  events: {
-    async signOut({ token }: any) {
-      try {
-        // Logout logic
-        await authService.logout(token?.refreshToken as string)
-      } catch (error) {
-        console.log('Error while logging out')
-      }
-    }
-  }
+  session: {
+    strategy: 'jwt',
+    maxAge: 30 * 24 * 60 * 60 // 30 days
+  },
+  secret: nextEnv.NEXTAUTH_SECRET
 }
 
 export default auth

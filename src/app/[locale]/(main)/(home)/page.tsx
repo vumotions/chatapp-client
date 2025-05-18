@@ -1,14 +1,7 @@
 'use client'
 
-import { Heart, Images, Link as LinkIcon, MessageCircle, Send, SmilePlus } from 'lucide-react'
 import PostSkeleton from '~/components/post-skeleton'
-import Protected from '~/components/protected'
-import SharePopover from '~/components/share-popover'
-import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
-import { Button } from '~/components/ui/button'
-import { Card, CardContent } from '~/components/ui/card'
-import { Input } from '~/components/ui/input'
-import nextEnv from '~/config/next-env'
+import { Post } from '~/components/posts/post'
 
 import RightSidebarFriendList from './components/right-sidebar'
 
@@ -17,31 +10,37 @@ import { cn } from '~/lib/utils'
 import FriendSuggestions from '~/components/friend-suggestions'
 import useMediaQuery from '~/hooks/use-media-query'
 import PostEditorV2 from '~/components/posts/post-editor-v2'
-import { useEffect, useState } from 'react'
-import postService from '~/services/post.service'
-import Image from 'next/image'
-import Post from '~/components/posts/post'
+import { useState, useEffect } from 'react'
+import postService from '@/services/post.service'
+import { toast } from 'sonner'
 
 function Home() {
-  const { data: session } = useSession()
-  const [postData, setPostData] = useState([])
-  const [isLoading, setIsLoading] = useState(false)
+  const [posts, setPosts] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [hasMore, setHasMore] = useState(true)
 
-  const getPosts = async () => {
-    setIsLoading(true)
-    const data = await postService.getPosts({
-      postTypes: ['friend', 'public'],
-      limit: 10,
-      page: 1
-    })
-    if (data.statusText === 'OK') {
-      setPostData(data?.data?.data)
+  const fetchPosts = async () => {
+    try {
+      setLoading(true)
+      const response = await postService.getPosts(currentPage, 10)
+      if (response && response.data) {
+        const newPosts = response.data.data || []
+        setPosts(prev => currentPage === 1 ? newPosts : [...prev, ...newPosts])
+        setHasMore(response.data.data.hasMore || false)
+      }
+    } catch (error) {
+      console.error('Error fetching posts:', error)
+      toast.error('Không thể tải bài viết')
+    } finally {
+      setLoading(false)
     }
-    setIsLoading(false)
   }
+
   useEffect(() => {
-    getPosts()
-  }, [])
+    fetchPosts()
+  }, [currentPage])
+
   // const isMobile = useMediaQuery('(max-width: 768px)')
 
   return (
@@ -49,11 +48,19 @@ function Home() {
       {/* Main Content */}
       <div className='flex flex-1 flex-col gap-4'>
         {/* Status input */}
-        <PostEditorV2 getPosts={getPosts} />
+        <PostEditorV2 getPosts={fetchPosts} />
         {/* Post */}
         <FriendSuggestions />
-        <PostSkeleton />
-        {postData.map((post) => {
+        {loading && !posts.length ? (
+          // Initial loading state
+          <>
+            <PostSkeleton />
+            <PostSkeleton />
+            <PostSkeleton />
+          </>
+        ) : null}
+        {/* <PostSkeleton /> */}
+        {!loading && posts.map((post) => {
           return (
               <Post key={post._id} post={post}/>
           )

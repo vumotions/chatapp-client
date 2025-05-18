@@ -56,20 +56,30 @@ function FormLogin({ className }: Props) {
     }
   }, [form])
 
+  // Phần xử lý đăng nhập
   const handleCredentialsLogin = form.handleSubmit(async (data) => {
     setLoadingState((prev) => ({ ...prev, credentials: true }))
     const { remember, ...credentials } = data
+
     const response = await signIn('credentials', {
       ...credentials,
       redirect: false
     })
 
     if (response?.error) {
-      const error = JSON.parse(response.error)
+      let errorData;
+      
+      try {
+        errorData = JSON.parse(response.error);
+      } catch (error) {
+        toast.error('Đã xảy ra lỗi khi đăng nhập');
+        setLoadingState((prev) => ({ ...prev, credentials: false }));
+        return;
+      }
 
       // UNPROCESSABLE_ENTITY_ERROR
-      if (error?.status === status.UNPROCESSABLE_ENTITY) {
-        const errors = error?.data?.errors
+      if (errorData?.status === status.UNPROCESSABLE_ENTITY) {
+        const errors = errorData?.data?.errors
 
         if (errors && typeof errors === 'object') {
           Object.entries(errors as Record<string, ZodIssue>).forEach(([key, value]) => {
@@ -84,7 +94,7 @@ function FormLogin({ className }: Props) {
       }
 
       // UNVERIFIED_ACCOUNT_ERROR
-      if (error?.status === status.FORBIDDEN && error?.data?.name === 'UNVERIFIED_ACCOUNT_ERROR') {
+      if (errorData?.status === status.FORBIDDEN && errorData?.data?.name === 'UNVERIFIED_ACCOUNT_ERROR') {
         const response = await sendEmailVerificationMutation.mutateAsync({
           email: data.email
         })
@@ -92,12 +102,12 @@ function FormLogin({ className }: Props) {
         startTransition(() => {
           router.push(`/auth/recover/code?email=${encodeURIComponent(data.email)}&redirect_from=register`)
         })
-        toast.info(error?.data?.message || response.data.message)
+        toast.info(errorData?.data?.message || response.data.message)
       }
 
       // ACCOUNT_SUSPENDED_ERROR
-      if (error?.status === status.FORBIDDEN && error?.data?.name === 'ACCOUNT_SUSPENDED_ERROR') {
-        toast.info(error?.data?.message)
+      if (errorData?.status === status.FORBIDDEN && errorData?.data?.name === 'ACCOUNT_SUSPENDED_ERROR') {
+        toast.info(errorData?.data?.message)
       }
     } else {
       if (data.remember) {
@@ -108,6 +118,9 @@ function FormLogin({ className }: Props) {
       } else {
         removeRememberedAccountFromCookie()
       }
+      
+      toast.success('Đăng nhập thành công!')
+      
       startTransition(() => {
         router.replace('/')
       })

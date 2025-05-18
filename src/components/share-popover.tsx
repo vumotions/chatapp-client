@@ -1,44 +1,135 @@
 'use client'
 
-import { ReactNode } from 'react'
+import { ReactNode, useState } from 'react'
 import {
   FacebookIcon,
   FacebookShareButton,
   TelegramIcon,
   TelegramShareButton,
   TwitterIcon,
-  TwitterShareButton
+  TwitterShareButton,
+  WhatsappIcon,
+  WhatsappShareButton,
+  LinkedinIcon,
+  LinkedinShareButton,
+  EmailIcon,
+  EmailShareButton
 } from 'react-share'
 import { Popover, PopoverContent, PopoverTrigger } from '~/components/ui/popover'
-import Protected from './protected'
+import { Button } from '~/components/ui/button'
+import { Copy, Check, Share } from 'lucide-react'
+import { toast } from 'sonner'
+import postService from '~/services/post.service'
+import { useSession } from 'next-auth/react'
 
 type Props = {
   shareUrl: string
   title?: string
   children: ReactNode
+  postId: string // Thêm postId để có thể chia sẻ lên tường
 }
-function SharePopover({ shareUrl, children, title }: Props) {
+
+function SharePopover({ shareUrl, children, title, postId }: Props) {
+  const [copied, setCopied] = useState(false)
+  const [isSharing, setIsSharing] = useState(false)
+  const { data: session } = useSession()
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(shareUrl)
+      setCopied(true)
+      toast.success('Đã sao chép liên kết')
+      setTimeout(() => setCopied(false), 2000)
+    } catch (error) {
+      console.error('Failed to copy link:', error)
+      toast.error('Không thể sao chép liên kết')
+    }
+  }
+
+  // Thêm hàm chia sẻ lên tường
+  const handleShareToWall = async () => {
+    if (!session?.user) {
+      toast.error('Bạn cần đăng nhập để thực hiện chức năng này')
+      return
+    }
+
+    try {
+      setIsSharing(true)
+      // Gọi API để chia sẻ bài viết lên tường
+      await postService.sharePost(postId)
+      toast.success('Đã chia sẻ bài viết lên tường của bạn')
+    } catch (error) {
+      console.error('Failed to share post to wall:', error)
+      toast.error('Không thể chia sẻ bài viết')
+    } finally {
+      setIsSharing(false)
+    }
+  }
+
   return (
     <Popover>
       <PopoverTrigger asChild>{children}</PopoverTrigger>
-      <PopoverContent className='flex w-fit gap-2' side='top' align='center'>
-        <Protected>
-          <FacebookShareButton url={shareUrl} title={title}>
-            <FacebookIcon size={32} round />
-          </FacebookShareButton>
-        </Protected>
+      <PopoverContent className='w-auto p-4' side='top' align='center'>
+        <div className="space-y-4">
+          <h3 className="font-medium text-center">Chia sẻ bài viết</h3>
+          
+          {/* Share to wall button */}
+          {session?.user && (
+            <Button 
+              variant="default" 
+              size="sm" 
+              onClick={handleShareToWall}
+              className="w-full flex items-center justify-center gap-2"
+              disabled={isSharing}
+            >
+              <Share className="h-4 w-4" />
+              {isSharing ? 'Đang chia sẻ...' : 'Chia sẻ lên tường của bạn'}
+            </Button>
+          )}
+          
+          {/* Copy link button */}
+          <div className="flex items-center space-x-2">
+            <div className="flex-1 bg-muted p-2 rounded-md text-xs truncate">
+              {shareUrl}
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleCopyLink}
+              className="flex items-center gap-1"
+            >
+              {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+              {copied ? 'Đã sao chép' : 'Sao chép'}
+            </Button>
+          </div>
+          
+          {/* Social share buttons */}
+          <div className='flex flex-wrap gap-2 justify-center'>
+            <FacebookShareButton url={shareUrl} quote={title}>
+              <FacebookIcon size={40} round />
+            </FacebookShareButton>
 
-        <Protected>
-          <TelegramShareButton url={shareUrl} title={title}>
-            <TelegramIcon size={32} round />
-          </TelegramShareButton>
-        </Protected>
+            <TwitterShareButton url={shareUrl} title={title}>
+              <TwitterIcon size={40} round />
+            </TwitterShareButton>
 
-        <Protected>
-          <TwitterShareButton url={shareUrl} title={title}>
-            <TwitterIcon size={32} round />
-          </TwitterShareButton>
-        </Protected>
+            <TelegramShareButton url={shareUrl} title={title}>
+              <TelegramIcon size={40} round />
+            </TelegramShareButton>
+            
+            <WhatsappShareButton url={shareUrl} title={title}>
+              <WhatsappIcon size={40} round />
+            </WhatsappShareButton>
+            
+            <LinkedinShareButton url={shareUrl} title={title}>
+              <LinkedinIcon size={40} round />
+            </LinkedinShareButton>
+            
+            <EmailShareButton url={shareUrl} subject={title || 'Chia sẻ bài viết'}>
+              <EmailIcon size={40} round />
+            </EmailShareButton>
+          </div>
+        </div>
       </PopoverContent>
     </Popover>
   )

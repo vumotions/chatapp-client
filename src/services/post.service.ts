@@ -1,67 +1,85 @@
-import httpRequest from '~/config/http-request'
-import { SuccessResponse } from '~/types/api.types'
-import { TParams } from '~/types/parma.types'
-import { createParams } from '~/utils/param.utils'
-
-export interface Post {
-  _id: string
-  userId: string
-  content: string
-  images?: string[]
-  likes: number
-  comments: number
-  shares: number
-  createdAt: string
-  updatedAt: string
-  user: {
-    _id: string
-    name: string
-    avatar: string
-  }
-}
-
-interface PostsResponse {
-  posts: Post[]
-  hasMore: boolean
-  totalPages: number
-  currentPage: number
-}
+import { axiosInstance } from '@/lib/axios'
 
 class PostService {
-  getPostsByUserId() {
-    return httpRequest.get<SuccessResponse<PostsResponse>>(`/posts/get-user-Post`)
+  getPosts(page = 1, limit = 10) {
+    return axiosInstance.get(`/posts/get-posts`, {
+      params: {
+        page,
+        limit
+      }
+    })
   }
-  getPosts(params: TParams) {
-    const queryParams = createParams(params)
-    return httpRequest.get<SuccessResponse<PostsResponse>>(`/posts/get-posts`, { params: queryParams })
+  
+  getPostById(id: string) {
+    if (!id) {
+      console.error('Invalid id for getPostById:', id)
+      return Promise.reject(new Error('Invalid id'))
+    }
+    return axiosInstance.get(`/posts/${id}`)
   }
-
+  
   createPost(formData: FormData) {
-    return httpRequest.post<SuccessResponse<FormData>>('/posts/create-post', formData, {
+    return axiosInstance.post('/posts/create-post', formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       }
     })
   }
-  updatePost(postId: string, content: string, images?: string[]) {
-    return httpRequest.put<SuccessResponse<Post>>(`/posts/${postId}`, {
-      content,
-      images
+
+  async updatePost(id: string, formData: FormData) {
+    return axiosInstance.put(`/posts/${id}`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
     })
   }
 
-  deletePost(postId: string) {
-    return httpRequest.delete<SuccessResponse<null>>(`/posts/${postId}`)
+  async deletePost(id: string) {
+    return axiosInstance.delete(`/posts/${id}`)
   }
 
   likePost(postId: string) {
-    return httpRequest.post<SuccessResponse<null>>(`/posts/${postId}/like`)
+    return axiosInstance.post('/posts/like', { postId })
+  }
+  
+  unlikePost(postId: string) {
+    return axiosInstance.delete(`/posts/like/${postId}`)
+  }
+  
+  sharePost(postId: string) {
+    if (!postId) {
+      console.error('Invalid postId for sharePost:', postId)
+      return Promise.reject(new Error('Invalid postId'))
+    }
+    
+    return axiosInstance.post('/posts/share', { postId })
   }
 
-  unlikePost(postId: string) {
-    return httpRequest.delete<SuccessResponse<null>>(`/posts/${postId}/like`)
+  async getComments(postId: string, page = 1, limit = 10) {
+    return axiosInstance.get(`/posts/${postId}/comments?page=${page}&limit=${limit}`)
+  }
+
+  async createComment(postId: string, content: string) {
+    return axiosInstance.post(`/posts/${postId}/comments`, { content })
+  }
+
+  async deleteComment(postId: string, commentId: string) {
+    return axiosInstance.delete(`/posts/${postId}/comments/${commentId}`)
+  }
+
+  getUserPosts(userId: string, page = 1, limit = 5) {
+    if (!userId) {
+      console.error('Invalid userId for getUserPosts:', userId)
+      return Promise.reject(new Error('Invalid userId'))
+    }
+    
+    return axiosInstance.get(`/posts/user/${userId}`, {
+      params: {
+        page,
+        limit
+      }
+    })
   }
 }
-
 const postService = new PostService()
 export default postService
