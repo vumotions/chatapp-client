@@ -1,11 +1,14 @@
 import httpRequest from '~/config/http-request'
-import { FormCodeValues, FormLoginValues, FormRegisterValues } from '~/schemas/form.schemas'
+import { FormCodeValues, FormLoginValues, FormRegisterValues, FormForgotPasswordValues } from '~/schemas/form.schemas'
 import {
   GetMyProfileResponse,
   LoginResponse,
   RegisterResponse,
   SendEmailVerificationResponse,
-  VerifyAccountResponse
+  VerifyAccountResponse,
+  RequestResetPasswordResponse,
+  ConfirmResetPasswordResponse,
+  ResetPasswordResponse
 } from '~/types/auth.types'
 
 class AuthService {
@@ -35,6 +38,18 @@ class AuthService {
 
   async getMyProfile() {
     return httpRequest.get<GetMyProfileResponse>('/user/my-profile')
+  }
+
+  async requestResetPassword(body: Pick<FormForgotPasswordValues, 'email'>) {
+    return httpRequest.post<RequestResetPasswordResponse>('/auth/request-reset-password', body)
+  }
+
+  async confirmResetPassword(body: Pick<FormForgotPasswordValues, 'email' | 'otp'>) {
+    return httpRequest.post<ConfirmResetPasswordResponse>('/auth/confirm-reset-password', body)
+  }
+
+  async resetPassword(body: Pick<FormForgotPasswordValues, 'email' | 'password' | 'confirmPassword'>) {
+    return httpRequest.patch<ResetPasswordResponse>('/auth/reset-password', body)
   }
 }
 

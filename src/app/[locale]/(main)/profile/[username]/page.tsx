@@ -30,6 +30,7 @@ import {
 import { useUserByUsername } from '~/hooks/data/user.hooks'
 import ProfileSkeleton from '../components/profile-skeleton'
 import NotFound from '../not-found'
+import { ProfileEditDialog } from '~/components/profile-edit-dialog'
 
 type Props = {
   params: Promise<{
@@ -41,7 +42,7 @@ function Profile({ params }: Props) {
   const { username } = use(params)
   const { data: session } = useSession()
   const { data: profileFriends, isLoading: isLoadingProfileFriends } = useFriendsByUsername(username)
-  const { data: profileData, isLoading, error, isError } = useUserByUsername(username)
+  const { data: profileData, isLoading, error, isError, refetch } = useUserByUsername(username)
   const isMyProfile = session?.user?.username === username
   const {
     data: friendStatus,
@@ -56,6 +57,7 @@ function Profile({ params }: Props) {
   const cancelFriendRequest = useCancelFriendRequestMutation()
   const removeFriend = useRemoveFriendMutation()
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
+  const [showEditDialog, setShowEditDialog] = useState(false)
 
   const handleFriendAction = () => {
     // Nếu đang là bạn bè, hiển thị dialog xác nhận hủy kết bạn
@@ -105,6 +107,11 @@ function Profile({ params }: Props) {
     })
   }
 
+  // Hàm xử lý khi cập nhật thông tin thành công
+  const handleProfileUpdated = () => {
+    refetch() // Tải lại thông tin profile
+  }
+
   // Hiển thị skeleton khi đang tải
   if (isLoading) {
     return <ProfileSkeleton />
@@ -149,9 +156,10 @@ function Profile({ params }: Props) {
             {isMyProfile ? (
               <>
                 <Button size='sm'>+ Thêm vào tin</Button>
-                <Button size='sm' variant='outline'>
-                  Chỉnh sửa trang cá nhân
-                </Button>
+                <ProfileEditDialog 
+                  userData={profileData}
+                  onProfileUpdated={handleProfileUpdated}
+                />
               </>
             ) : (
               <>
@@ -386,6 +394,9 @@ function Profile({ params }: Props) {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Dialog chỉnh sửa thông tin */}
+      {isMyProfile && <ProfileEditDialog userData={profileData} onProfileUpdated={handleProfileUpdated} />}
     </div>
   )
 }

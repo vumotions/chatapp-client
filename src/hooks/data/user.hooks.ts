@@ -3,6 +3,8 @@ import { useState, useCallback, useEffect } from 'react'
 import { debounce } from 'lodash'
 import friendService from '~/services/friend.service'
 import userService from '~/services/user.service'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 
 // Hook để tìm kiếm người dùng
 export const useSearchUsers = (initialQuery = '') => {
@@ -80,6 +82,26 @@ export const useUserByUsername = (username: string) => {
     refetchOnWindowFocus: false // Không refetch khi focus lại window
   })
 }
+
+// Hook để cập nhật thông tin cá nhân
+export const useUpdateProfileMutation = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (data: any) => userService.updateProfile(data),
+    onSuccess: () => {
+      // Invalidate các query liên quan đến user để cập nhật dữ liệu
+      queryClient.invalidateQueries({ queryKey: ['user'] })
+      queryClient.invalidateQueries({ queryKey: ['my-profile'] })
+    },
+    onError: (error: any) => {
+      console.error('Error updating profile:', error)
+      toast.error(error?.response?.data?.message || 'Có lỗi xảy ra khi cập nhật thông tin')
+    }
+  })
+}
+
+
 
 
 

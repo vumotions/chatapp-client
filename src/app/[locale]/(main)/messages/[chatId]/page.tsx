@@ -1,19 +1,6 @@
 'use client'
 import { format, formatDistanceToNow } from 'date-fns'
-import {
-  Archive,
-  ArrowDown,
-  ArrowLeft,
-  Check,
-  CheckCheck,
-  Copy,
-  Heart,
-  Phone,
-  Pin,
-  PinOff,
-  Send,
-  Video
-} from 'lucide-react'
+import { Archive, ArrowDown, ArrowLeft, Check, CheckCheck, Copy, Heart, Phone, Send, Video } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
@@ -56,6 +43,7 @@ import httpRequest from '~/config/http-request'
 import { CHAT_TYPE, FRIEND_REQUEST_STATUS, MEDIA_TYPE, MESSAGE_STATUS, MESSAGE_TYPE } from '~/constants/enums'
 import SOCKET_EVENTS from '~/constants/socket-events'
 import { useFriendStatus } from '~/hooks/data/friends.hook'
+import { useCheckSendMessagePermissionQuery } from '~/hooks/data/group-chat.hooks'
 import useMediaQuery from '~/hooks/use-media-query'
 import { useProtectedChat } from '~/hooks/use-protected-chat'
 import { useRouter } from '~/i18n/navigation'
@@ -107,6 +95,7 @@ function ChatDetail({ params }: Props) {
     isOnline: false,
     lastActive: null
   })
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
 
   // Sử dụng hook bảo vệ
   const { isLoading: isCheckingAccess, hasAccess } = useProtectedChat(chatId)
@@ -302,6 +291,11 @@ function ChatDetail({ params }: Props) {
       // Kiểm tra xem tin nhắn có thuộc về cuộc trò chuyện hiện tại không
       if (message.chatId !== chatId) return
 
+      // Khi nhận được tin nhắn mới, xóa trạng thái typing của người gửi
+      if (message.senderId && typingUsers[message.senderId]) {
+        setTypingUsers((prev) => ({ ...prev, [message.senderId]: false }))
+      }
+
       // Kiểm tra xem tin nhắn có tempId không và tempId đó có trong danh sách đã gửi không
       if (message.tempId && sentTempIds.has(message.tempId)) {
         // Cập nhật cache để thay thế tin nhắn tạm thời bằng tin nhắn thật
@@ -317,12 +311,13 @@ function ChatDetail({ params }: Props) {
                 // Thay thế tin nhắn tạm thời bằng tin nhắn thật
                 return {
                   ...message,
-                  senderId: {
+                  senderId: message.senderId, // Giữ nguyên dạng string
+                  senderInfo: {
                     _id: message.senderId,
-                    name: session?.user?.name,
-                    avatar: session?.user?.avatar
+                    name: session?.user?.name || 'You',
+                    avatar: session?.user?.avatar || ''
                   },
-                  status: MESSAGE_STATUS.DELIVERED // Đảm bảo trạng thái là DELIVERED, không phải SEEN
+                  status: MESSAGE_STATUS.DELIVERED
                 }
               }
               return msg
@@ -347,10 +342,10 @@ function ChatDetail({ params }: Props) {
           return newSet
         })
 
-        // Cập nhật danh sách chat để hiển thị tin nhắn mới nhất và thời gian
+        // Cập nhật danh sách chat
         queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] })
         queryClient.invalidateQueries({ queryKey: ['ARCHIVED_CHAT_LIST'] })
-        return // Thoát khỏi hàm sau khi thay thế
+        return
       }
 
       // Nếu không phải tin nhắn thay thế, thêm tin nhắn mới vào cache
@@ -409,7 +404,7 @@ function ChatDetail({ params }: Props) {
         senderId: senderInfo,
         status: isSentByCurrentUser
           ? MESSAGE_STATUS.DELIVERED
-          : isAtBottom
+          : (isAtBottom && document.visibilityState === 'visible')
             ? MESSAGE_STATUS.SEEN
             : MESSAGE_STATUS.DELIVERED
       }
@@ -1001,14 +996,20 @@ function ChatDetail({ params }: Props) {
     (message: any) => {
       if (!message || !session?.user?._id) return false
 
-      const currentUserId = session.user._id
+      const currentUserId = session.user._id.toString()
 
-      // Kiểm tra cấu trúc của senderId
+      // Luôn chuyển đổi senderId về dạng string để so sánh
+      let senderId: string
+
       if (typeof message.senderId === 'object' && message.senderId?._id) {
-        return String(message.senderId._id) === String(currentUserId)
+        senderId = message.senderId._id.toString()
+      } else if (typeof message.senderId === 'string') {
+        senderId = message.senderId
       } else {
-        return String(message.senderId) === String(currentUserId)
+        return false // Không thể xác định senderId
       }
+
+      return senderId === currentUserId
     },
     [session?.user?._id]
   )
@@ -1042,7 +1043,99 @@ function ChatDetail({ params }: Props) {
     }, 3000)
   }
 
+  // Thêm hook để kiểm tra quyền gửi tin nhắn
+  const {
+    data: sendPermission,
+    isLoading: isCheckingSendPermission,
+    refetch: refetchSendPermission
+  } = useCheckSendMessagePermissionQuery(chatId)
+
+  // Xác định biến canSendMessages dựa trên kết quả từ API
+  const canSendMessages = useMemo(() => {
+    // Nếu đang kiểm tra, mặc định là có thể gửi
+    if (isCheckingSendPermission) return true
+
+    // Nếu không có dữ liệu, mặc định là có thể gửi
+    if (!sendPermission) return true
+
+    // Trả về giá trị canSendMessages từ API
+    return sendPermission.canSendMessages
+  }, [sendPermission, isCheckingSendPermission])
+
+  // Thêm useEffect để lắng nghe sự kiện từ socket
+  useEffect(() => {
+    if (!socket || !chatId) return
+
+    // Lắng nghe sự kiện khi cài đặt nhóm thay đổi
+    const handleGroupSettingsChanged = (data: any) => {
+      console.log('Group settings changed:', data)
+
+      // Cập nhật quyền gửi tin nhắn
+      refetchSendPermission()
+
+      // Nếu có tin nhắn hệ thống, thêm vào danh sách tin nhắn
+      if (data.message) {
+        // Cập nhật cache tin nhắn để hiển thị tin nhắn hệ thống
+        queryClient.setQueryData(['MESSAGES', chatId], (oldData: any) => {
+          if (!oldData) return oldData
+
+          const updatedPages = [...oldData.pages]
+
+          // Thêm tin nhắn hệ thống vào trang đầu tiên
+          if (updatedPages.length > 0 && updatedPages[0].messages) {
+            // Kiểm tra xem tin nhắn đã tồn tại chưa
+            const messageExists = updatedPages[0].messages.some((msg: any) => msg._id === data.message._id)
+
+            if (!messageExists) {
+              updatedPages[0] = {
+                ...updatedPages[0],
+                messages: [...updatedPages[0].messages, data.message]
+              }
+            }
+          }
+
+          return {
+            ...oldData,
+            pages: updatedPages
+          }
+        })
+      }
+    }
+
+    // Đăng ký lắng nghe các sự kiện liên quan
+    socket.on(SOCKET_EVENTS.GROUP_SETTINGS_UPDATED, handleGroupSettingsChanged)
+    socket.on(SOCKET_EVENTS.MEMBER_ROLE_UPDATED, handleGroupSettingsChanged)
+    socket.on(SOCKET_EVENTS.MEMBER_MUTED, handleGroupSettingsChanged)
+    socket.on(SOCKET_EVENTS.MEMBER_UNMUTED, handleGroupSettingsChanged)
+
+    return () => {
+      socket.off(SOCKET_EVENTS.GROUP_SETTINGS_UPDATED, handleGroupSettingsChanged)
+      socket.off(SOCKET_EVENTS.MEMBER_ROLE_UPDATED, handleGroupSettingsChanged)
+      socket.off(SOCKET_EVENTS.MEMBER_MUTED, handleGroupSettingsChanged)
+      socket.off(SOCKET_EVENTS.MEMBER_UNMUTED, handleGroupSettingsChanged)
+    }
+  }, [socket, chatId, refetchSendPermission])
+
   const handleSendHeartEmoji = () => {
+    // Kiểm tra quyền gửi tin nhắn
+    if (!canSendMessages) {
+      // Hiển thị thông báo lỗi tương tự như trên
+      if (sendPermission?.isMuted) {
+        const mutedUntilText = sendPermission.mutedUntil
+          ? `đến ${format(new Date(sendPermission.mutedUntil), 'PPP HH:mm', { locale: vi })}`
+          : 'vô thời hạn'
+        toast.error(`Bạn đã bị cấm chat ${mutedUntilText}`)
+      } else if (sendPermission?.restrictedByGroupSettings) {
+        const restrictUntilText = sendPermission.restrictUntil
+          ? `đến ${format(new Date(sendPermission.restrictUntil), 'PPP HH:mm', { locale: vi })}`
+          : ''
+        toast.error(`Chỉ quản trị viên mới có thể gửi tin nhắn ${restrictUntilText}`)
+      } else {
+        toast.error('Bạn không có quyền gửi tin nhắn trong nhóm này')
+      }
+      return
+    }
+
     // Tạo tin nhắn tạm thời với ID duy nhất
     const tempId = uuidv4()
 
@@ -1065,10 +1158,10 @@ function ChatDetail({ params }: Props) {
     queryClient.invalidateQueries({ queryKey: ['ARCHIVED_CHAT_LIST'] })
   }
 
-  const handleSendMessage = () => {
-    if (!message.trim()) return
+  const handleSendMessage = async () => {
+    if (!message.trim() && !selectedFiles.length) return
 
-    // Dừng trạng thái typing
+    // Nếu đang trong trạng thái typing, gửi sự kiện dừng typing
     if (isTyping) {
       setIsTyping(false)
       socket?.emit(SOCKET_EVENTS.TYPING, {
@@ -1076,6 +1169,7 @@ function ChatDetail({ params }: Props) {
         isTyping: false
       })
 
+      // Xóa timeout hiện tại nếu có
       if (typingDebounceRef.current) {
         clearTimeout(typingDebounceRef.current)
         typingDebounceRef.current = null
@@ -1088,6 +1182,35 @@ function ChatDetail({ params }: Props) {
     // Thêm tempId vào danh sách đã gửi
     setSentTempIds((prev) => new Set([...prev, tempId]))
 
+    // Tạo tin nhắn tạm thời để hiển thị ngay lập tức
+    const tempMessage = {
+      _id: tempId,
+      chatId,
+      content: message,
+      type: 'TEXT',
+      createdAt: new Date().toISOString(),
+      senderId: session?.user?._id.toString(), // Lưu dưới dạng string
+      senderInfo: {
+        _id: session?.user?._id,
+        name: session?.user?.name || 'You',
+        avatar: session?.user?.avatar || ''
+      },
+      status: MESSAGE_STATUS.SENT
+    }
+
+    // Thêm tin nhắn tạm thời vào cache
+    queryClient.setQueryData(['MESSAGES', chatId], (oldData: any) => {
+      if (!oldData) return oldData
+
+      const firstPage = { ...oldData.pages[0] }
+      firstPage.messages = [...firstPage.messages, tempMessage]
+
+      return {
+        ...oldData,
+        pages: [firstPage, ...oldData.pages.slice(1)]
+      }
+    })
+
     // Gửi tin nhắn qua socket với tempId
     socket?.emit(SOCKET_EVENTS.SEND_MESSAGE, {
       chatId,
@@ -1099,12 +1222,8 @@ function ChatDetail({ params }: Props) {
       status: MESSAGE_STATUS.DELIVERED // Đặt trạng thái ban đầu là DELIVERED, không phải SEEN
     })
 
-    // Xóa nội dung input
+    // Reset input
     setMessage('')
-
-    // Cập nhật danh sách chat để hiển thị tin nhắn mới nhất và thời gian
-    queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] })
-    queryClient.invalidateQueries({ queryKey: ['ARCHIVED_CHAT_LIST'] })
   }
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -1591,8 +1710,30 @@ function ChatDetail({ params }: Props) {
 
   const fetchReadersInfo = async (messageId: string, readBy: string[]) => {
     if (!readBy || readBy.length === 0) return
+
     try {
-      const promises = readBy.map(async (userId) => {
+      // Lấy thông tin tin nhắn để biết người gửi
+      const message = filteredMessages.find((msg) => msg._id === messageId)
+      if (!message) return
+
+      // Xác định ID người gửi
+      const senderId =
+        typeof message.senderId === 'object' ? message.senderId._id.toString() : message.senderId.toString()
+
+      // Lọc danh sách readBy để loại bỏ người gửi tin nhắn
+      const filteredReadBy = readBy.filter((userId) => {
+        return userId.toString() !== senderId
+      })
+
+      if (filteredReadBy.length === 0) {
+        setMessageReaders((prev) => ({
+          ...prev,
+          [messageId]: []
+        }))
+        return
+      }
+
+      const promises = filteredReadBy.map(async (userId) => {
         try {
           const response = await httpRequest.get(`/user/${userId}`)
           return response.data.data
@@ -1600,8 +1741,8 @@ function ChatDetail({ params }: Props) {
           return { _id: userId, name: 'Unknown User', avatar: '' }
         }
       })
+
       const users = await Promise.all(promises)
-      console.log({ users })
       setMessageReaders((prev) => ({
         ...prev,
         [messageId]: users
@@ -1825,12 +1966,12 @@ function ChatDetail({ params }: Props) {
 
                   // Kiểm tra xem tin nhắn có phải là tin nhắn đầu tiên trong nhóm không
                   const isFirstMessageInGroup =
-                    index === 0 || filteredMessages[index - 1]?.senderId._id !== msg.senderId._id
+                    index === 0 || isMessageFromCurrentUser(filteredMessages[index - 1]) !== isSentByMe
 
                   // Kiểm tra xem tin nhắn có phải là tin nhắn cuối cùng trong nhóm không
                   const isLastMessageInGroup =
                     index === filteredMessages.length - 1 ||
-                    filteredMessages[index + 1]?.senderId._id !== msg.senderId._id
+                    isMessageFromCurrentUser(filteredMessages[index + 1]) !== isSentByMe
 
                   // Thêm margin bottom cho tin nhắn cuối cùng trong nhóm
                   const marginBottom = isLastMessageInGroup ? 'mb-4' : 'mb-1'
@@ -2005,7 +2146,7 @@ function ChatDetail({ params }: Props) {
                             )}
                           </div>
                         </div>
-                        {/* Hiển thị thời gian và trạng thái tin nhắn */}
+                        {/* Hiển thị thời gian và trạng thái tin nhắn CHỈ khi là tin nhắn cuối cùng trong nhóm */}
                         {isLastMessageInGroup && (
                           <div
                             className={`text-muted-foreground mt-1.5 text-xs ${isSentByMe ? 'mr-1 text-end' : 'text-end'}`}
@@ -2033,29 +2174,59 @@ function ChatDetail({ params }: Props) {
                                           <span className='cursor-pointer text-blue-500 hover:underline'>
                                             <CheckCheck className='inline h-3 w-3' />
                                             {msg.readBy && msg.readBy.length > 0 && (
-                                              <span className='ml-1 text-xs'>({msg.readBy.length})</span>
+                                              <span className='ml-1 text-xs'>
+                                                (
+                                                {msg.readBy.filter((id: any) => {
+                                                  const senderId =
+                                                    typeof msg.senderId === 'object'
+                                                      ? msg.senderId._id.toString()
+                                                      : msg.senderId.toString()
+                                                  return id.toString() !== senderId
+                                                })?.length || 0}
+                                                )
+                                              </span>
                                             )}
                                           </span>
                                         </PopoverTrigger>
                                         <PopoverContent className='w-60 p-0' side='top'>
                                           <div className='py-2'>
                                             <h4 className='px-3 py-1 text-sm font-medium'>
-                                              Đã xem ({msg.readBy?.length || 0})
+                                              Đã xem (
+                                              {msg.readBy
+                                                ? msg.readBy.filter((id: any) => {
+                                                    const senderId =
+                                                      typeof msg.senderId === 'object'
+                                                        ? msg.senderId._id.toString()
+                                                        : msg.senderId.toString()
+                                                    return id.toString() !== senderId
+                                                  }).length
+                                                : 0}
+                                              )
                                             </h4>
                                             <div className='max-h-40 overflow-y-auto'>
                                               {messageReaders[msg._id] ? (
-                                                messageReaders[msg._id].map((reader: any) => (
-                                                  <div
-                                                    key={reader._id}
-                                                    className='hover:bg-muted flex items-center px-3 py-2'
-                                                  >
-                                                    <Avatar className='mr-2 h-6 w-6'>
-                                                      <AvatarImage src={reader.avatar} />
-                                                      <AvatarFallback>{reader.name?.[0] || '?'}</AvatarFallback>
-                                                    </Avatar>
-                                                    <span className='text-sm'>{reader.name}</span>
-                                                  </div>
-                                                ))
+                                                messageReaders[msg._id]
+                                                  // Lọc ra những người không phải là người gửi tin nhắn
+                                                  .filter((reader: any) => {
+                                                    // Lấy ID của người gửi tin nhắn
+                                                    const senderId =
+                                                      typeof msg.senderId === 'object' ? msg.senderId._id : msg.senderId
+
+                                                    // Chỉ hiển thị những người không phải là người gửi
+                                                    return reader._id !== senderId
+                                                  })
+                                                  .map((reader: any) => (
+                                                    <div
+                                                      key={reader._id}
+                                                      className='hover:bg-muted flex items-center px-3 py-2'
+                                                    >
+                                                      <Avatar className='mr-2 h-6 w-6'>
+                                                        <AvatarImage src={reader.avatar} />
+                                                        <AvatarFallback>{reader.name?.[0] || '?'}</AvatarFallback>
+                                                      </Avatar>
+                                                      <span className='text-sm'>{reader.name}</span>
+                                                    </div>
+                                                  ))
                                               ) : (
                                                 <div className='text-muted-foreground px-3 py-2 text-sm'>
                                                   Đang tải...
@@ -2133,16 +2304,45 @@ function ChatDetail({ params }: Props) {
             </AnimatePresence>
           </div>
           <Separator className='mt-auto' />
+
+          {/* Hiển thị thông báo khi không có quyền gửi tin nhắn */}
+          {!canSendMessages && sendPermission && (
+            <div className='bg-muted/50 border-primary/20 mx-4 mt-2 rounded-md border-l-2 p-2 text-sm'>
+              {sendPermission.isMuted ? (
+                <p>
+                  Bạn đã bị cấm chat
+                  {sendPermission.mutedUntil && (
+                    <span className='block text-xs'>
+                      Đến: {format(new Date(sendPermission.mutedUntil), 'PPP HH:mm', { locale: vi })}
+                    </span>
+                  )}
+                </p>
+              ) : sendPermission.restrictedByGroupSettings ? (
+                <p>
+                  Chỉ quản trị viên mới có thể gửi tin nhắn
+                  {sendPermission.restrictUntil && (
+                    <span className='block text-xs'>
+                      Đến: {format(new Date(sendPermission.restrictUntil), 'PPP HH:mm', { locale: vi })}
+                    </span>
+                  )}
+                </p>
+              ) : (
+                <p>Bạn không có quyền gửi tin nhắn trong nhóm này</p>
+              )}
+            </div>
+          )}
+
           <div className='p-4'>
             <div className='flex items-end gap-4'>
               <Input
                 className='flex-1 resize-none rounded-full p-4'
-                placeholder='Nhập tin nhắn...'
+                placeholder={canSendMessages ? 'Nhập tin nhắn...' : 'Bạn không thể gửi tin nhắn'}
                 value={message}
                 onChange={handleInputChange}
                 onKeyDown={handleKeyPress}
+                disabled={!canSendMessages}
               />
-              {message.trim() ? (
+              {message.trim() && canSendMessages ? (
                 <Button onClick={handleSendMessage} size='icon' className='rounded-full'>
                   <Send className='h-5 w-5' />
                 </Button>
@@ -2152,6 +2352,7 @@ function ChatDetail({ params }: Props) {
                   variant='outline'
                   size='icon'
                   className='rounded-full hover:bg-pink-100 dark:hover:bg-pink-900/30'
+                  disabled={!canSendMessages}
                 >
                   <Heart className='h-5 w-5 fill-pink-500 text-pink-500' />
                 </Button>

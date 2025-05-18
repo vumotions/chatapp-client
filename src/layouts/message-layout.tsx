@@ -6,8 +6,8 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
 import ChatList from '~/app/[locale]/(main)/messages/components/chat-list'
-// Loại bỏ import DraftList
 import { Nav } from '~/components/nav'
+import { NetworkStatusIndicator } from '~/components/network-status'
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '~/components/ui/resizable'
 import { ScrollArea } from '~/components/ui/scroll-area'
 import { Separator } from '~/components/ui/separator'
@@ -103,7 +103,6 @@ export default function MessageLayout({ children }: LayoutProps) {
           exit={{ x: '100%' }}
           transition={{ type: 'spring', damping: 25, stiffness: 300 }}
         >
-          {/* Loại bỏ header riêng biệt ở đây */}
           {children}
         </motion.div>
       </AnimatePresence>
@@ -176,6 +175,9 @@ export default function MessageLayout({ children }: LayoutProps) {
           })}
         >
           <ScrollArea className='h-screen'>
+             <div className='mt-4 flex justify-center flex-col items-center'>
+              <NetworkStatusIndicator />
+            </div>
             <Nav
               isCollapsed={isCollapsed}
               links={[

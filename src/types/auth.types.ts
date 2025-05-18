@@ -38,3 +38,11 @@ export type GetMyProfileResponse = SuccessResponse<{
   updatedAt: string
   __v: number
 }>
+
+export type RequestResetPasswordResponse = SuccessResponse<{
+  otpExpiresAt: string
+}>
+
+export type ConfirmResetPasswordResponse = SuccessResponse<null>
+
+export type ResetPasswordResponse = SuccessResponse<null>

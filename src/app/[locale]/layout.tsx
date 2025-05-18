@@ -4,9 +4,10 @@ import { getMessages } from 'next-intl/server'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { notFound } from 'next/navigation'
 import { use } from 'react'
-import TokenRefresher from '~/components/token-refresher'
-import NotificationListener from '~/components/notification-listener'
 import { Toaster } from 'sonner'
+import { NetworkStatus } from '~/components/network-status'
+import NotificationListener from '~/components/notification-listener'
+import TokenRefresher from '~/components/token-refresher'
 import { routing } from '~/i18n/routing'
 import BProgressProvider from '~/providers/bprogress-provider'
 import NextAuthProvider from '~/providers/nextauth-provider'
@@ -74,6 +75,7 @@ function Layout({ params, children }: Props) {
                     }
                   }}
                 />
+                <NetworkStatus />
               </BProgressProvider>
             </ThemeProvider>
           </NextAuthProvider>

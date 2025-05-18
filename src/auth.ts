@@ -114,6 +114,7 @@ const auth: AuthOptions = {
      */
     async session({ session, token, user }: any) {
       // Send properties to the client, like an access_token from a provider.
+      console.log({ session, token, user })
       session.user = token.user
       session.accessToken = token.accessToken
       session.refreshToken = token.refreshToken
@@ -126,13 +127,22 @@ const auth: AuthOptions = {
      * Refer: https://next-auth.js.org/configuration/callbacks#jwt-callback
      */
     async jwt({ token, user, account, session, trigger }: any) {
-      // Update tokens after refresh token
-      if (trigger === 'update' && session?.accessToken && session?.refreshToken) {
-        token.accessToken = session.accessToken
-        token.refreshToken = session.refreshToken
-        token.accessTokenExpiresAt = session.accessTokenExpiresAt
+      // Khi trigger là 'update', cập nhật thông tin user từ session
+      if (trigger === 'update') {
+        // Cập nhật tokens nếu có
+        if (session?.accessToken) token.accessToken = session.accessToken
+        if (session?.refreshToken) token.refreshToken = session.refreshToken
+        if (session?.accessTokenExpiresAt) token.accessTokenExpiresAt = session.accessTokenExpiresAt
+
+        if (session?.user) {
+          token.user = {
+            ...token.user,
+            ...session.user
+          }
+        }
       }
-      // Persist the OAuth access_token to the token right after signin
+
+      // Khi đăng nhập lần đầu
       if (user) {
         token.accessToken = user?.access_token || user?.accessToken
         token.refreshToken = user?.refresh_token || user?.refreshToken
@@ -143,6 +153,7 @@ const auth: AuthOptions = {
         token.refreshToken = token?.refresh_token || token?.refreshToken
       }
 
+      console.log('Returning token:', token)
       return token
     }
   },

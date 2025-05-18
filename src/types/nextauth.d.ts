@@ -11,6 +11,7 @@ declare module 'next-auth' {
       email: string
       name: string
       avatar?: string
+      bio?: string
       coverPhoto?: string
       dateOfBirth: string
       verify: string

@@ -42,3 +42,22 @@ export const formRegisterSchema = z
   })
 
 export type FormRegisterValues = z.infer<typeof formRegisterSchema>
+
+// Define base schema without refinement
+export const formForgotPasswordBaseSchema = z.object({
+  email: z.string().email({ message: 'Please enter a valid email address' }),
+  otp: z.string().regex(/^\d{6}$/, { message: 'OTP must be exactly 6 digits' }),
+  password: z.string().min(6, { message: 'Password must be at least 6 characters' }),
+  confirmPassword: z.string().min(6, { message: 'Confirm password must be at least 6 characters' })
+})
+
+// Add refinement for the full schema
+export const formForgotPasswordSchema = formForgotPasswordBaseSchema.refine(
+  (data) => data.password === data.confirmPassword,
+  {
+    message: 'Passwords do not match',
+    path: ['confirmPassword']
+  }
+)
+
+export type FormForgotPasswordValues = z.infer<typeof formForgotPasswordBaseSchema>

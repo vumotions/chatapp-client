@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Copy, Crown, LogOut, RefreshCw, Settings, Shield, Trash, UserCog, UserMinus } from 'lucide-react'
 import { useSession } from 'next-auth/react'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
@@ -45,6 +45,12 @@ import { TransferOwnershipDialog } from './transfer-ownership-dialog'
 import { Badge } from './ui/badge'
 import { Loader2 } from 'lucide-react'
 import { useUpdateSendMessageRestrictionMutation } from '~/hooks/data/group-chat.hooks'
+import { CalendarIcon } from 'lucide-react'
+import { format, addMinutes, addHours, addDays } from 'date-fns'
+import { vi } from 'date-fns/locale'
+import { Calendar } from '~/components/ui/calendar'
+import { Popover, PopoverContent, PopoverTrigger } from '~/components/ui/popover'
+import { cn } from '~/lib/utils'
 
 // Zod schema cho form cài đặt nhóm
 const groupSettingsSchema = z.object({
@@ -99,13 +105,23 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
   const [leaveGroupConfirmOpen, setLeaveGroupConfirmOpen] = useState(false)
   const [disbandGroupConfirmOpen, setDisbandGroupConfirmOpen] = useState(false)
   const [onlyAdminsCanSend, setOnlyAdminsCanSend] = useState(conversation?.onlyAdminsCanSend || false)
-  const [restrictionDuration, setRestrictionDuration] = useState(60) // Mặc định 60 phút
+  const [restrictionEndDate, setRestrictionEndDate] = useState<Date | undefined>(
+    conversation?.restrictUntil ? new Date(conversation.restrictUntil) : addHours(new Date(), 1)
+  )
+  const [restrictionType, setRestrictionType] = useState<'indefinite' | 'until'>('until')
+  const [restrictionDuration, setRestrictionDuration] = useState<'30' | '60' | '180' | '1440' | 'custom'>('60')
   const [isUpdatingRestriction, setIsUpdatingRestriction] = useState(false)
 
   const { data: session } = useSession()
   const currentUserId = session?.user?._id
   // Kiểm tra quyền
-  const isOwner = conversation?.userId?.toString() === currentUserId?.toString()
+  const isOwner = useMemo(() => {
+    if (!session?.user?._id || !conversation?.members) return false
+
+    const currentMember = conversation.members.find((member: any) => member.userId === session?.user?._id)
+
+    return currentMember?.role === 'OWNER'
+  }, [session, conversation])
   const currentMember = conversation?.members?.find((m: any) => m.userId?.toString() === currentUserId?.toString())
   const isAdmin = isOwner || currentMember?.role === MEMBER_ROLE.ADMIN
 
@@ -369,10 +385,26 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
 
     setIsUpdatingRestriction(true)
     try {
+      // Tính toán duration dựa trên lựa chọn của người dùng
+      let duration = 0
+
+      if (onlyAdminsCanSend && restrictionType === 'until') {
+        if (restrictionDuration === 'custom' && restrictionEndDate) {
+          // Tính số phút từ hiện tại đến restrictionEndDate
+          const now = new Date()
+          const diffMs = restrictionEndDate.getTime() - now.getTime()
+          duration = Math.max(1, Math.round(diffMs / (60 * 1000))) // Ít nhất 1 phút
+        } else if (restrictionDuration !== 'custom') {
+          // Sử dụng giá trị đã chọn
+          duration = parseInt(restrictionDuration)
+        }
+      }
+
+      // Gọi API thông qua mutation hook
       await updateRestrictionMutation.mutateAsync({
         conversationId: conversation._id,
         onlyAdminsCanSend,
-        duration: onlyAdminsCanSend ? restrictionDuration : 0
+        duration
       })
 
       toast.success('Đã cập nhật cài đặt thành công')
@@ -388,17 +420,47 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
     if (conversation) {
       setOnlyAdminsCanSend(conversation.onlyAdminsCanSend || false)
 
-      // Nếu có restrictUntil, tính toán thời gian còn lại
+      // Nếu có restrictUntil, cập nhật thời gian kết thúc
       if (conversation.restrictUntil) {
-        const now = new Date()
         const restrictUntil = new Date(conversation.restrictUntil)
-        if (restrictUntil > now) {
-          const remainingMinutes = Math.ceil((restrictUntil.getTime() - now.getTime()) / (60 * 1000))
-          setRestrictionDuration(remainingMinutes)
+        if (restrictUntil > new Date()) {
+          setRestrictionEndDate(restrictUntil)
+          setRestrictionType('until')
+
+          // Tính toán thời lượng để chọn đúng radio button
+          const diffMinutes = Math.round((restrictUntil.getTime() - new Date().getTime()) / (60 * 1000))
+          if (diffMinutes <= 30) setRestrictionDuration('30')
+          else if (diffMinutes <= 60) setRestrictionDuration('60')
+          else if (diffMinutes <= 180) setRestrictionDuration('180')
+          else if (diffMinutes <= 1440) setRestrictionDuration('1440')
+          else setRestrictionDuration('custom')
         }
+      } else if (conversation.onlyAdminsCanSend) {
+        setRestrictionType('indefinite')
       }
     }
   }, [conversation])
+
+  useEffect(() => {
+    if (restrictionType === 'until') {
+      const now = new Date()
+      switch (restrictionDuration) {
+        case '30':
+          setRestrictionEndDate(addMinutes(now, 30))
+          break
+        case '60':
+          setRestrictionEndDate(addHours(now, 1))
+          break
+        case '180':
+          setRestrictionEndDate(addHours(now, 3))
+          break
+        case '1440':
+          setRestrictionEndDate(addDays(now, 1))
+          break
+        // Nếu là custom, giữ nguyên giá trị hiện tại
+      }
+    }
+  }, [restrictionDuration, restrictionType])
 
   // Thêm useEffect để tự động bật yêu cầu phê duyệt khi chọn nhóm riêng tư
   useEffect(() => {
@@ -559,14 +621,14 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                         )}
                       />
 
-                      {isAdmin && (
+                      {isOwner && (
                         <div className='mt-6 space-y-4'>
                           <div className='flex flex-col space-y-1.5'>
                             <h3 className='text-sm font-medium'>Cài đặt tin nhắn</h3>
                             <p className='text-muted-foreground text-xs'>Quản lý quyền gửi tin nhắn trong nhóm</p>
                           </div>
 
-                          <div className='flex items-center justify-between rounded-lg border p-4'>
+                          <div className='flex items-center justify-between gap-2 rounded-lg border p-4'>
                             <div className='space-y-0.5'>
                               <Label htmlFor='admin-only-messages'>Chỉ quản trị viên được gửi tin nhắn</Label>
                               <p className='text-muted-foreground text-xs'>
@@ -577,83 +639,232 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                               id='admin-only-messages'
                               checked={onlyAdminsCanSend}
                               onCheckedChange={setOnlyAdminsCanSend}
-                              disabled={!canChangeGroupInfo}
+                              disabled={isUpdatingRestriction || !isOwner} // Chỉ owner mới có thể thay đổi
                             />
                           </div>
 
+                          {/* Phần cài đặt thời gian chỉ hiển thị cho owner */}
                           {onlyAdminsCanSend && (
-                            <div className='border-primary/20 bg-muted/30 space-y-2 rounded-md border-l-2 p-3 pl-4'>
-                              <Label htmlFor='restriction-duration'>Thời gian giới hạn</Label>
-                              <RadioGroup
-                                value={restrictionDuration.toString()}
-                                onValueChange={(value) => setRestrictionDuration(parseInt(value))}
-                                className='mt-5'
-                              >
-                                <div className='flex items-center space-x-2'>
-                                  <RadioGroupItem value='0' id='r-indefinite' />
-                                  <Label htmlFor='r-indefinite' className='text-sm font-normal'>
-                                    Vô thời hạn (cho đến khi tắt)
-                                  </Label>
-                                </div>
-                                <div className='flex items-center space-x-2'>
-                                  <RadioGroupItem value='30' id='r-30' />
-                                  <Label htmlFor='r-30' className='text-sm font-normal'>
-                                    30 phút
-                                  </Label>
-                                </div>
-                                <div className='flex items-center space-x-2'>
-                                  <RadioGroupItem value='60' id='r-60' />
-                                  <Label htmlFor='r-60' className='text-sm font-normal'>
-                                    1 giờ
-                                  </Label>
-                                </div>
-                                <div className='flex items-center space-x-2'>
-                                  <RadioGroupItem value='1440' id='r-1440' />
-                                  <Label htmlFor='r-1440' className='text-sm font-normal'>
-                                    1 ngày
-                                  </Label>
-                                </div>
-                                <div className='flex items-center space-x-2'>
-                                  <RadioGroupItem value='custom' id='r-custom' />
-                                  <Label htmlFor='r-custom' className='text-sm font-normal'>
-                                    Tùy chỉnh
-                                  </Label>
-                                  {restrictionDuration !== 0 &&
-                                    restrictionDuration !== 30 &&
-                                    restrictionDuration !== 60 &&
-                                    restrictionDuration !== 1440 && (
-                                      <div className='ml-2 flex items-center'>
-                                        <Input
-                                          type='number'
-                                          min='1'
-                                          className='h-8 w-20 text-sm'
-                                          value={restrictionDuration}
-                                          onChange={(e) => setRestrictionDuration(parseInt(e.target.value) || 0)}
-                                        />
-                                        <span className='text-muted-foreground ml-2 text-sm'>phút</span>
+                            <div className='border-primary/20 bg-muted/30 mt-2 space-y-4 rounded-md border-l-2 px-4 py-2'>
+                              <div className='space-y-4'>
+                                <Label htmlFor='restriction-type'>Thời gian giới hạn</Label>
+                                <RadioGroup
+                                  value={restrictionType}
+                                  onValueChange={(value) => setRestrictionType(value as 'indefinite' | 'until')}
+                                >
+                                  <div className='flex items-center space-x-2'>
+                                    <RadioGroupItem value='indefinite' id='r-indefinite' />
+                                    <Label htmlFor='r-indefinite' className='text-sm font-normal'>
+                                      Vô thời hạn (cho đến khi tắt)
+                                    </Label>
+                                  </div>
+                                  <div className='flex items-center space-x-2'>
+                                    <RadioGroupItem value='until' id='r-until' />
+                                    <Label htmlFor='r-until' className='text-sm font-normal'>
+                                      Đến thời điểm cụ thể
+                                    </Label>
+                                  </div>
+                                </RadioGroup>
+                              </div>
+
+                              {restrictionType === 'until' && (
+                                <div className='space-y-4'>
+                                  <Label>Kết thúc vào</Label>
+                                  <div className='flex flex-col space-y-2'>
+                                    <RadioGroup
+                                      value={restrictionDuration}
+                                      onValueChange={(value) =>
+                                        setRestrictionDuration(value as '30' | '60' | '180' | '1440' | 'custom')
+                                      }
+                                    >
+                                      <div className='flex items-center space-x-2'>
+                                        <RadioGroupItem value='30' id='d-30' />
+                                        <Label htmlFor='d-30' className='text-sm font-normal'>
+                                          30 phút
+                                        </Label>
+                                      </div>
+                                      <div className='flex items-center space-x-2'>
+                                        <RadioGroupItem value='60' id='d-60' />
+                                        <Label htmlFor='d-60' className='text-sm font-normal'>
+                                          1 giờ
+                                        </Label>
+                                      </div>
+                                      <div className='flex items-center space-x-2'>
+                                        <RadioGroupItem value='180' id='d-180' />
+                                        <Label htmlFor='d-180' className='text-sm font-normal'>
+                                          3 giờ
+                                        </Label>
+                                      </div>
+                                      <div className='flex items-center space-x-2'>
+                                        <RadioGroupItem value='1440' id='d-1440' />
+                                        <Label htmlFor='d-1440' className='text-sm font-normal'>
+                                          1 ngày
+                                        </Label>
+                                      </div>
+                                      <div className='flex items-center space-x-2'>
+                                        <RadioGroupItem value='custom' id='d-custom' />
+                                        <Label htmlFor='d-custom' className='text-sm font-normal'>
+                                          Tùy chỉnh
+                                        </Label>
+                                      </div>
+                                    </RadioGroup>
+
+                                    {restrictionDuration === 'custom' && (
+                                      <div className='mt-2 grid gap-2'>
+                                        <Popover>
+                                          <PopoverTrigger asChild>
+                                            <Button
+                                              variant='outline'
+                                              className={cn(
+                                                'w-full justify-start text-left font-normal',
+                                                !restrictionEndDate && 'text-muted-foreground'
+                                              )}
+                                            >
+                                              <CalendarIcon className='mr-2 h-4 w-4' />
+                                              {restrictionEndDate ? (
+                                                format(restrictionEndDate, 'PPP HH:mm', { locale: vi })
+                                              ) : (
+                                                <span>Chọn ngày và giờ</span>
+                                              )}
+                                            </Button>
+                                          </PopoverTrigger>
+                                          <PopoverContent className='w-auto p-0' align='start'>
+                                            <Calendar
+                                              mode='single'
+                                              selected={restrictionEndDate}
+                                              onSelect={(date) => {
+                                                if (date) {
+                                                  const now = new Date()
+                                                  // Giữ nguyên giờ phút từ restrictionEndDate hiện tại
+                                                  let currentHours = restrictionEndDate
+                                                    ? restrictionEndDate.getHours()
+                                                    : now.getHours()
+                                                  let currentMinutes = restrictionEndDate
+                                                    ? restrictionEndDate.getMinutes()
+                                                    : now.getMinutes()
+
+                                                  // Nếu chọn ngày hôm nay và thời gian không hơn hiện tại ít nhất 10 phút
+                                                  const isToday =
+                                                    date.getDate() === now.getDate() &&
+                                                    date.getMonth() === now.getMonth() &&
+                                                    date.getFullYear() === now.getFullYear()
+
+                                                  if (isToday) {
+                                                    // Đảm bảo thời gian ít nhất là hiện tại + 10 phút
+                                                    if (
+                                                      currentHours < now.getHours() ||
+                                                      (currentHours === now.getHours() &&
+                                                        currentMinutes < now.getMinutes() + 10)
+                                                    ) {
+                                                      currentHours = now.getHours()
+                                                      currentMinutes = now.getMinutes() + 10
+
+                                                      // Xử lý trường hợp phút > 59
+                                                      if (currentMinutes >= 60) {
+                                                        currentHours += Math.floor(currentMinutes / 60)
+                                                        currentMinutes = currentMinutes % 60
+                                                      }
+                                                    }
+                                                  }
+
+                                                  const newDate = new Date(date)
+                                                  newDate.setHours(currentHours, currentMinutes)
+                                                  setRestrictionEndDate(newDate)
+                                                }
+                                              }}
+                                              disabled={(date) => {
+                                                // Chỉ disable các ngày trong quá khứ, cho phép chọn ngày hôm nay
+                                                const today = new Date()
+                                                today.setHours(0, 0, 0, 0) // Đặt thời gian về 00:00:00
+                                                return date < today
+                                              }}
+                                              initialFocus
+                                            />
+                                            <div className='border-t p-3'>
+                                              <div className='flex items-center gap-2'>
+                                                <Label htmlFor='time-picker' className='text-xs'>
+                                                  Giờ:
+                                                </Label>
+                                                <Input
+                                                  id='time-picker'
+                                                  type='time'
+                                                  value={
+                                                    restrictionEndDate
+                                                      ? `${restrictionEndDate.getHours().toString().padStart(2, '0')}:${restrictionEndDate.getMinutes().toString().padStart(2, '0')}`
+                                                      : ''
+                                                  }
+                                                  onChange={(e) => {
+                                                    if (e.target.value && restrictionEndDate) {
+                                                      const [hours, minutes] = e.target.value.split(':').map(Number)
+                                                      const newDate = new Date(restrictionEndDate)
+
+                                                      // Kiểm tra nếu là ngày hôm nay
+                                                      const now = new Date()
+                                                      const isToday =
+                                                        newDate.getDate() === now.getDate() &&
+                                                        newDate.getMonth() === now.getMonth() &&
+                                                        newDate.getFullYear() === now.getFullYear()
+
+                                                      // Nếu là ngày hôm nay, đảm bảo thời gian hơn hiện tại ít nhất 10 phút
+                                                      if (isToday) {
+                                                        const selectedTime = new Date(newDate)
+                                                        selectedTime.setHours(hours, minutes)
+
+                                                        const minTime = new Date(now)
+                                                        minTime.setMinutes(now.getMinutes() + 10)
+
+                                                        if (selectedTime < minTime) {
+                                                          // Nếu thời gian không hợp lệ, đặt thành thời gian hiện tại + 10 phút
+                                                          newDate.setHours(now.getHours(), now.getMinutes() + 10)
+
+                                                          // Xử lý trường hợp phút > 59
+                                                          if (newDate.getMinutes() >= 60) {
+                                                            newDate.setHours(
+                                                              newDate.getHours() + Math.floor(newDate.getMinutes() / 60)
+                                                            )
+                                                            newDate.setMinutes(newDate.getMinutes() % 60)
+                                                          }
+
+                                                          toast.warning('Thời gian phải hơn hiện tại ít nhất 10 phút')
+                                                        } else {
+                                                          newDate.setHours(hours, minutes)
+                                                        }
+                                                      } else {
+                                                        // Nếu không phải ngày hôm nay, cho phép chọn bất kỳ thời gian nào
+                                                        newDate.setHours(hours, minutes)
+                                                      }
+
+                                                      setRestrictionEndDate(newDate)
+                                                    }
+                                                  }}
+                                                  className='h-8 min-w-24'
+                                                />
+                                              </div>
+                                            </div>
+                                          </PopoverContent>
+                                        </Popover>
                                       </div>
                                     )}
+                                  </div>
                                 </div>
-                              </RadioGroup>
-                            </div>
-                          )}
-
-                          {onlyAdminsCanSend && (
-                            <Button
-                              onClick={handleUpdateRestriction}
-                              disabled={isUpdatingRestriction || !canChangeGroupInfo}
-                              className='mt-2 w-full'
-                              size='sm'
-                            >
-                              {isUpdatingRestriction ? (
-                                <>
-                                  <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                                  Đang cập nhật...
-                                </>
-                              ) : (
-                                'Lưu cài đặt'
                               )}
-                            </Button>
+
+                              <Button
+                                onClick={handleUpdateRestriction}
+                                disabled={isUpdatingRestriction || !canChangeGroupInfo}
+                                className='mt-4 w-full'
+                                size='sm'
+                              >
+                                {isUpdatingRestriction ? (
+                                  <>
+                                    <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                                    Đang cập nhật...
+                                  </>
+                                ) : (
+                                  'Lưu cài đặt'
+                                )}
+                              </Button>
+                            </div>
                           )}
                         </div>
                       )}

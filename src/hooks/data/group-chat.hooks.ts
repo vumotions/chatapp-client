@@ -208,7 +208,7 @@ export function useUpdateSendMessageRestrictionMutation() {
   const queryClient = useQueryClient()
   
   return useMutation({
-    mutationFn: async ({
+    mutationFn: ({
       conversationId,
       onlyAdminsCanSend,
       duration
@@ -217,25 +217,15 @@ export function useUpdateSendMessageRestrictionMutation() {
       onlyAdminsCanSend: boolean
       duration: number
     }) => {
-      const response = await fetch(`/api/conversations/group/${conversationId}/restrict-sending`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ onlyAdminsCanSend, duration })
+      return conversationsService.updateSendMessageRestriction(conversationId, {
+        onlyAdminsCanSend,
+        duration
       })
-      
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Không thể cập nhật cài đặt')
-      }
-      
-      return response.json()
     },
     onSuccess: (_, variables) => {
       // Invalidate queries to refresh data
       queryClient.invalidateQueries({ queryKey: ['MESSAGES', variables.conversationId] })
-      queryClient.invalidateQueries({ queryKey: ['CONVERSATIONS'] })
+      queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] })
     }
   })
 }
@@ -246,21 +236,17 @@ export function useCheckSendMessagePermissionQuery(chatId: string | undefined) {
     queryKey: ['SEND_PERMISSION', chatId],
     queryFn: async () => {
       if (!chatId) return null
-      
-      const response = await fetch(`/api/conversations/chat/${chatId}/send-permission`)
-      
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Không thể kiểm tra quyền gửi tin nhắn')
-      }
-      
-      const result = await response.json()
-      return result.data
+      return conversationsService.checkSendMessagePermission(chatId)
     },
     enabled: !!chatId,
     refetchOnWindowFocus: false,
     staleTime: 1000 * 60 // 1 phút
   })
 }
+
+
+
+
+
 
 

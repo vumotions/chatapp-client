@@ -732,3 +732,31 @@ export const useCheckConversationAccess = (chatId: string | undefined) => {
     refetchOnWindowFocus: true
   })
 }
+
+// Thêm hook để kiểm tra quyền gửi tin nhắn
+export function useCheckSendMessagePermissionQuery(chatId: string | undefined) {
+  return useQuery({
+    queryKey: ['SEND_PERMISSION', chatId],
+    queryFn: async () => {
+      if (!chatId) return null
+      try {
+        // Thử gọi API
+        return await conversationsService.checkSendMessagePermission(chatId)
+      } catch (error) {
+        console.error('Error checking send permission, returning default:', error)
+        // Trả về giá trị mặc định nếu API không hoạt động
+        return {
+          canSendMessages: true,
+          isMuted: false,
+          mutedUntil: null,
+          restrictedByGroupSettings: false,
+          restrictUntil: null,
+          conversationId: chatId
+        }
+      }
+    },
+    enabled: !!chatId,
+    refetchOnWindowFocus: false,
+    staleTime: 1000 * 60 // 1 phút
+  })
+}

@@ -186,7 +186,7 @@ class ConversationsService {
   // Lấy danh sách yêu cầu tham gia nhóm
   async getJoinRequests(conversationId: string, status?: string) {
     console.log('Getting join requests for conversation:', conversationId, 'with status:', status)
-    const url = status 
+    const url = status
       ? `/chat/group/${conversationId}/join-requests?status=${status}`
       : `/chat/group/${conversationId}/join-requests`
     const res = await httpRequest.get(url)
@@ -260,6 +260,18 @@ class ConversationsService {
     })
     console.log('API response for deleteAllJoinRequests:', res.data)
     return res.data
+  }
+
+  // Thêm method để cập nhật cài đặt "Chỉ quản trị viên được gửi tin nhắn"
+  updateSendMessageRestriction(conversationId: string, data: { onlyAdminsCanSend: boolean; duration: number }) {
+    return httpRequest.post(`/chat/group/${conversationId}/restrict-sending`, data)
+  }
+
+  // Thêm phương thức kiểm tra quyền gửi tin nhắn
+  async checkSendMessagePermission(chatId: string) {
+    const res = await httpRequest.get(`/chat/${chatId}/send-permission`)
+    console.log('API response for checkSendMessagePermission:', res.data)
+    return res.data.data
   }
 }
 
