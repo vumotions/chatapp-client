@@ -7,6 +7,7 @@ export type User = {
   dateOfBirth: string
   verify: USER_VERIFY_STATUS
   isBot: boolean
+  avatar?: string
   createdBy: null
   emailLockedUntil: null
   _id: string

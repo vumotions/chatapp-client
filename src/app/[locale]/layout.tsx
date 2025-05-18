@@ -6,7 +6,7 @@ import { notFound } from 'next/navigation'
 import { use } from 'react'
 import TokenRefresher from '~/components/token-refresher'
 import NotificationListener from '~/components/notification-listener'
-import { Toaster } from '~/components/ui/sonner'
+import { Toaster } from 'sonner'
 import { routing } from '~/i18n/routing'
 import BProgressProvider from '~/providers/bprogress-provider'
 import NextAuthProvider from '~/providers/nextauth-provider'
@@ -14,7 +14,6 @@ import ReactQueryProvider from '~/providers/query-client-provider'
 import SocketProvider from '~/providers/socket-provider'
 import { ThemeProvider } from '~/providers/theme-provider'
 import './globals.css'
-
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -61,7 +60,20 @@ function Layout({ params, children }: Props) {
                   <TokenRefresher />
                   <NotificationListener />
                 </ReactQueryProvider>
-                <Toaster position='top-center' />
+                <Toaster
+                  position='bottom-left'
+                  toastOptions={{
+                    style: {
+                      background: 'var(--background)',
+                      color: 'var(--foreground)',
+                      border: '1px solid var(--border)'
+                    },
+                    actionButtonStyle: {
+                      backgroundColor: 'var(--primary)',
+                      color: 'var(--primary-foreground)'
+                    }
+                  }}
+                />
               </BProgressProvider>
             </ThemeProvider>
           </NextAuthProvider>
@@ -72,4 +84,3 @@ function Layout({ params, children }: Props) {
 }
 
 export default Layout
-

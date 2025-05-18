@@ -20,3 +20,21 @@ export type VerifyAccountResponse = SuccessResponse<User>
 export type SendEmailVerificationResponse = SuccessResponse<{
   otpExpiresAt: string
 }>
+
+export type GetMyProfileResponse = SuccessResponse<{
+  _id: string
+  username: string
+  email: string
+  avatar?: string
+  coverPhoto?: string
+  name: string
+  verify: string
+  provider?: string
+  providerId?: string
+  isBot: boolean
+  createdBy: null
+  emailLockedUntil: null
+  createdAt: string
+  updatedAt: string
+  __v: number
+}>

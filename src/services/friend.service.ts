@@ -2,11 +2,12 @@ import httpRequest from '~/config/http-request'
 import { SuccessResponse } from '~/types/api.types'
 
 export interface Friend {
+  username: string // Đảm bảo trường này tồn tại
   status: string
   _id: string
   name: string
   avatar: string
-  mutualFriends?: number // Số bạn chung, chỉ có ở friend suggestions
+  mutualFriends?: number
 }
 
 export interface FriendRequest {
@@ -16,6 +17,17 @@ export interface FriendRequest {
   status: 'PENDING' | 'ACCEPTED' | 'REJECTED'
   createdAt: string
   updatedAt: string
+}
+
+// Thêm interface cho response phân trang
+export interface PaginatedResponse<T> {
+  suggestions: T[]
+  pagination: {
+    total: number
+    page: number
+    limit: number
+    totalPages: number
+  }
 }
 
 class FriendService {
@@ -47,14 +59,41 @@ class FriendService {
     })
   }
 
-  // Lấy danh sách bạn bè
-  getFriendsList() {
-    return httpRequest.get<SuccessResponse<Friend[]>>('/friends')
+  // Cập nhật method để hỗ trợ tìm kiếm
+  getFriendsList(search = '') {
+    return httpRequest.get<SuccessResponse<Friend[]>>(`/friends?search=${encodeURIComponent(search)}`)
   }
 
-  // Lấy danh sách gợi ý bạn bè
-  getFriendSuggestions() {
-    return httpRequest.get<SuccessResponse<Friend[]>>('/friends/suggestions')
+  // Lấy danh sách gợi ý bạn bè với phân trang
+  getFriendSuggestions(page = 1, limit = 10) {
+    return httpRequest.get<SuccessResponse<PaginatedResponse<Friend>>>(
+      `/friends/suggestions?page=${page}&limit=${limit}`
+    )
+  }
+
+  // Thêm phương thức removeFriend
+  removeFriend(friendId: string) {
+    return httpRequest.delete(`/friends/remove/${friendId}`)
+  }
+
+  // Lấy trạng thái kết bạn với một người dùng
+  getFriendStatus(userId: string) {
+    return httpRequest.get<SuccessResponse<{ status: string | null }>>(`/friends/status/${userId}`)
+  }
+
+  // Thêm phương thức searchUsers để tìm kiếm tất cả người dùng
+  searchUsers(query = '') {
+    return httpRequest.get<SuccessResponse<Friend[]>>(`/friends/search?q=${encodeURIComponent(query)}`)
+  }
+
+  // Thêm phương thức mới để lấy bạn bè theo username
+  getFriendsByUsername(username: string) {
+    return httpRequest.get<SuccessResponse<Friend[]>>(`/friends/user/${username}`)
+  }
+
+  // Lấy danh sách bạn bè với roles trong nhóm chat
+  getFriendsWithRoles(conversationId: string) {
+    return httpRequest.get(`/friends/with-roles?conversationId=${conversationId}`)
   }
 }
 

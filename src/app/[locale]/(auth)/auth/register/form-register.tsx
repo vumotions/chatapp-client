@@ -3,7 +3,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ChevronDown } from 'lucide-react'
 import { signIn } from 'next-auth/react'
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { Button, buttonVariants } from '~/components/ui/button'
@@ -25,6 +25,7 @@ type Props = {
 
 function FormRegister({ className }: Props) {
   const router = useRouter()
+  const [isPending, startTransition] = useTransition()
   const registerMutation = useRegisterMutation()
   const form = useForm<FormRegisterValues>({
     defaultValues: {
@@ -39,7 +40,12 @@ function FormRegister({ className }: Props) {
     },
     resolver: zodResolver(formRegisterSchema)
   })
-  const [isLoading, setIsLoading] = useState<boolean>(false)
+  const [socialLoading, setSocialLoading] = useState<{ google: boolean; github: boolean }>({
+    google: false,
+    github: false
+  })
+
+  const isLoading = registerMutation.isPending || isPending || Object.values(socialLoading).some(Boolean)
 
   const handleAccountRegistration = form.handleSubmit(async (data) => {
     try {
@@ -52,7 +58,9 @@ function FormRegister({ className }: Props) {
       toast.success(message)
 
       if (user.verify !== USER_VERIFY_STATUS.VERIFIED) {
-        router.push(`/auth/recover/code?email=${encodeURIComponent(data.email)}&redirect_from=register`)
+        startTransition(() => {
+          router.push(`/auth/recover/code?email=${encodeURIComponent(data.email)}&redirect_from=register`)
+        })
       }
     } catch (error: any) {
       handleError(error, form)
@@ -60,9 +68,15 @@ function FormRegister({ className }: Props) {
   })
 
   async function handleGoogleLogin() {
-    setIsLoading(true)
-    await signIn('google')
-    setIsLoading(false)
+    setSocialLoading((prev) => ({ ...prev, google: true }))
+    await signIn('google', { callbackUrl: '/' })
+    setSocialLoading((prev) => ({ ...prev, google: false }))
+  }
+
+  async function handleGithubLogin() {
+    setSocialLoading((prev) => ({ ...prev, github: true }))
+    await signIn('github', { callbackUrl: '/' })
+    setSocialLoading((prev) => ({ ...prev, github: false }))
   }
 
   return (
@@ -78,7 +92,7 @@ function FormRegister({ className }: Props) {
                   <FormItem>
                     <FormLabel>Name</FormLabel>
                     <FormControl>
-                      <Input disabled={isLoading || registerMutation.isPending} placeholder='Vu Motions' {...field} />
+                      <Input disabled={isLoading} placeholder='Vu Motions' {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -91,12 +105,7 @@ function FormRegister({ className }: Props) {
                   <FormItem>
                     <FormLabel>Email</FormLabel>
                     <FormControl>
-                      <Input
-                        placeholder='name@example.com'
-                        disabled={isLoading || registerMutation.isPending}
-                        type='email'
-                        {...field}
-                      />
+                      <Input placeholder='name@example.com' disabled={isLoading} type='email' {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -115,6 +124,7 @@ function FormRegister({ className }: Props) {
                           <FormControl>
                             <Select
                               {...field}
+                              disabled={isLoading}
                               onValueChange={(value) => {
                                 field.onChange(value)
                                 form.trigger('dob')
@@ -150,6 +160,7 @@ function FormRegister({ className }: Props) {
                           <FormControl>
                             <Select
                               {...field}
+                              disabled={isLoading}
                               onValueChange={(value) => {
                                 field.onChange(value)
                                 form.trigger('dob')
@@ -198,6 +209,7 @@ function FormRegister({ className }: Props) {
                           <FormControl>
                             <Select
                               {...field}
+                              disabled={isLoading}
                               onValueChange={(value) => {
                                 field.onChange(value)
                                 form.trigger('dob')
@@ -241,6 +253,7 @@ function FormRegister({ className }: Props) {
                         onValueChange={field.onChange}
                         defaultValue={field.value}
                         className='grid grid-cols-2'
+                        disabled={isLoading}
                       >
                         <FormItem className='flex items-center space-y-0 space-x-1'>
                           <FormLabel
@@ -286,12 +299,7 @@ function FormRegister({ className }: Props) {
                   <FormItem>
                     <FormLabel>Password</FormLabel>
                     <FormControl>
-                      <Input
-                        id='password'
-                        type='password'
-                        disabled={isLoading || registerMutation.isPending}
-                        {...field}
-                      />
+                      <Input id='password' type='password' disabled={isLoading} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -304,19 +312,14 @@ function FormRegister({ className }: Props) {
                   <FormItem>
                     <FormLabel>Confirm Password</FormLabel>
                     <FormControl>
-                      <Input
-                        id='confirmPassword'
-                        type='password'
-                        disabled={isLoading || registerMutation.isPending}
-                        {...field}
-                      />
+                      <Input id='confirmPassword' type='password' disabled={isLoading} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <Button disabled={isLoading || registerMutation.isPending}>
-                {registerMutation.isPending && <Icons.spinner className='mr-2 h-4 w-4 animate-spin' />}
+              <Button disabled={isLoading}>
+                {(registerMutation.isPending || isPending) && <Icons.spinner className='mr-2 h-4 w-4 animate-spin' />}
                 Create account
               </Button>
             </div>
@@ -328,21 +331,16 @@ function FormRegister({ className }: Props) {
           <span className='w-full border-t' />
         </div>
         <div className='flex gap-5 px-0'>
-          <Button
-            variant='outline'
-            onClick={handleGoogleLogin}
-            className='flex-1/2'
-            disabled={isLoading || registerMutation.isPending}
-          >
-            {isLoading ? (
+          <Button variant='outline' onClick={handleGoogleLogin} className='flex-1/2' disabled={isLoading}>
+            {socialLoading.google ? (
               <Icons.spinner className='mr-2 h-4 w-4 animate-spin' />
             ) : (
               <Icons.google className='mr-2 h-4 w-4' />
             )}{' '}
             Google
           </Button>
-          <Button variant='outline' className='flex-1/2' disabled={isLoading || registerMutation.isPending}>
-            {isLoading ? (
+          <Button variant='outline' onClick={handleGithubLogin} className='flex-1/2' disabled={isLoading}>
+            {socialLoading.github ? (
               <Icons.spinner className='mr-2 h-4 w-4 animate-spin' />
             ) : (
               <Icons.gitHub className='mr-2 h-4 w-4' />

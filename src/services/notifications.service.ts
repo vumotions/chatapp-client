@@ -24,8 +24,11 @@ interface NotificationsResponse {
 }
 
 class NotificationsService {
-  getNotifications(page = 1, limit = 10) {
-    return httpRequest.get<SuccessResponse<NotificationsResponse>>(`/notifications?page=${page}&limit=${limit}`)
+  getNotifications(page = 1, limit = 10, filter = 'all', excludeTypes = ['NEW_MESSAGE']) {
+    const excludeTypesParam = excludeTypes.length > 0 ? `&excludeTypes=${excludeTypes.join(',')}` : '';
+    return httpRequest.get<SuccessResponse<NotificationsResponse>>(
+      `/notifications?page=${page}&limit=${limit}&filter=${filter}${excludeTypesParam}`
+    )
   }
 
   markAsRead(notificationId: string) {
@@ -34,6 +37,14 @@ class NotificationsService {
 
   markAllAsRead() {
     return httpRequest.patch<SuccessResponse<null>>('/notifications/read-all')
+  }
+
+  deleteNotification(notificationId: string) {
+    return httpRequest.delete<SuccessResponse<null>>(`/notifications/${notificationId}`)
+  }
+
+  deleteAllNotifications() {
+    return httpRequest.delete<SuccessResponse<null>>('/notifications')
   }
 }
 

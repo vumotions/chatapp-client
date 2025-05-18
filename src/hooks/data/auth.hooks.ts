@@ -1,7 +1,13 @@
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import httpRequest from '~/config/http-request'
 import { FormCodeValues, FormRegisterValues } from '~/schemas/form.schemas'
-import { RegisterResponse, SendEmailVerificationResponse, VerifyAccountResponse } from '~/types/auth.types'
+import authService from '~/services/auth.service'
+import {
+  GetMyProfileResponse,
+  RegisterResponse,
+  SendEmailVerificationResponse,
+  VerifyAccountResponse
+} from '~/types/auth.types'
 
 export const useRegisterMutation = () => {
   return useMutation({
@@ -27,5 +33,13 @@ export const useSendEmailVerificationMutation = () => {
 export const useVerifyAccountMutation = () => {
   return useMutation({
     mutationFn: (body: FormCodeValues) => httpRequest.post<VerifyAccountResponse>('/auth/email/verify/confirm', body)
+  })
+}
+
+export const useMyProfileQuery = () => {
+  return useQuery({
+    queryKey: ['myProfile'],
+    queryFn: () => authService.getMyProfile(),
+    select: (response) => response.data.data
   })
 }

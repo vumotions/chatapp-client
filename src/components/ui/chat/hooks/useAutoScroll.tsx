@@ -83,6 +83,10 @@ export function useAutoScroll(options: UseAutoScrollOptions = {}) {
     const scrollElement = scrollRef.current;
     if (!scrollElement) return;
 
+    // Kiểm tra xem có đang tải tin nhắn cũ không
+    const isFetchingOldMessages = document.body.getAttribute('data-fetching-old-messages') === 'true';
+    if (isFetchingOldMessages) return;
+
     const currentHeight = scrollElement.scrollHeight;
     const hasNewContent = currentHeight !== lastContentHeight.current;
 
