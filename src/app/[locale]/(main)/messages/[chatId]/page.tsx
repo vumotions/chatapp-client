@@ -49,6 +49,8 @@ import { useProtectedChat } from '~/hooks/use-protected-chat'
 import { useRouter } from '~/i18n/navigation'
 import { FriendActionButton } from './components/friend-action-button'
 import { PinnedMessages } from './components/pinned-messages'
+import { CallFrame } from '~/components/call/call-frame'
+import { CALL_TYPE } from '~/constants/enums'
 
 const PRIMARY_RGB = '14, 165, 233' // Giá trị RGB của màu primary (sky-500)
 const SUCCESS_RGB = '34, 197, 94' // Giá trị RGB của màu green-500
@@ -95,6 +97,16 @@ function ChatDetail({ params }: Props) {
     isOnline: false,
     lastActive: null
   })
+
+  // Thêm state cho cuộc gọi
+  const [isAudioCallActive, setIsAudioCallActive] = useState(false)
+  const [isVideoCallActive, setIsVideoCallActive] = useState(false)
+  const [incomingCall, setIncomingCall] = useState<{
+    callerId: string
+    callerName: string
+    callerAvatar?: string
+    callType: CALL_TYPE
+  } | null>(null)
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
 
   // Sử dụng hook bảo vệ
@@ -404,7 +416,7 @@ function ChatDetail({ params }: Props) {
         senderId: senderInfo,
         status: isSentByCurrentUser
           ? MESSAGE_STATUS.DELIVERED
-          : (isAtBottom && document.visibilityState === 'visible')
+          : isAtBottom && document.visibilityState === 'visible'
             ? MESSAGE_STATUS.SEEN
             : MESSAGE_STATUS.DELIVERED
       }
@@ -1159,7 +1171,7 @@ function ChatDetail({ params }: Props) {
   }
 
   const handleSendMessage = async () => {
-    if (!message.trim() && !selectedFiles.length) return
+    if (!message.trim()) return
 
     // Nếu đang trong trạng thái typing, gửi sự kiện dừng typing
     if (isTyping) {
@@ -1182,35 +1194,6 @@ function ChatDetail({ params }: Props) {
     // Thêm tempId vào danh sách đã gửi
     setSentTempIds((prev) => new Set([...prev, tempId]))
 
-    // Tạo tin nhắn tạm thời để hiển thị ngay lập tức
-    const tempMessage = {
-      _id: tempId,
-      chatId,
-      content: message,
-      type: 'TEXT',
-      createdAt: new Date().toISOString(),
-      senderId: session?.user?._id.toString(), // Lưu dưới dạng string
-      senderInfo: {
-        _id: session?.user?._id,
-        name: session?.user?.name || 'You',
-        avatar: session?.user?.avatar || ''
-      },
-      status: MESSAGE_STATUS.SENT
-    }
-
-    // Thêm tin nhắn tạm thời vào cache
-    queryClient.setQueryData(['MESSAGES', chatId], (oldData: any) => {
-      if (!oldData) return oldData
-
-      const firstPage = { ...oldData.pages[0] }
-      firstPage.messages = [...firstPage.messages, tempMessage]
-
-      return {
-        ...oldData,
-        pages: [firstPage, ...oldData.pages.slice(1)]
-      }
-    })
-
     // Gửi tin nhắn qua socket với tempId
     socket?.emit(SOCKET_EVENTS.SEND_MESSAGE, {
       chatId,
@@ -1219,11 +1202,15 @@ function ChatDetail({ params }: Props) {
       tempId,
       senderName: session?.user?.name,
       senderAvatar: session?.user?.avatar,
-      status: MESSAGE_STATUS.DELIVERED // Đặt trạng thái ban đầu là DELIVERED, không phải SEEN
+      status: MESSAGE_STATUS.DELIVERED
     })
 
     // Reset input
     setMessage('')
+
+    // Cập nhật danh sách chat
+    queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] })
+    queryClient.invalidateQueries({ queryKey: ['ARCHIVED_CHAT_LIST'] })
   }
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -1757,6 +1744,41 @@ function ChatDetail({ params }: Props) {
     return <ChatSkeleton />
   }
 
+  // Thêm các hàm xử lý cuộc gọi
+  const handleStartAudioCall = () => {
+    if (!otherUser?._id) return
+    setIsAudioCallActive(true)
+
+    // Thông báo cho server về cuộc gọi
+    if (socket) {
+      socket.emit(SOCKET_EVENTS.INITIATE_CALL, {
+        recipientId: otherUser._id,
+        chatId,
+        callType: CALL_TYPE.AUDIO
+      })
+    }
+  }
+
+  const handleStartVideoCall = () => {
+    if (!otherUser?._id) return
+    setIsVideoCallActive(true)
+
+    // Thông báo cho server về cuộc gọi
+    if (socket) {
+      socket.emit(SOCKET_EVENTS.INITIATE_CALL, {
+        recipientId: otherUser._id,
+        chatId,
+        callType: CALL_TYPE.VIDEO
+      })
+    }
+  }
+
+  const handleEndCall = () => {
+    setIsAudioCallActive(false)
+    setIsVideoCallActive(false)
+    setIncomingCall(null)
+  }
+
   return (
     <div className='sticky top-0 flex h-full max-h-[calc(100vh-64px)] flex-col'>
       <div className='flex items-center border-b p-2'>
@@ -1879,19 +1901,21 @@ function ChatDetail({ params }: Props) {
                     ) : (
                       // Hiển thị nút gọi và kết bạn cho chat 1-1
                       <>
+                        {/* Nút gọi thoại */}
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <Button variant='ghost' size='icon'>
+                            <Button variant='ghost' size='icon' onClick={handleStartAudioCall}>
                               <Phone className='h-5 w-5' />
                               <span className='sr-only'>Gọi thoại</span>
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>Gọi thoại</TooltipContent>
                         </Tooltip>
+
                         {/* Nút gọi video */}
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <Button variant='ghost' size='icon'>
+                            <Button variant='ghost' size='icon' onClick={handleStartVideoCall}>
                               <Video className='h-5 w-5' />
                               <span className='sr-only'>Gọi video</span>
                             </Button>
@@ -2359,6 +2383,35 @@ function ChatDetail({ params }: Props) {
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Render CallFrame khi có cuộc gọi */}
+      {isAudioCallActive && otherUser?._id && (
+        <div className='fixed inset-0 z-50'>
+          <CallFrame
+            chatId={chatId as string}
+            recipientId={otherUser._id}
+            recipientName={otherUser?.name || ''}
+            recipientAvatar={otherUser?.avatar}
+            callType={CALL_TYPE.AUDIO}
+            isInitiator={true}
+            onClose={handleEndCall}
+          />
+        </div>
+      )}
+
+      {isVideoCallActive && otherUser?._id && (
+        <div className='fixed inset-0 z-50'>
+          <CallFrame
+            chatId={chatId as string}
+            recipientId={otherUser._id}
+            recipientName={otherUser?.name || ''}
+            recipientAvatar={otherUser?.avatar}
+            callType={CALL_TYPE.VIDEO}
+            isInitiator={true}
+            onClose={handleEndCall}
+          />
         </div>
       )}
     </div>

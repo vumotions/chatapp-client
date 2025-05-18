@@ -11,7 +11,6 @@ import { Link, useRouter } from '~/i18n/navigation'
 
 function UserPopover() {
   const { data: session } = useSession()
-  console.log({ session })
   const [open, setOpen] = useState(false)
   const router = useRouter()
 

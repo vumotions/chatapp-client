@@ -102,7 +102,7 @@ export function CreateGroupChatDialog() {
     <>
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button variant='ghost' size='icon' onClick={handleButtonClick}>
+          <Button variant='outline' size='icon' onClick={handleButtonClick}>
             <UserPlus className='h-5 w-5' />
           </Button>
         </TooltipTrigger>

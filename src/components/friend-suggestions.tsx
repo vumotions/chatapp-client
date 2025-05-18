@@ -219,7 +219,6 @@ export default function FriendSuggestions() {
                   const isPending =
                     pendingIds.includes(user._id) || user.status === 'PENDING' || justSentIds.includes(user._id)
                   const isReceived = user.status === 'RECEIVED'
-                  console.log({ user })
                   return (
                     <motion.div
                       key={user._id}
