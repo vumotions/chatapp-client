@@ -283,6 +283,63 @@ export default function GroupEventsListener() {
       }
     }
 
+    // Lắng nghe sự kiện JOIN_REQUEST_APPROVED
+    const handleJoinRequestApproved = (data: any) => {
+      console.log('JOIN_REQUEST_APPROVED event received:', data)
+
+      // Cập nhật danh sách chat
+      queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] })
+
+      // Cập nhật thông tin chat hiện tại nếu đang ở trong chat này
+      if (pathname?.includes(`/messages/${data.conversationId}`)) {
+        // Cập nhật danh sách tin nhắn với tin nhắn hệ thống mới
+        if (data.message) {
+          console.log('Adding system message to chat:', data.message)
+          
+          queryClient.setQueryData(['MESSAGES', data.conversationId], (oldData: any) => {
+            if (!oldData) return oldData
+
+            // Thêm tin nhắn hệ thống vào trang đầu tiên
+            const firstPage = oldData.pages[0]
+            if (firstPage && firstPage.messages) {
+              // Kiểm tra xem tin nhắn đã tồn tại chưa
+              const messageExists = firstPage.messages.some((msg: any) => msg._id === data.message._id)
+              
+              if (!messageExists) {
+                return {
+                  ...oldData,
+                  pages: [
+                    {
+                      ...firstPage,
+                      messages: [data.message, ...firstPage.messages]
+                    },
+                    ...oldData.pages.slice(1)
+                  ]
+                }
+              }
+            }
+            return oldData
+          })
+        } else {
+          // Nếu không có tin nhắn, chỉ cần invalidate để lấy dữ liệu mới
+          queryClient.invalidateQueries({ queryKey: ['MESSAGES', data.conversationId] })
+        }
+
+        // Cập nhật danh sách thành viên
+        queryClient.invalidateQueries({ queryKey: ['FRIENDS_WITH_ROLES', data.conversationId] })
+      }
+
+      // Hiển thị thông báo nếu người dùng là người được phê duyệt
+      if (data.userId === currentUserId) {
+        toast.success('Yêu cầu tham gia của bạn đã được chấp nhận')
+        
+        // Nếu không đang ở trong chat, chuyển hướng đến chat
+        if (!pathname?.includes(`/messages/${data.conversationId}`)) {
+          // Có thể thêm logic chuyển hướng ở đây nếu cần
+        }
+      }
+    }
+
     // Đăng ký lắng nghe các sự kiện
     socket.on(SOCKET_EVENTS.OWNERSHIP_TRANSFERRED, handleOwnershipTransferred)
     socket.on(SOCKET_EVENTS.MEMBER_LEFT, handleMemberLeft)
@@ -293,6 +350,7 @@ export default function GroupEventsListener() {
     socket.on(SOCKET_EVENTS.MEMBERS_ADDED, handleMembersAdded)
     socket.on(SOCKET_EVENTS.MEMBER_ROLE_UPDATED, handleMemberRoleUpdated)
     socket.on(SOCKET_EVENTS.GROUP_UPDATED, handleGroupUpdated)
+    socket.on(SOCKET_EVENTS.JOIN_REQUEST_APPROVED, handleJoinRequestApproved)
 
     // Cleanup khi component unmount
     return () => {
@@ -305,10 +363,12 @@ export default function GroupEventsListener() {
       socket.off(SOCKET_EVENTS.MEMBERS_ADDED, handleMembersAdded)
       socket.off(SOCKET_EVENTS.MEMBER_ROLE_UPDATED, handleMemberRoleUpdated)
       socket.off(SOCKET_EVENTS.GROUP_UPDATED, handleGroupUpdated)
+      socket.off(SOCKET_EVENTS.JOIN_REQUEST_APPROVED, handleJoinRequestApproved)
     }
   }, [socket, currentUserId, pathname])
 
   return null
 }
+
 
 

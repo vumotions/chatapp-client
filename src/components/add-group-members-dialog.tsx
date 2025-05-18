@@ -54,6 +54,12 @@ type JoinRequest = {
     name: string
     avatar: string
   }
+  processedAt?: string
+  processedBy?: {
+    _id: string
+    name: string
+    avatar: string
+  }
 }
 
 export function AddGroupMembersDialog({ conversation }: { conversation: any }) {
@@ -125,7 +131,7 @@ export function AddGroupMembersDialog({ conversation }: { conversation: any }) {
   const addMembersMutation = useMutation({
     mutationFn: (userIds: string[]) => conversationsService.addGroupMembers(conversation._id, userIds),
     onSuccess: () => {
-      toast.success('Đã thêm thành viên vào nhóm')
+      toast.success('Đã mời thành viên vào nhóm')
       queryClient.invalidateQueries({ queryKey: ['MESSAGES', conversation._id] })
       queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] })
       setOpen(false)
@@ -347,6 +353,13 @@ export function AddGroupMembersDialog({ conversation }: { conversation: any }) {
                   canApproveRequests={canApproveRequests}
                   onDataChange={() => {
                     // Cập nhật lại danh sách chat khi có thay đổi
+                    
+                    queryClient.invalidateQueries({
+                      queryKey: ['JOIN_REQUESTS', conversation._id]
+                    })
+                    queryClient.invalidateQueries({
+                      queryKey: ['JOIN_REQUESTS_COUNT', conversation._id]
+                    })
                     queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] })
                     queryClient.invalidateQueries({ queryKey: ['MESSAGES', conversation._id] })
                   }}
@@ -374,5 +387,3 @@ export function AddGroupMembersDialog({ conversation }: { conversation: any }) {
     </>
   )
 }
-
-

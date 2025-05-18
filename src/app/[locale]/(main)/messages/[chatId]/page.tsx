@@ -370,7 +370,7 @@ function ChatDetail({ params }: Props) {
       // Nếu là nhóm chat, tìm thông tin người gửi trong danh sách thành viên
       else if (isGroupChat) {
         const sender = data?.pages[0]?.conversation?.participants?.find((p: any) => p._id === message.senderId)
-
+        console.log('SENDER: ', { sender })
         if (sender) {
           senderInfo = {
             _id: message.senderId,
@@ -650,7 +650,7 @@ function ChatDetail({ params }: Props) {
 
   // Thêm useEffect để đánh dấu tin nhắn đã đọc khi người dùng xem
   useEffect(() => {
-    if (!socket || !chatId || !allMessages.length || !isAtBottom) return;
+    if (!socket || !chatId || !allMessages.length || !isAtBottom) return
 
     // Lấy các tin nhắn chưa đọc từ người khác
     const unreadMessages = allMessages.filter(
@@ -997,18 +997,21 @@ function ChatDetail({ params }: Props) {
 
   // 4. Tất cả các hàm xử lý sự kiện
   // Hàm kiểm tra xem tin nhắn có phải do người dùng hiện tại gửi không
-  const isMessageFromCurrentUser = useCallback((message: any) => {
-    if (!message || !session?.user?._id) return false;
-    
-    const currentUserId = session.user._id;
-    
-    // Kiểm tra cấu trúc của senderId
-    if (typeof message.senderId === 'object' && message.senderId?._id) {
-      return String(message.senderId._id) === String(currentUserId);
-    } else {
-      return String(message.senderId) === String(currentUserId);
-    }
-  }, [session?.user?._id]);
+  const isMessageFromCurrentUser = useCallback(
+    (message: any) => {
+      if (!message || !session?.user?._id) return false
+
+      const currentUserId = session.user._id
+
+      // Kiểm tra cấu trúc của senderId
+      if (typeof message.senderId === 'object' && message.senderId?._id) {
+        return String(message.senderId._id) === String(currentUserId)
+      } else {
+        return String(message.senderId) === String(currentUserId)
+      }
+    },
+    [session?.user?._id]
+  )
 
   // Thêm các hàm xử lý
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1907,7 +1910,8 @@ function ChatDetail({ params }: Props) {
                                     </Button>
                                   )}
 
-                                  {/* Thêm nút ghim cho tất cả tin nhắn */}
+                                  {/* Xóa nút ghim trực tiếp ở đây vì đã có trong MessageActions */}
+                                  {/* 
                                   <Button
                                     variant='ghost'
                                     size='icon'
@@ -1917,6 +1921,7 @@ function ChatDetail({ params }: Props) {
                                     {msg.isPinned ? <PinOff className='h-4 w-4' /> : <Pin className='h-4 w-4' />}
                                     <span className='sr-only'>{msg.isPinned ? 'Bỏ ghim' : 'Ghim'}</span>
                                   </Button>
+                                  */}
 
                                   {/* Thêm MessageActions component */}
                                   <MessageActions message={msg} chatId={chatId} isSentByMe={isSentByMe} />
