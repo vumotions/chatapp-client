@@ -203,3 +203,64 @@ export const useCheckJoinRequestStatusQuery = (conversationId: string | undefine
   })
 }
 
+// Thêm hook mới để cập nhật cài đặt "Chỉ quản trị viên được gửi tin nhắn"
+export function useUpdateSendMessageRestrictionMutation() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: async ({
+      conversationId,
+      onlyAdminsCanSend,
+      duration
+    }: {
+      conversationId: string
+      onlyAdminsCanSend: boolean
+      duration: number
+    }) => {
+      const response = await fetch(`/api/conversations/group/${conversationId}/restrict-sending`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ onlyAdminsCanSend, duration })
+      })
+      
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.message || 'Không thể cập nhật cài đặt')
+      }
+      
+      return response.json()
+    },
+    onSuccess: (_, variables) => {
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ['MESSAGES', variables.conversationId] })
+      queryClient.invalidateQueries({ queryKey: ['CONVERSATIONS'] })
+    }
+  })
+}
+
+// Thêm hook để kiểm tra quyền gửi tin nhắn
+export function useCheckSendMessagePermissionQuery(chatId: string | undefined) {
+  return useQuery({
+    queryKey: ['SEND_PERMISSION', chatId],
+    queryFn: async () => {
+      if (!chatId) return null
+      
+      const response = await fetch(`/api/conversations/chat/${chatId}/send-permission`)
+      
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.message || 'Không thể kiểm tra quyền gửi tin nhắn')
+      }
+      
+      const result = await response.json()
+      return result.data
+    },
+    enabled: !!chatId,
+    refetchOnWindowFocus: false,
+    staleTime: 1000 * 60 // 1 phút
+  })
+}
+
+

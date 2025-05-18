@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Copy, Crown, LogOut, RefreshCw, Scroll, Settings, Shield, Trash, UserCog, UserMinus } from 'lucide-react'
+import { Copy, Crown, LogOut, RefreshCw, Settings, Shield, Trash, UserCog, UserMinus } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
@@ -43,6 +43,8 @@ import {
 } from '~/hooks/data/group-chat.hooks'
 import { TransferOwnershipDialog } from './transfer-ownership-dialog'
 import { Badge } from './ui/badge'
+import { Loader2 } from 'lucide-react'
+import { useUpdateSendMessageRestrictionMutation } from '~/hooks/data/group-chat.hooks'
 
 // Zod schema cho form cài đặt nhóm
 const groupSettingsSchema = z.object({
@@ -96,6 +98,9 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
   const [transferOwnershipDialogOpen, setTransferOwnershipDialogOpen] = useState(false)
   const [leaveGroupConfirmOpen, setLeaveGroupConfirmOpen] = useState(false)
   const [disbandGroupConfirmOpen, setDisbandGroupConfirmOpen] = useState(false)
+  const [onlyAdminsCanSend, setOnlyAdminsCanSend] = useState(conversation?.onlyAdminsCanSend || false)
+  const [restrictionDuration, setRestrictionDuration] = useState(60) // Mặc định 60 phút
+  const [isUpdatingRestriction, setIsUpdatingRestriction] = useState(false)
 
   const { data: session } = useSession()
   const currentUserId = session?.user?._id
@@ -186,6 +191,7 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
   const removeUserMutation = useRemoveGroupMemberMutation(conversation?._id)
   const updateMemberRoleMutation = useUpdateMemberRoleMutation(conversation?._id)
   const disbandGroupMutation = useDisbandGroupMutation(conversation?._id)
+  const updateRestrictionMutation = useUpdateSendMessageRestrictionMutation()
 
   const onSubmitGroupSettings = async (data: GroupSettingsValues) => {
     await updateGroupMutation.mutateAsync(data)
@@ -204,7 +210,7 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
     }
 
     // Đảm bảo permissions luôn có giá trị
-    const permissions = data.permissions || {
+    let permissions = data.permissions || {
       changeGroupInfo: false,
       deleteMessages: false,
       banUsers: false,
@@ -212,6 +218,17 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
       pinMessages: false,
       addNewAdmins: false,
       approveJoinRequests: false
+    }
+
+    // Nếu người dùng hiện tại là admin (không phải owner) và đang thăng cấp thành viên lên admin
+    if (!isOwner && currentMember?.role === MEMBER_ROLE.ADMIN && data.role === MEMBER_ROLE.ADMIN) {
+      // Giới hạn các quyền nhạy cảm
+      permissions = {
+        ...permissions,
+        addNewAdmins: false, // Admin không thể cấp quyền này cho admin mới
+        banUsers: false, // Admin không thể cấp quyền xóa/cấm thành viên
+        approveJoinRequests: false // Admin không thể cấp quyền phê duyệt thành viên mới
+      }
     }
 
     await updateMemberRoleMutation.mutateAsync({
@@ -346,6 +363,42 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
     disbandGroupMutation.mutate()
     setDisbandGroupConfirmOpen(false)
   }
+
+  const handleUpdateRestriction = async () => {
+    if (!conversation?._id) return
+
+    setIsUpdatingRestriction(true)
+    try {
+      await updateRestrictionMutation.mutateAsync({
+        conversationId: conversation._id,
+        onlyAdminsCanSend,
+        duration: onlyAdminsCanSend ? restrictionDuration : 0
+      })
+
+      toast.success('Đã cập nhật cài đặt thành công')
+      onUpdate?.()
+    } catch (error) {
+      toast.error('Không thể cập nhật cài đặt: ' + (error as Error).message)
+    } finally {
+      setIsUpdatingRestriction(false)
+    }
+  }
+
+  useEffect(() => {
+    if (conversation) {
+      setOnlyAdminsCanSend(conversation.onlyAdminsCanSend || false)
+
+      // Nếu có restrictUntil, tính toán thời gian còn lại
+      if (conversation.restrictUntil) {
+        const now = new Date()
+        const restrictUntil = new Date(conversation.restrictUntil)
+        if (restrictUntil > now) {
+          const remainingMinutes = Math.ceil((restrictUntil.getTime() - now.getTime()) / (60 * 1000))
+          setRestrictionDuration(remainingMinutes)
+        }
+      }
+    }
+  }, [conversation])
 
   // Thêm useEffect để tự động bật yêu cầu phê duyệt khi chọn nhóm riêng tư
   useEffect(() => {
@@ -506,6 +559,107 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                         )}
                       />
 
+                      {isAdmin && (
+                        <div className='mt-6 space-y-4'>
+                          <div className='flex flex-col space-y-1.5'>
+                            <h3 className='text-sm font-medium'>Cài đặt tin nhắn</h3>
+                            <p className='text-muted-foreground text-xs'>Quản lý quyền gửi tin nhắn trong nhóm</p>
+                          </div>
+
+                          <div className='flex items-center justify-between rounded-lg border p-4'>
+                            <div className='space-y-0.5'>
+                              <Label htmlFor='admin-only-messages'>Chỉ quản trị viên được gửi tin nhắn</Label>
+                              <p className='text-muted-foreground text-xs'>
+                                Khi bật, chỉ chủ nhóm và quản trị viên mới có thể gửi tin nhắn
+                              </p>
+                            </div>
+                            <Switch
+                              id='admin-only-messages'
+                              checked={onlyAdminsCanSend}
+                              onCheckedChange={setOnlyAdminsCanSend}
+                              disabled={!canChangeGroupInfo}
+                            />
+                          </div>
+
+                          {onlyAdminsCanSend && (
+                            <div className='border-primary/20 bg-muted/30 space-y-2 rounded-md border-l-2 p-3 pl-4'>
+                              <Label htmlFor='restriction-duration'>Thời gian giới hạn</Label>
+                              <RadioGroup
+                                value={restrictionDuration.toString()}
+                                onValueChange={(value) => setRestrictionDuration(parseInt(value))}
+                                className='mt-5'
+                              >
+                                <div className='flex items-center space-x-2'>
+                                  <RadioGroupItem value='0' id='r-indefinite' />
+                                  <Label htmlFor='r-indefinite' className='text-sm font-normal'>
+                                    Vô thời hạn (cho đến khi tắt)
+                                  </Label>
+                                </div>
+                                <div className='flex items-center space-x-2'>
+                                  <RadioGroupItem value='30' id='r-30' />
+                                  <Label htmlFor='r-30' className='text-sm font-normal'>
+                                    30 phút
+                                  </Label>
+                                </div>
+                                <div className='flex items-center space-x-2'>
+                                  <RadioGroupItem value='60' id='r-60' />
+                                  <Label htmlFor='r-60' className='text-sm font-normal'>
+                                    1 giờ
+                                  </Label>
+                                </div>
+                                <div className='flex items-center space-x-2'>
+                                  <RadioGroupItem value='1440' id='r-1440' />
+                                  <Label htmlFor='r-1440' className='text-sm font-normal'>
+                                    1 ngày
+                                  </Label>
+                                </div>
+                                <div className='flex items-center space-x-2'>
+                                  <RadioGroupItem value='custom' id='r-custom' />
+                                  <Label htmlFor='r-custom' className='text-sm font-normal'>
+                                    Tùy chỉnh
+                                  </Label>
+                                  {restrictionDuration !== 0 &&
+                                    restrictionDuration !== 30 &&
+                                    restrictionDuration !== 60 &&
+                                    restrictionDuration !== 1440 && (
+                                      <div className='ml-2 flex items-center'>
+                                        <Input
+                                          type='number'
+                                          min='1'
+                                          className='h-8 w-20 text-sm'
+                                          value={restrictionDuration}
+                                          onChange={(e) => setRestrictionDuration(parseInt(e.target.value) || 0)}
+                                        />
+                                        <span className='text-muted-foreground ml-2 text-sm'>phút</span>
+                                      </div>
+                                    )}
+                                </div>
+                              </RadioGroup>
+                            </div>
+                          )}
+
+                          {onlyAdminsCanSend && (
+                            <Button
+                              onClick={handleUpdateRestriction}
+                              disabled={isUpdatingRestriction || !canChangeGroupInfo}
+                              className='mt-2 w-full'
+                              size='sm'
+                            >
+                              {isUpdatingRestriction ? (
+                                <>
+                                  <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                                  Đang cập nhật...
+                                </>
+                              ) : (
+                                'Lưu cài đặt'
+                              )}
+                            </Button>
+                          )}
+                        </div>
+                      )}
+
+                      <Separator className='my-6' />
+
                       <Button
                         type='submit'
                         disabled={
@@ -614,23 +768,36 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                       {/* Nút quản lý thành viên - chỉ hiển thị cho admin/owner */}
                       {isAdmin && member._id !== currentUserId && (
                         <div className='flex items-center gap-1'>
-                          <Button
-                            variant='ghost'
-                            size='sm'
-                            onClick={() => handleEditMember(member)}
-                            className='h-8 px-2'
-                          >
-                            <UserCog className='mr-1 h-4 w-4' />
-                          </Button>
+                          {/* Ẩn tất cả các nút quản lý khi:
+                              1. Người dùng hiện tại là admin và thành viên cần quản lý là chủ nhóm, hoặc
+                              2. Người dùng hiện tại là admin và thành viên cần quản lý cũng là admin */}
+                          {(isOwner || (member.role !== MEMBER_ROLE.OWNER && member.role !== MEMBER_ROLE.ADMIN)) && (
+                            <>
+                              {/* Chỉ hiển thị nút chỉnh sửa quyền khi có quyền addNewAdmins hoặc là chủ nhóm */}
+                              {(isOwner || currentMember?.permissions?.addNewAdmins) && (
+                                <Button
+                                  variant='ghost'
+                                  size='sm'
+                                  onClick={() => handleEditMember(member)}
+                                  className='h-8 px-2'
+                                >
+                                  <UserCog className='mr-1 h-4 w-4' />
+                                </Button>
+                              )}
 
-                          <Button
-                            variant='ghost'
-                            size='sm'
-                            onClick={() => handleRemoveUser(member)}
-                            className='text-destructive h-8 px-2'
-                          >
-                            <UserMinus className='mr-1 h-4 w-4' />
-                          </Button>
+                              {/* Chỉ hiển thị nút xóa thành viên khi có quyền banUsers hoặc là chủ nhóm */}
+                              {(isOwner || currentMember?.permissions?.banUsers) && (
+                                <Button
+                                  variant='ghost'
+                                  size='sm'
+                                  onClick={() => handleRemoveUser(member)}
+                                  className='text-destructive h-8 px-2'
+                                >
+                                  <UserMinus className='mr-1 h-4 w-4' />
+                                </Button>
+                              )}
+                            </>
+                          )}
                         </div>
                       )}
                     </div>
@@ -776,21 +943,6 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
 
                       <FormField
                         control={memberEditForm.control}
-                        name='permissions.banUsers'
-                        render={({ field }) => (
-                          <FormItem className='flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm'>
-                            <div className='space-y-0.5'>
-                              <FormLabel>Cấm người dùng</FormLabel>
-                            </div>
-                            <FormControl>
-                              <Switch checked={field.value} onCheckedChange={field.onChange} />
-                            </FormControl>
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={memberEditForm.control}
                         name='permissions.inviteUsers'
                         render={({ field }) => (
                           <FormItem className='flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm'>
@@ -819,6 +971,7 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                         )}
                       />
 
+                      {/* Quyền addNewAdmins - vô hiệu hóa nếu người dùng hiện tại là admin */}
                       <FormField
                         control={memberEditForm.control}
                         name='permissions.addNewAdmins'
@@ -826,14 +979,49 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                           <FormItem className='flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm'>
                             <div className='space-y-0.5'>
                               <FormLabel>Thêm quản trị viên mới</FormLabel>
+                              {!isOwner && (
+                                <FormDescription className='text-xs'>
+                                  Chỉ chủ nhóm mới có thể cấp quyền này
+                                </FormDescription>
+                              )}
                             </div>
                             <FormControl>
-                              <Switch checked={field.value} onCheckedChange={field.onChange} />
+                              <Switch
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                                disabled={!isOwner} // Chỉ owner mới có thể cấp quyền này
+                              />
                             </FormControl>
                           </FormItem>
                         )}
                       />
 
+                      {/* Quyền banUsers - vô hiệu hóa nếu người dùng hiện tại là admin */}
+                      <FormField
+                        control={memberEditForm.control}
+                        name='permissions.banUsers'
+                        render={({ field }) => (
+                          <FormItem className='flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm'>
+                            <div className='space-y-0.5'>
+                              <FormLabel>Cấm người dùng</FormLabel>
+                              {!isOwner && (
+                                <FormDescription className='text-xs'>
+                                  Chỉ chủ nhóm mới có thể cấp quyền này
+                                </FormDescription>
+                              )}
+                            </div>
+                            <FormControl>
+                              <Switch
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                                disabled={!isOwner} // Chỉ owner mới có thể cấp quyền này
+                              />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+
+                      {/* Quyền approveJoinRequests - vô hiệu hóa nếu người dùng hiện tại là admin */}
                       <FormField
                         control={memberEditForm.control}
                         name='permissions.approveJoinRequests'
@@ -841,9 +1029,18 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                           <FormItem className='flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm'>
                             <div className='space-y-0.5'>
                               <FormLabel>Phê duyệt yêu cầu tham gia</FormLabel>
+                              {!isOwner && (
+                                <FormDescription className='text-xs'>
+                                  Chỉ chủ nhóm mới có thể cấp quyền này
+                                </FormDescription>
+                              )}
                             </div>
                             <FormControl>
-                              <Switch checked={field.value} onCheckedChange={field.onChange} />
+                              <Switch
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                                disabled={!isOwner} // Chỉ owner mới có thể cấp quyền này
+                              />
                             </FormControl>
                           </FormItem>
                         )}

@@ -183,9 +183,14 @@ class ConversationsService {
     return httpRequest.put(`/chat/group/${conversationId}/members/role`, data)
   }
 
-  // Lấy danh sách yêu cầu tham gia
-  async getJoinRequests(conversationId: string) {
-    const res = await httpRequest.get(`/chat/group/${conversationId}/join-requests`)
+  // Lấy danh sách yêu cầu tham gia nhóm
+  async getJoinRequests(conversationId: string, status?: string) {
+    console.log('Getting join requests for conversation:', conversationId, 'with status:', status)
+    const url = status 
+      ? `/chat/group/${conversationId}/join-requests?status=${status}`
+      : `/chat/group/${conversationId}/join-requests`
+    const res = await httpRequest.get(url)
+    console.log('API response for getJoinRequests:', res.data)
     return res.data.data
   }
 
@@ -244,6 +249,16 @@ class ConversationsService {
     console.log('Calling unmuteGroupMember API with:', { groupId, userId })
     const res = await httpRequest.post(`/chat/group/${groupId}/members/${userId}/unmute`)
     console.log('API response for unmuteGroupMember:', res.data)
+    return res.data
+  }
+
+  // Thêm phương thức xóa tất cả yêu cầu tham gia theo trạng thái
+  async deleteAllJoinRequests(conversationId: string, status: 'PENDING' | 'APPROVED' | 'REJECTED') {
+    console.log('Deleting all join requests with status:', status)
+    const res = await httpRequest.delete(`/chat/group/${conversationId}/join-requests`, {
+      params: { status }
+    })
+    console.log('API response for deleteAllJoinRequests:', res.data)
     return res.data
   }
 }
