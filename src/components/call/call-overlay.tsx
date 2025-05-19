@@ -1,7 +1,7 @@
 'use client'
 
-import { CallFrame } from './call-frame'
 import { CALL_TYPE } from '~/constants/enums'
+import { CallFrame } from './call-frame'
 
 interface CallOverlayProps {
   isAudioCallActive: boolean
@@ -23,9 +23,9 @@ export function CallOverlay({
   onClose
 }: CallOverlayProps) {
   if (!isAudioCallActive && !isVideoCallActive) return null
-  
+
   return (
-    <div className="fixed inset-0 z-50">
+    <div className='fixed inset-0 z-50'>
       {isAudioCallActive && (
         <CallFrame
           chatId={chatId}

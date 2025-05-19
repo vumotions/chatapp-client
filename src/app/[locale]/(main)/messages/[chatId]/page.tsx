@@ -2384,12 +2384,12 @@ function ChatDetail({ params }: Props) {
                             : ''
                         }`
                       : sendPermission?.restrictedByGroupSettings
-                      ? `Chỉ admin được gửi tin nhắn${
-                          sendPermission.restrictUntil
-                            ? ` đến ${format(new Date(sendPermission.restrictUntil), 'dd/MM/yyyy')}`
-                            : ''
-                        }`
-                      : 'Không có quyền gửi tin nhắn'
+                        ? `Chỉ admin được gửi tin nhắn${
+                            sendPermission.restrictUntil
+                              ? ` đến ${format(new Date(sendPermission.restrictUntil), 'dd/MM/yyyy')}`
+                              : ''
+                          }`
+                        : 'Không có quyền gửi tin nhắn'
                     : 'Nhập tin nhắn...'
                 }
                 value={message}
@@ -2418,9 +2418,10 @@ function ChatDetail({ params }: Props) {
       )}
 
       {/* Render CallFrame khi có cuộc gọi */}
-      {isAudioCallActive && otherUser?._id && (
-        <div className='fixed inset-0 z-50'>
+      <AnimatePresence mode='wait'>
+        {isAudioCallActive && otherUser?._id && (
           <CallFrame
+            key='audio-call'
             chatId={chatId as string}
             recipientId={otherUser._id}
             recipientName={otherUser?.name || ''}
@@ -2429,12 +2430,10 @@ function ChatDetail({ params }: Props) {
             isInitiator={true}
             onClose={handleEndCall}
           />
-        </div>
-      )}
-
-      {isVideoCallActive && otherUser?._id && (
-        <div className='fixed inset-0 z-50'>
+        )}
+        {isVideoCallActive && otherUser?._id && (
           <CallFrame
+            key='video-call'
             chatId={chatId as string}
             recipientId={otherUser._id}
             recipientName={otherUser?.name || ''}
@@ -2443,8 +2442,8 @@ function ChatDetail({ params }: Props) {
             isInitiator={true}
             onClose={handleEndCall}
           />
-        </div>
-      )}
+        )}
+      </AnimatePresence>
     </div>
   )
 }

@@ -1,10 +1,25 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Clock, Copy, Crown, LogOut, RefreshCw, Settings, Shield, Trash, UserCog, UserMinus } from 'lucide-react'
+import {
+  Camera,
+  Clock,
+  Copy,
+  Crown,
+  LogOut,
+  QrCode,
+  RefreshCw,
+  Settings,
+  Shield,
+  Trash,
+  UserCog,
+  UserMinus
+} from 'lucide-react'
 import { useSession } from 'next-auth/react'
-import { useEffect, useMemo, useState } from 'react'
+import { QRCodeSVG } from 'qrcode.react'
+import { useEffect, useMemo, useState, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
+import html2canvas from 'html2canvas'
 
 import {
   AlertDialog,
@@ -109,6 +124,9 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
   const [isUpdatingRestriction, setIsUpdatingRestriction] = useState(false)
   // Thêm state để lưu giá trị tùy chỉnh
   const [customMinutes, setCustomMinutes] = useState<number>(15)
+
+  // Thêm ref cho QR code
+  const qrCodeRef = useRef<HTMLDivElement>(null)
 
   const { data: session } = useSession()
   const currentUserId = session?.user?._id
@@ -490,6 +508,97 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
       }
     }
   }, [conversation])
+
+  // Hàm chụp ảnh mã QR sử dụng Canvas API
+  const handleCaptureQRCode = () => {
+    if (!qrCodeRef.current) return
+    
+    try {
+      // Lấy SVG element
+      const svgElement = qrCodeRef.current.querySelector('svg')
+      if (!svgElement) {
+        toast.error('Không thể tìm thấy mã QR')
+        return
+      }
+      
+      // Tạo một canvas
+      const canvas = document.createElement('canvas')
+      const ctx = canvas.getContext('2d')
+      if (!ctx) {
+        toast.error('Trình duyệt không hỗ trợ canvas')
+        return
+      }
+      
+      // Đặt kích thước canvas
+      const size = 1000 // Kích thước lớn cho chất lượng cao
+      canvas.width = size
+      canvas.height = size
+      
+      // Vẽ nền trắng
+      ctx.fillStyle = 'white'
+      ctx.fillRect(0, 0, size, size)
+      
+      // Thêm hiệu ứng đổ bóng nhẹ
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.1)'
+      ctx.shadowBlur = 20
+      ctx.shadowOffsetX = 0
+      ctx.shadowOffsetY = 4
+      
+      // Vẽ một hình chữ nhật trắng làm nền cho QR
+      ctx.fillStyle = 'white'
+      ctx.fillRect(50, 50, size - 100, size - 100)
+      
+      // Tắt đổ bóng cho QR code
+      ctx.shadowColor = 'transparent'
+      ctx.shadowBlur = 0
+      ctx.shadowOffsetX = 0
+      ctx.shadowOffsetY = 0
+      
+      // Chuyển SVG thành data URL
+      const svgData = new XMLSerializer().serializeToString(svgElement)
+      const svgBlob = new Blob([svgData], { type: 'image/svg+xml' })
+      const url = URL.createObjectURL(svgBlob)
+      
+      // Tạo image từ SVG
+      const img = new Image()
+      img.onload = () => {
+        // Vẽ SVG lên canvas
+        const padding = 100 // Padding xung quanh QR
+        ctx.drawImage(img, padding, padding, size - padding * 2, size - padding * 2)
+        
+        // Thêm tên nhóm và thông tin
+        ctx.font = 'bold 40px Arial'
+        ctx.fillStyle = '#333'
+        ctx.textAlign = 'center'
+        ctx.fillText(conversation?.name || 'Nhóm chat', size / 2, size - 60)
+        
+        ctx.font = '30px Arial'
+        ctx.fillStyle = '#666'
+        ctx.fillText('Quét mã để tham gia', size / 2, size - 20)
+        
+        // Chuyển canvas thành data URL
+        const dataUrl = canvas.toDataURL('image/png')
+        
+        // Tạo link tải xuống
+        const link = document.createElement('a')
+        link.href = dataUrl
+        link.download = `invite-${conversation?.name || 'group'}-qr.png`
+        document.body.appendChild(link)
+        link.click()
+        
+        // Dọn dẹp
+        document.body.removeChild(link)
+        URL.revokeObjectURL(url)
+        
+        toast.success('Đã lưu ảnh mã QR')
+      }
+      
+      img.src = url
+    } catch (error) {
+      console.error('Lỗi khi chụp ảnh QR:', error)
+      toast.error('Có lỗi xảy ra khi lưu ảnh')
+    }
+  }
 
   return (
     <>
@@ -984,7 +1093,7 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
             </TabsContent>
 
             <TabsContent value='invite' className='mt-4'>
-              <div className='space-y-4'>
+              <div className='space-y-6'>
                 <div className='space-y-2'>
                   <Label>Link mời tham gia nhóm</Label>
                   <div className='flex items-center space-x-2'>
@@ -994,6 +1103,54 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                     </Button>
                   </div>
                   <p className='text-muted-foreground text-sm'>Chia sẻ link này để mời người khác tham gia nhóm</p>
+                </div>
+
+                {/* Phần mã QR */}
+                <div className='space-y-2'>
+                  <Label className='flex items-center gap-1'>
+                    <QrCode className='h-4 w-4' />
+                    Mã QR mời tham gia
+                  </Label>
+                  <div className='flex flex-col items-center'>
+                    <div 
+                      ref={qrCodeRef} 
+                      className='mt-5 mb-3 rounded-lg border border-gray-200 bg-white p-2 shadow-sm'
+                      style={{ backgroundColor: 'white', borderColor: '#e5e7eb' }}
+                    >
+                      <QRCodeSVG
+                        value={`${window.location.origin}/group/join/${inviteLink}`}
+                        size={200}
+                        level='H'
+                        includeMargin={true}
+                        imageSettings={{
+                          src: conversation?.avatar || '/logo.png',
+                          height: 40,
+                          width: 40,
+                          excavate: true
+                        }}
+                      />
+                    </div>
+                    <div className='mt-3 flex gap-2'>
+                      <Button
+                        variant='outline'
+                        size='sm'
+                        onClick={handleCaptureQRCode}
+                        className='flex items-center gap-1'
+                      >
+                        <Camera className='h-4 w-4' />
+                        Lưu ảnh QR
+                      </Button>
+                      <Button
+                        variant='outline'
+                        size='sm'
+                        onClick={handleCopyInviteLink}
+                        className='flex items-center gap-1'
+                      >
+                        <Copy className='h-4 w-4' />
+                        Sao chép link
+                      </Button>
+                    </div>
+                  </div>
                 </div>
 
                 {isAdmin && (
