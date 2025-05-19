@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Trash, MoreHorizontal, Archive } from 'lucide-react'
-import { useDeleteConversation, useArchiveChat } from '~/hooks/data/chat.hooks'
+import { Trash, MoreHorizontal, Archive, History } from 'lucide-react'
+import { useDeleteConversation, useArchiveChat, useClearChatHistory } from '~/hooks/data/chat.hooks'
 import {
   Dialog,
   DialogClose,
@@ -23,11 +23,13 @@ type ConversationActionsProps = {
 
 export function ConversationActions({ conversationId, isArchived = false }: ConversationActionsProps) {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isClearHistoryDialogOpen, setIsClearHistoryDialogOpen] = useState(false)
   const [isPopoverOpen, setIsPopoverOpen] = useState(false)
 
   // Sử dụng hook đã tạo
   const { deleteWithUndo, pendingDeletion } = useDeleteConversation()
   const { archiveChat, unarchiveChat } = useArchiveChat()
+  const clearChatHistory = useClearChatHistory()
 
   // Xử lý khi xóa cuộc trò chuyện
   const handleDelete = () => {
@@ -37,6 +39,16 @@ export function ConversationActions({ conversationId, isArchived = false }: Conv
 
     // Sử dụng xóa với hoàn tác
     deleteWithUndo(conversationId)
+  }
+
+  // Xử lý khi xóa lịch sử chat
+  const handleClearHistory = () => {
+    // Đóng dialog và popover
+    setIsClearHistoryDialogOpen(false)
+    setIsPopoverOpen(false)
+
+    // Gọi API xóa lịch sử chat
+    clearChatHistory.mutate(conversationId)
   }
 
   // Xử lý khi lưu trữ/bỏ lưu trữ cuộc trò chuyện
@@ -86,9 +98,39 @@ export function ConversationActions({ conversationId, isArchived = false }: Conv
                 handleArchiveToggle()
               }}
             >
-              <Archive className='h-4 w-4' />
+              <Archive className='h-4 w-4 mr-2' />
               {isArchived ? 'Bỏ lưu trữ' : 'Lưu trữ'}
             </Button>
+
+            {/* Nút xóa lịch sử chat */}
+            <Dialog open={isClearHistoryDialogOpen} onOpenChange={setIsClearHistoryDialogOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  variant='ghost'
+                  className='text-foreground w-full justify-start'
+                  onClick={handleButtonClick}
+                >
+                  <History className='h-4 w-4 mr-2' />
+                  Xóa lịch sử chat
+                </Button>
+              </DialogTrigger>
+              <DialogContent onClick={handleButtonClick}>
+                <DialogHeader>
+                  <DialogTitle>Xóa lịch sử chat</DialogTitle>
+                  <DialogDescription>
+                    Bạn có chắc chắn muốn xóa lịch sử chat? Hành động này sẽ xóa tất cả tin nhắn cũ và không thể hoàn tác.
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <DialogClose asChild>
+                    <Button variant='outline'>Hủy</Button>
+                  </DialogClose>
+                  <Button variant='destructive' onClick={handleClearHistory}>
+                    Xóa lịch sử
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
 
             {/* Dialog xóa cuộc trò chuyện */}
             <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
@@ -98,7 +140,7 @@ export function ConversationActions({ conversationId, isArchived = false }: Conv
                   className='w-full justify-start text-red-500 hover:text-red-600'
                   onClick={handleButtonClick}
                 >
-                  <Trash className='h-4 w-4' />
+                  <Trash className='h-4 w-4 mr-2' />
                   Xóa cuộc trò chuyện
                 </Button>
               </DialogTrigger>
@@ -125,3 +167,4 @@ export function ConversationActions({ conversationId, isArchived = false }: Conv
     </div>
   )
 }
+

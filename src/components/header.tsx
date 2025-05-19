@@ -12,6 +12,7 @@ import NotificationPopover from './notification-popover'
 import { Button, buttonVariants } from './ui/button'
 import UserPopover from './user-popover'
 import { Skeleton } from './ui/skeleton'
+import Logo from './logo'
 
 function Header() {
   const { data: session, status } = useSession()
@@ -23,7 +24,7 @@ function Header() {
       <div className='flex w-full items-center justify-between gap-2 px-4 py-2'>
         <div className='flex items-center gap-4 md:gap-8'>
           <Link href={'/'} className='h-8 w-8'>
-            Logo
+            <Logo width={24} height={28} />
           </Link>
           {!isMobile && <HeaderSearch />}
         </div>

@@ -273,6 +273,13 @@ class ConversationsService {
     console.log('API response for checkSendMessagePermission:', res.data)
     return res.data.data
   }
+
+  // Thêm phương thức để xóa lịch sử chat
+  async clearChatHistory(conversationId: string) {
+    console.log('Clearing chat history for conversation:', conversationId)
+    const res = await httpRequest.delete(`/chat/${conversationId}/clear-history`)
+    return res.data.data
+  }
 }
 
 const conversationsService = new ConversationsService()

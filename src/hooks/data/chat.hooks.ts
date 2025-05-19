@@ -760,3 +760,31 @@ export function useCheckSendMessagePermissionQuery(chatId: string | undefined) {
     staleTime: 1000 * 60 // 1 phút
   })
 }
+
+// Hook để xóa lịch sử chat
+export const useClearChatHistory = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (conversationId: string) => conversationsService.clearChatHistory(conversationId),
+    onSuccess: (_, conversationId) => {
+      // Cập nhật cache để xóa tin nhắn
+      queryClient.setQueryData(['MESSAGES', conversationId], (oldData: any) => {
+        if (!oldData) return oldData
+        
+        return {
+          ...oldData,
+          pages: [{ messages: [], hasMore: false }]
+        }
+      })
+      
+      // Invalidate để tải lại tin nhắn mới (nếu có)
+      queryClient.invalidateQueries({ queryKey: ['MESSAGES', conversationId] })
+      
+      toast.success('Đã xóa lịch sử tin nhắn')
+    },
+    onError: () => {
+      toast.error('Không thể xóa lịch sử tin nhắn')
+    }
+  })
+}

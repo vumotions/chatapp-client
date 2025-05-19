@@ -25,6 +25,15 @@ const MemoizedConversationItem = React.memo<{
   onArchive?: () => void
 }>(
   ({ conversation, isActive, onClick, isArchived = false, onArchive }) => {
+    const { data: session } = useSession()
+    const currentUserId = session?.user?._id
+    
+    // Kiểm tra xem cuộc trò chuyện có được archive bởi người dùng hiện tại không
+    // Nếu isArchived đã được truyền vào từ prop, sử dụng nó
+    // Nếu không, kiểm tra mảng archivedFor
+    const isArchivedForCurrentUser = isArchived || conversation.archivedFor?.includes(currentUserId)
+    
+    // Sử dụng isArchivedForCurrentUser trong UI
     return (
       <motion.div
         layout
@@ -71,6 +80,7 @@ export function ChatList() {
   const { data: session } = useSession()
   const { unarchiveChat } = useArchiveChat()
   const isMobile = useMediaQuery('(max-width: 768px)')
+  const currentUserId = session?.user?._id
 
   // Tạo một ID duy nhất cho mỗi lần render sử dụng uuid
   const [renderUniqueId] = useState(() => uuidv4())
@@ -247,19 +257,19 @@ export function ChatList() {
               renderChatSkeletons()
             ) : archivedChats.isError ? (
               <div className='text-muted-foreground p-4 text-center'>Không thể tải tin nhắn đã lưu trữ.</div>
-            ) : archivedItems.length === 0 ? (
+            ) : uniqueArchivedItems.length === 0 ? (
               <div className='text-muted-foreground p-4 text-center'>
                 {searchQuery ? 'Không tìm thấy kết quả phù hợp.' : 'Không có cuộc trò chuyện nào đã lưu trữ.'}
               </div>
             ) : (
               <AnimatePresence initial={false}>
-                {uniqueArchivedItems.map((chat, index) => (
+                {uniqueArchivedItems.map((chat) => (
                   <MemoizedConversationItem
                     key={`archived-${chat._id}`}
                     conversation={chat}
                     isActive={chat._id === chatId}
                     onClick={() => handleChatClick(chat._id)}
-                    isArchived={true}
+                    isArchived={true} // Đã được lưu trữ
                     onArchive={() => handleUnarchive(chat._id)}
                   />
                 ))}
