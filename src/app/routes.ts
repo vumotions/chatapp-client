@@ -1,0 +1,1 @@
+// Nếu file này tồn tại, hãy đảm bảo tất cả các tham chiếu đến route bài viết đều sử dụng cùng một tên tham số

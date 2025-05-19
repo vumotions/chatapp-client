@@ -771,16 +771,16 @@ export const useClearChatHistory = () => {
       // Cập nhật cache để xóa tin nhắn
       queryClient.setQueryData(['MESSAGES', conversationId], (oldData: any) => {
         if (!oldData) return oldData
-        
+
         return {
           ...oldData,
           pages: [{ messages: [], hasMore: false }]
         }
       })
-      
+
       // Invalidate để tải lại tin nhắn mới (nếu có)
       queryClient.invalidateQueries({ queryKey: ['MESSAGES', conversationId] })
-      
+
       toast.success('Đã xóa lịch sử tin nhắn')
     },
     onError: () => {

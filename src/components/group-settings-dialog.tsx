@@ -15,11 +15,10 @@ import {
 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { QRCodeSVG } from 'qrcode.react'
-import { useEffect, useMemo, useState, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
-import html2canvas from 'html2canvas'
 
 import {
   AlertDialog,
@@ -99,8 +98,17 @@ const memberEditSchema = z.object({
     })
 })
 
+// Định nghĩa schema cho form cài đặt tin nhắn với validation chặt chẽ hơn
+const messageRestrictionSchema = z.object({
+  onlyAdminsCanSend: z.boolean().default(false),
+  restrictionType: z.enum(['indefinite', 'until']).default('indefinite'),
+  restrictionDuration: z.enum(['30', '60', '180', '1440', 'custom']).default('30'),
+  customMinutes: z.number().optional()
+})
+
 type GroupSettingsValues = z.infer<typeof groupSettingsSchema>
 type MemberEditValues = z.infer<typeof memberEditSchema>
+type MessageRestrictionValues = z.infer<typeof messageRestrictionSchema>
 
 export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: any; onUpdate?: () => void }) {
   const [open, setOpen] = useState(false)
@@ -115,15 +123,7 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
   const [transferOwnershipDialogOpen, setTransferOwnershipDialogOpen] = useState(false)
   const [leaveGroupConfirmOpen, setLeaveGroupConfirmOpen] = useState(false)
   const [disbandGroupConfirmOpen, setDisbandGroupConfirmOpen] = useState(false)
-  const [onlyAdminsCanSend, setOnlyAdminsCanSend] = useState(conversation?.onlyAdminsCanSend || false)
-  const [restrictionEndDate, setRestrictionEndDate] = useState<Date | undefined>(
-    conversation?.restrictUntil ? new Date(conversation.restrictUntil) : addHours(new Date(), 1)
-  )
-  const [restrictionType, setRestrictionType] = useState<'indefinite' | 'until'>('until')
-  const [restrictionDuration, setRestrictionDuration] = useState<'30' | '60' | '180' | '1440' | 'custom'>('60')
   const [isUpdatingRestriction, setIsUpdatingRestriction] = useState(false)
-  // Thêm state để lưu giá trị tùy chỉnh
-  const [customMinutes, setCustomMinutes] = useState<number>(15)
 
   // Thêm ref cho QR code
   const qrCodeRef = useRef<HTMLDivElement>(null)
@@ -172,6 +172,24 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
     }
   })
 
+  // Thêm form cho cài đặt tin nhắn
+  const messageRestrictionForm = useForm<MessageRestrictionValues>({
+    resolver: zodResolver(messageRestrictionSchema),
+    defaultValues: {
+      onlyAdminsCanSend: conversation?.onlyAdminsCanSend || false,
+      restrictionType: conversation?.restrictUntil ? 'until' : 'indefinite',
+      restrictionDuration: '60',
+      customMinutes: 15
+    }
+  })
+
+  // Lấy giá trị từ form
+  const { watch, setValue } = messageRestrictionForm
+  const onlyAdminsCanSend = watch('onlyAdminsCanSend')
+  const restrictionType = watch('restrictionType')
+  const restrictionDuration = watch('restrictionDuration')
+  const customMinutes = watch('customMinutes')
+
   // Lấy danh sách thành viên với roles
   const { data, isLoading: isLoadingMembers } = useFriendsWithRolesQuery(open ? conversation?._id : undefined)
 
@@ -215,6 +233,34 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
       })
     }
   }, [memberToEdit, memberEditForm])
+
+  // Cập nhật form khi conversation thay đổi
+  useEffect(() => {
+    if (conversation) {
+      setValue('onlyAdminsCanSend', conversation.onlyAdminsCanSend || false)
+      setValue('restrictionType', conversation.restrictUntil ? 'until' : 'indefinite')
+
+      // Nếu có restrictUntil, ước tính thời gian còn lại
+      if (conversation.restrictUntil) {
+        const now = new Date()
+        const restrictUntil = new Date(conversation.restrictUntil)
+        const diffMinutes = Math.round((restrictUntil.getTime() - now.getTime()) / (60 * 1000))
+
+        if (diffMinutes <= 30) {
+          setValue('restrictionDuration', '30')
+        } else if (diffMinutes <= 60) {
+          setValue('restrictionDuration', '60')
+        } else if (diffMinutes <= 180) {
+          setValue('restrictionDuration', '180')
+        } else if (diffMinutes <= 1440) {
+          setValue('restrictionDuration', '1440')
+        } else {
+          setValue('restrictionDuration', 'custom')
+          setValue('customMinutes', diffMinutes)
+        }
+      }
+    }
+  }, [conversation, setValue])
 
   // Mutations
   const updateGroupMutation = useUpdateGroupMutation(conversation?._id, onUpdate)
@@ -395,16 +441,22 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
     setDisbandGroupConfirmOpen(false)
   }
 
-  const handleUpdateRestriction = async () => {
+  // Xử lý cập nhật cài đặt tin nhắn
+  const handleUpdateRestriction = async (data: MessageRestrictionValues) => {
     if (!conversation?._id) return
 
-    // Kiểm tra nếu đang chọn thời gian cụ thể và thời gian đã qua
-    if (onlyAdminsCanSend && restrictionType === 'until' && restrictionEndDate) {
-      const now = new Date()
-      if (restrictionEndDate <= now) {
-        toast.error('Thời gian kết thúc phải lớn hơn thời gian hiện tại')
-        return
-      }
+    // Kiểm tra nếu chọn custom nhưng không có giá trị
+    if (
+      data.onlyAdminsCanSend &&
+      data.restrictionType === 'until' &&
+      data.restrictionDuration === 'custom' &&
+      (!data.customMinutes || data.customMinutes <= 0)
+    ) {
+      messageRestrictionForm.setError('customMinutes', {
+        type: 'manual',
+        message: 'Vui lòng nhập thời gian hợp lệ (lớn hơn 0)'
+      })
+      return
     }
 
     setIsUpdatingRestriction(true)
@@ -412,15 +464,25 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
       // Tính toán duration dựa trên lựa chọn của người dùng
       let duration = 0
 
-      // Chỉ tính duration khi chế độ được bật
-      if (onlyAdminsCanSend && restrictionType === 'until') {
-        // Logic tính duration giữ nguyên
+      // Chỉ tính duration khi chế độ được bật và có thời hạn
+      if (data.onlyAdminsCanSend && data.restrictionType === 'until') {
+        if (data.restrictionDuration === '30') {
+          duration = 30 // 30 phút
+        } else if (data.restrictionDuration === '60') {
+          duration = 60 // 1 giờ
+        } else if (data.restrictionDuration === '180') {
+          duration = 180 // 3 giờ
+        } else if (data.restrictionDuration === '1440') {
+          duration = 1440 // 1 ngày (24 giờ)
+        } else if (data.restrictionDuration === 'custom' && data.customMinutes) {
+          duration = data.customMinutes // Số phút tùy chỉnh
+        }
       }
 
       // Gọi API thông qua mutation hook
       await updateRestrictionMutation.mutateAsync({
         conversationId: conversation._id,
-        onlyAdminsCanSend, // Truyền giá trị hiện tại, bất kể bật hay tắt
+        onlyAdminsCanSend: data.onlyAdminsCanSend,
         duration
       })
 
@@ -433,54 +495,26 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
     }
   }
 
-  useEffect(() => {
-    if (conversation) {
-      setOnlyAdminsCanSend(conversation.onlyAdminsCanSend || false)
+  // Thêm hàm helper để tính thời gian kết thúc dựa trên loại và thời lượng
+  const getRestrictionEndDate = () => {
+    if (restrictionType !== 'until') return null
 
-      // Nếu có restrictUntil, cập nhật thời gian kết thúc
-      if (conversation.restrictUntil) {
-        const restrictUntil = new Date(conversation.restrictUntil)
-        if (restrictUntil > new Date()) {
-          setRestrictionEndDate(restrictUntil)
-          setRestrictionType('until')
-
-          // Tính toán thời lượng để chọn đúng radio button
-          const diffMinutes = Math.round((restrictUntil.getTime() - new Date().getTime()) / (60 * 1000))
-          if (diffMinutes === 30) setRestrictionDuration('30')
-          else if (diffMinutes === 60) setRestrictionDuration('60')
-          else if (diffMinutes === 180) setRestrictionDuration('180')
-          else if (diffMinutes === 1440) setRestrictionDuration('1440')
-          else {
-            setRestrictionDuration('custom')
-            setCustomMinutes(diffMinutes)
-          }
-        }
-      } else if (conversation.onlyAdminsCanSend) {
-        setRestrictionType('indefinite')
-      }
+    const now = new Date()
+    switch (restrictionDuration) {
+      case '30':
+        return addMinutes(now, 30)
+      case '60':
+        return addHours(now, 1)
+      case '180':
+        return addHours(now, 3)
+      case '1440':
+        return addDays(now, 1)
+      case 'custom':
+        return customMinutes ? addMinutes(now, customMinutes) : null
+      default:
+        return null
     }
-  }, [conversation])
-
-  useEffect(() => {
-    if (restrictionType === 'until') {
-      const now = new Date()
-      switch (restrictionDuration) {
-        case '30':
-          setRestrictionEndDate(addMinutes(now, 30))
-          break
-        case '60':
-          setRestrictionEndDate(addHours(now, 1))
-          break
-        case '180':
-          setRestrictionEndDate(addHours(now, 3))
-          break
-        case '1440':
-          setRestrictionEndDate(addDays(now, 1))
-          break
-        // Nếu là custom, giữ nguyên giá trị hiện tại
-      }
-    }
-  }, [restrictionDuration, restrictionType])
+  }
 
   // Thêm useEffect để tự động bật yêu cầu phê duyệt khi chọn nhóm riêng tư
   useEffect(() => {
@@ -501,18 +535,21 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
 
       // Nếu đã hết thời hạn
       if (restrictUntil <= now) {
-        // Tự động tắt toggle
-        setOnlyAdminsCanSend(false)
-        // Hiển thị thông báo
-        toast.info('Chế độ "Chỉ quản trị viên được gửi tin nhắn" đã hết hiệu lực')
+        // Tự động tắt toggle trong form
+        setValue('onlyAdminsCanSend', false)
+        
+        // Chỉ hiển thị thông báo cho admin/owner
+        if (isAdmin) {
+          toast.info('Chế độ "Chỉ quản trị viên được gửi tin nhắn" đã hết hiệu lực')
+        }
       }
     }
-  }, [conversation])
+  }, [conversation, setValue, isAdmin])
 
   // Hàm chụp ảnh mã QR sử dụng Canvas API
   const handleCaptureQRCode = () => {
     if (!qrCodeRef.current) return
-    
+
     try {
       // Lấy SVG element
       const svgElement = qrCodeRef.current.querySelector('svg')
@@ -520,7 +557,7 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
         toast.error('Không thể tìm thấy mã QR')
         return
       }
-      
+
       // Tạo một canvas
       const canvas = document.createElement('canvas')
       const ctx = canvas.getContext('2d')
@@ -528,71 +565,71 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
         toast.error('Trình duyệt không hỗ trợ canvas')
         return
       }
-      
+
       // Đặt kích thước canvas
       const size = 1000 // Kích thước lớn cho chất lượng cao
       canvas.width = size
       canvas.height = size
-      
+
       // Vẽ nền trắng
       ctx.fillStyle = 'white'
       ctx.fillRect(0, 0, size, size)
-      
+
       // Thêm hiệu ứng đổ bóng nhẹ
       ctx.shadowColor = 'rgba(0, 0, 0, 0.1)'
       ctx.shadowBlur = 20
       ctx.shadowOffsetX = 0
       ctx.shadowOffsetY = 4
-      
+
       // Vẽ một hình chữ nhật trắng làm nền cho QR
       ctx.fillStyle = 'white'
       ctx.fillRect(50, 50, size - 100, size - 100)
-      
+
       // Tắt đổ bóng cho QR code
       ctx.shadowColor = 'transparent'
       ctx.shadowBlur = 0
       ctx.shadowOffsetX = 0
       ctx.shadowOffsetY = 0
-      
+
       // Chuyển SVG thành data URL
       const svgData = new XMLSerializer().serializeToString(svgElement)
       const svgBlob = new Blob([svgData], { type: 'image/svg+xml' })
       const url = URL.createObjectURL(svgBlob)
-      
+
       // Tạo image từ SVG
       const img = new Image()
       img.onload = () => {
         // Vẽ SVG lên canvas
         const padding = 100 // Padding xung quanh QR
         ctx.drawImage(img, padding, padding, size - padding * 2, size - padding * 2)
-        
+
         // Thêm tên nhóm và thông tin
         ctx.font = 'bold 40px Arial'
         ctx.fillStyle = '#333'
         ctx.textAlign = 'center'
         ctx.fillText(conversation?.name || 'Nhóm chat', size / 2, size - 60)
-        
+
         ctx.font = '30px Arial'
         ctx.fillStyle = '#666'
         ctx.fillText('Quét mã để tham gia', size / 2, size - 20)
-        
+
         // Chuyển canvas thành data URL
         const dataUrl = canvas.toDataURL('image/png')
-        
+
         // Tạo link tải xuống
         const link = document.createElement('a')
         link.href = dataUrl
         link.download = `invite-${conversation?.name || 'group'}-qr.png`
         document.body.appendChild(link)
         link.click()
-        
+
         // Dọn dẹp
         document.body.removeChild(link)
         URL.revokeObjectURL(url)
-        
+
         toast.success('Đã lưu ảnh mã QR')
       }
-      
+
       img.src = url
     } catch (error) {
       console.error('Lỗi khi chụp ảnh QR:', error)
@@ -749,200 +786,6 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                         )}
                       />
 
-                      {isOwner && (
-                        <div className='mt-6 space-y-4'>
-                          <div className='flex items-center justify-between'>
-                            <div className='flex flex-col space-y-1.5'>
-                              <h3 className='text-sm font-medium'>Cài đặt tin nhắn</h3>
-                              <p className='text-muted-foreground text-xs'>Quản lý quyền gửi tin nhắn trong nhóm</p>
-                            </div>
-                            {/* Thêm nút lưu dạng icon bên cạnh tiêu đề với tooltip */}
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  onClick={handleUpdateRestriction}
-                                  disabled={
-                                    isUpdatingRestriction || onlyAdminsCanSend === conversation?.onlyAdminsCanSend
-                                  }
-                                  size='icon'
-                                  variant='default'
-                                  className='h-8 w-8'
-                                >
-                                  {isUpdatingRestriction ? (
-                                    <Loader2 className='h-4 w-4 animate-spin' />
-                                  ) : (
-                                    <svg
-                                      xmlns='http://www.w3.org/2000/svg'
-                                      width='16'
-                                      height='16'
-                                      viewBox='0 0 24 24'
-                                      fill='none'
-                                      stroke='currentColor'
-                                      strokeWidth='2'
-                                      strokeLinecap='round'
-                                      strokeLinejoin='round'
-                                      className='h-4 w-4'
-                                    >
-                                      <path d='M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z'></path>
-                                      <polyline points='17 21 17 13 7 13 7 21'></polyline>
-                                      <polyline points='7 3 7 8 15 8'></polyline>
-                                    </svg>
-                                  )}
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Lưu cài đặt tin nhắn</TooltipContent>
-                            </Tooltip>
-                          </div>
-
-                          <div className='flex items-center justify-between gap-2 rounded-lg border p-4'>
-                            <div className='space-y-0.5'>
-                              <Label htmlFor='admin-only-messages'>Chỉ quản trị viên được gửi tin nhắn</Label>
-                              <p className='text-muted-foreground text-xs'>
-                                Khi bật, chỉ chủ nhóm và quản trị viên mới có thể gửi tin nhắn
-                              </p>
-                            </div>
-                            <Switch
-                              id='admin-only-messages'
-                              checked={onlyAdminsCanSend}
-                              onCheckedChange={setOnlyAdminsCanSend}
-                              disabled={isUpdatingRestriction || !isOwner} // Chỉ owner mới có thể thay đổi
-                            />
-                          </div>
-
-                          {/* Hiển thị thời gian còn lại nếu đang có giới hạn */}
-                          {conversation?.onlyAdminsCanSend &&
-                            conversation?.restrictUntil &&
-                            new Date(conversation.restrictUntil) > new Date() && (
-                              <div
-                                className='mt-2 rounded-sm border-l-4 border-yellow-500/70 py-1.5 pl-3 text-xs text-yellow-500 dark:border-yellow-400/70 dark:text-yellow-400'
-                                style={{
-                                  background:
-                                    'linear-gradient(90deg, rgba(234,179,8,0.08) 0%, rgba(234,179,8,0.02) 100%)'
-                                }}
-                              >
-                                <div className='mb-0.5 flex items-center gap-1.5'>
-                                  <Clock className='h-3.5 w-3.5' />
-                                  <p className='font-medium'>
-                                    Còn hiệu lực:{' '}
-                                    {formatDistanceToNow(new Date(conversation.restrictUntil), {
-                                      addSuffix: false,
-                                      locale: vi
-                                    })}
-                                  </p>
-                                </div>
-                                <p className='pl-5 text-yellow-500/80 dark:text-yellow-400/80'>
-                                  Kết thúc:{' '}
-                                  {format(new Date(conversation.restrictUntil), 'dd/MM/yyyy HH:mm', { locale: vi })}
-                                </p>
-                              </div>
-                            )}
-
-                          {/* Phần cài đặt thời gian chỉ hiển thị khi bật chế độ */}
-                          {onlyAdminsCanSend && (
-                            <div className='border-primary/20 bg-muted/30 mt-2 space-y-4 rounded-md border-l-2 px-4 py-2'>
-                              <div className='space-y-4'>
-                                <Label htmlFor='restriction-type'>Thời gian giới hạn</Label>
-                                <RadioGroup
-                                  value={restrictionType}
-                                  onValueChange={(value) => setRestrictionType(value as 'indefinite' | 'until')}
-                                >
-                                  <div className='flex items-center space-x-2'>
-                                    <RadioGroupItem value='indefinite' id='r-indefinite' />
-                                    <Label htmlFor='r-indefinite' className='text-sm font-normal'>
-                                      Vô thời hạn (cho đến khi tắt)
-                                    </Label>
-                                  </div>
-                                  <div className='flex items-center space-x-2'>
-                                    <RadioGroupItem value='until' id='r-until' />
-                                    <Label htmlFor='r-until' className='text-sm font-normal'>
-                                      Đến thời điểm cụ thể
-                                    </Label>
-                                  </div>
-                                </RadioGroup>
-                              </div>
-
-                              {restrictionType === 'until' && (
-                                <div className='space-y-4'>
-                                  <Label>Kết thúc vào</Label>
-                                  <div className='flex flex-col space-y-2'>
-                                    <RadioGroup
-                                      value={restrictionDuration}
-                                      onValueChange={(value) =>
-                                        setRestrictionDuration(value as '30' | '60' | '180' | '1440' | 'custom')
-                                      }
-                                    >
-                                      <div className='flex items-center space-x-2'>
-                                        <RadioGroupItem value='30' id='d-30' />
-                                        <Label htmlFor='d-30' className='text-sm font-normal'>
-                                          30 phút
-                                        </Label>
-                                      </div>
-                                      <div className='flex items-center space-x-2'>
-                                        <RadioGroupItem value='60' id='d-60' />
-                                        <Label htmlFor='d-60' className='text-sm font-normal'>
-                                          1 giờ
-                                        </Label>
-                                      </div>
-                                      <div className='flex items-center space-x-2'>
-                                        <RadioGroupItem value='180' id='d-180' />
-                                        <Label htmlFor='d-180' className='text-sm font-normal'>
-                                          3 giờ
-                                        </Label>
-                                      </div>
-                                      <div className='flex items-center space-x-2'>
-                                        <RadioGroupItem value='1440' id='d-1440' />
-                                        <Label htmlFor='d-1440' className='text-sm font-normal'>
-                                          1 ngày
-                                        </Label>
-                                      </div>
-                                      <div className='flex items-center space-x-2'>
-                                        <RadioGroupItem value='custom' id='d-custom' />
-                                        <Label htmlFor='d-custom' className='text-sm font-normal'>
-                                          Tùy chỉnh
-                                        </Label>
-                                      </div>
-                                    </RadioGroup>
-
-                                    {restrictionDuration === 'custom' && (
-                                      <div className='mt-2 grid gap-2'>
-                                        <div className='flex items-center gap-2'>
-                                          <Input
-                                            type='number'
-                                            min='1'
-                                            value={customMinutes}
-                                            onChange={(e) => {
-                                              const value = parseInt(e.target.value)
-                                              if (!isNaN(value) && value > 0) {
-                                                setCustomMinutes(value)
-                                                // Cập nhật restrictionEndDate dựa trên số phút tùy chỉnh
-                                                const now = new Date()
-                                                const newDate = new Date(now.getTime() + value * 60 * 1000)
-                                                setRestrictionEndDate(newDate)
-                                              }
-                                            }}
-                                            className='w-20'
-                                          />
-                                          <Label className='text-xs'>phút</Label>
-                                        </div>
-                                        <p className='text-muted-foreground text-xs'>
-                                          Kết thúc vào:{' '}
-                                          {restrictionEndDate
-                                            ? format(restrictionEndDate, 'dd/MM/yyyy HH:mm', { locale: vi })
-                                            : ''}
-                                        </p>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                          {/* Ẩn hoàn toàn nút "Lưu cài đặt" cũ */}
-                        </div>
-                      )}
-
-                      <Separator className='my-6' />
-
                       <Button
                         type='submit'
                         disabled={
@@ -957,6 +800,242 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                       </Button>
                     </form>
                   </Form>
+                )}
+                <Separator className='my-4' />
+                {isOwner && (
+                  <div className='mt-6 space-y-4'>
+                    <div className='flex items-center justify-between'>
+                      <div className='flex flex-col space-y-1.5'>
+                        <h3 className='text-sm font-medium'>Cài đặt tin nhắn</h3>
+                        <p className='text-muted-foreground text-xs'>Quản lý quyền gửi tin nhắn trong nhóm</p>
+                      </div>
+                      {/* Thêm nút lưu dạng icon bên cạnh tiêu đề với tooltip */}
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            onClick={messageRestrictionForm.handleSubmit(handleUpdateRestriction)}
+                            disabled={isUpdatingRestriction}
+                            size='icon'
+                            variant='default'
+                            className='h-8 w-8'
+                          >
+                            {isUpdatingRestriction ? (
+                              <Loader2 className='h-4 w-4 animate-spin' />
+                            ) : (
+                              <svg
+                                xmlns='http://www.w3.org/2000/svg'
+                                width='16'
+                                height='16'
+                                viewBox='0 0 24 24'
+                                fill='none'
+                                stroke='currentColor'
+                                strokeWidth='2'
+                                strokeLinecap='round'
+                                strokeLinejoin='round'
+                                className='h-4 w-4'
+                              >
+                                <path d='M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z'></path>
+                                <polyline points='17 21 17 13 7 13 7 21'></polyline>
+                                <polyline points='7 3 7 8 15 8'></polyline>
+                              </svg>
+                            )}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Lưu cài đặt tin nhắn</TooltipContent>
+                      </Tooltip>
+                    </div>
+
+                    <Form {...messageRestrictionForm}>
+                      <form onSubmit={messageRestrictionForm.handleSubmit(handleUpdateRestriction)}>
+                        <FormField
+                          control={messageRestrictionForm.control}
+                          name='onlyAdminsCanSend'
+                          render={({ field }) => (
+                            <FormItem className='flex items-center justify-between gap-2 rounded-lg border p-4'>
+                              <div className='space-y-0.5'>
+                                <FormLabel htmlFor='admin-only-messages'>Chỉ quản trị viên được gửi tin nhắn</FormLabel>
+                                <FormDescription className='text-xs'>
+                                  Khi bật, chỉ chủ nhóm và quản trị viên mới có thể gửi tin nhắn
+                                </FormDescription>
+                              </div>
+                              <FormControl>
+                                <Switch
+                                  id='admin-only-messages'
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                  disabled={isUpdatingRestriction || !isOwner}
+                                />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+                        {/* Hiển thị thời gian còn lại nếu đang có giới hạn */}
+                        {conversation?.onlyAdminsCanSend &&
+                          conversation?.restrictUntil &&
+                          new Date(conversation.restrictUntil) > new Date() && (
+                            <div
+                              className='mt-2 rounded-sm border-l-4 border-yellow-500/70 py-1.5 pl-3 text-xs text-yellow-500 dark:border-yellow-400/70 dark:text-yellow-400'
+                              style={{
+                                background: 'linear-gradient(90deg, rgba(234,179,8,0.08) 0%, rgba(234,179,8,0.02) 100%)'
+                              }}
+                            >
+                              <div className='mb-0.5 flex items-center gap-1.5'>
+                                <Clock className='h-3.5 w-3.5' />
+                                <p className='font-medium'>
+                                  Còn hiệu lực:{' '}
+                                  {formatDistanceToNow(new Date(conversation.restrictUntil), {
+                                    addSuffix: false,
+                                    locale: vi
+                                  })}
+                                </p>
+                              </div>
+                              <p className='pl-5 text-yellow-500/80 dark:text-yellow-400/80'>
+                                Kết thúc:{' '}
+                                {format(new Date(conversation.restrictUntil), 'dd/MM/yyyy HH:mm', { locale: vi })}
+                              </p>
+                            </div>
+                          )}
+
+                        {/* Hiển thị các tùy chọn khi bật chế độ chỉ admin gửi tin nhắn */}
+                        {onlyAdminsCanSend && (
+                          <div className='border-primary/20 bg-muted/30 mt-2 space-y-4 rounded-md border-l-2 px-4 py-2'>
+                            {/* Loại giới hạn */}
+                            <FormField
+                              control={messageRestrictionForm.control}
+                              name='restrictionType'
+                              render={({ field }) => (
+                                <FormItem className='space-y-2'>
+                                  <FormLabel>Thời hạn giới hạn</FormLabel>
+                                  <FormControl>
+                                    <RadioGroup
+                                      value={field.value}
+                                      onValueChange={field.onChange}
+                                      className='space-y-1'
+                                    >
+                                      <div className='flex items-center space-x-2'>
+                                        <RadioGroupItem value='indefinite' id='r-indefinite' />
+                                        <Label htmlFor='r-indefinite' className='text-sm font-normal'>
+                                          Vô thời hạn (cho đến khi tắt)
+                                        </Label>
+                                      </div>
+                                      <div className='flex items-center space-x-2'>
+                                        <RadioGroupItem value='until' id='r-until' />
+                                        <Label htmlFor='r-until' className='text-sm font-normal'>
+                                          Đến thời điểm cụ thể
+                                        </Label>
+                                      </div>
+                                    </RadioGroup>
+                                  </FormControl>
+                                </FormItem>
+                              )}
+                            />
+                            {/* Thời gian cụ thể */}
+                            {restrictionType === 'until' && (
+                              <FormField
+                                control={messageRestrictionForm.control}
+                                name='restrictionDuration'
+                                render={({ field }) => (
+                                  <FormItem className='space-y-2'>
+                                    <FormLabel>Thời gian giới hạn</FormLabel>
+                                    <FormControl>
+                                      <RadioGroup
+                                        value={field.value}
+                                        onValueChange={field.onChange}
+                                        className='space-y-1'
+                                      >
+                                        <div className='flex items-center space-x-2'>
+                                          <RadioGroupItem value='30' id='d-30' />
+                                          <Label htmlFor='d-30' className='text-sm font-normal'>
+                                            30 phút
+                                          </Label>
+                                        </div>
+                                        <div className='flex items-center space-x-2'>
+                                          <RadioGroupItem value='60' id='d-60' />
+                                          <Label htmlFor='d-60' className='text-sm font-normal'>
+                                            1 giờ
+                                          </Label>
+                                        </div>
+                                        <div className='flex items-center space-x-2'>
+                                          <RadioGroupItem value='180' id='d-180' />
+                                          <Label htmlFor='d-180' className='text-sm font-normal'>
+                                            3 giờ
+                                          </Label>
+                                        </div>
+                                        <div className='flex items-center space-x-2'>
+                                          <RadioGroupItem value='1440' id='d-1440' />
+                                          <Label htmlFor='d-1440' className='text-sm font-normal'>
+                                            1 ngày
+                                          </Label>
+                                        </div>
+                                        <div className='flex items-center space-x-2'>
+                                          <RadioGroupItem value='custom' id='d-custom' />
+                                          <Label htmlFor='d-custom' className='text-sm font-normal'>
+                                            Tùy chỉnh
+                                          </Label>
+                                        </div>
+                                      </RadioGroup>
+                                    </FormControl>
+                                    {field.value !== 'custom' && (
+                                      <p className='text-muted-foreground text-xs'>
+                                        Kết thúc vào:{' '}
+                                        {format(getRestrictionEndDate() || new Date(), 'dd/MM/yyyy HH:mm', {
+                                          locale: vi
+                                        })}
+                                      </p>
+                                    )}
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            )}
+                            {/* Thời gian tùy chỉnh */}
+                            {restrictionType === 'until' && restrictionDuration === 'custom' && (
+                              <FormField
+                                control={messageRestrictionForm.control}
+                                name='customMinutes'
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>Số phút</FormLabel>
+                                    <FormControl>
+                                      <div className='flex items-center gap-2'>
+                                        <Input
+                                          type='number'
+                                          min={1}
+                                          max={10080}
+                                          {...field}
+                                          value={field.value || ''}
+                                          onChange={(e) => {
+                                            const value = e.target.value
+                                            // Chỉ cho phép số nguyên dương
+                                            if (value === '' || /^\d+$/.test(value)) {
+                                              const numValue = value === '' ? undefined : parseInt(value, 10)
+                                              field.onChange(numValue)
+                                            }
+                                          }}
+                                          className='w-20'
+                                        />
+                                        <Label className='text-xs'>phút</Label>
+                                      </div>
+                                    </FormControl>
+                                    <FormDescription>Nhập số phút (tối đa 10080 phút = 1 tuần)</FormDescription>
+                                    <FormMessage />
+                                    <p className='text-muted-foreground mt-1 text-xs'>
+                                      Kết thúc vào:{' '}
+                                      {field.value && field.value > 0
+                                        ? format(addMinutes(new Date(), field.value), 'dd/MM/yyyy HH:mm', {
+                                            locale: vi
+                                          })
+                                        : ''}
+                                    </p>
+                                  </FormItem>
+                                )}
+                              />
+                            )}
+                          </div>
+                        )}
+                      </form>
+                    </Form>
+                  </div>
                 )}
 
                 {!canChangeGroupInfo && (
@@ -1112,8 +1191,8 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                     Mã QR mời tham gia
                   </Label>
                   <div className='flex flex-col items-center'>
-                    <div 
-                      ref={qrCodeRef} 
+                    <div
+                      ref={qrCodeRef}
                       className='mt-5 mb-3 rounded-lg border border-gray-200 bg-white p-2 shadow-sm'
                       style={{ backgroundColor: 'white', borderColor: '#e5e7eb' }}
                     >

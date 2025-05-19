@@ -36,7 +36,7 @@ import { Input } from '~/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '~/components/ui/popover'
 import { ScrollArea } from '~/components/ui/scroll-area'
 import { Textarea } from '~/components/ui/textarea'
-import { useMyProfileQuery } from '~/hooks/data/auth.hooks'
+import { useGetMyProfileQuery } from '~/hooks/data/auth.hooks'
 import { useUpdateProfileMutation } from '~/hooks/data/user.hooks'
 import { handleError } from '~/lib/handlers'
 import { cn } from '~/lib/utils'
@@ -68,7 +68,7 @@ export function ProfileEditDialog({
   triggerButtonText = 'Chỉnh sửa trang cá nhân'
 }: ProfileEditDialogProps) {
   const { data: session, update } = useSession()
-  const { data: myProfile, refetch: refetchProfile } = useMyProfileQuery()
+  const { data: myProfile, refetch: refetchProfile } = useGetMyProfileQuery()
   const updateProfile = useUpdateProfileMutation()
   const [open, setOpen] = useState(false)
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
@@ -153,7 +153,7 @@ export function ProfileEditDialog({
               ...session,
               user: {
                 ...session.user,
-                ...response.data.data
+                ...(response as any)?.data.data
               }
             })
           }
