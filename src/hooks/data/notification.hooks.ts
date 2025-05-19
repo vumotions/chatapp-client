@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import notificationService from '~/services/notifications.service'
 
@@ -18,29 +18,28 @@ export const useNotifications = (filter = 'all') => {
     },
     select: (data) => {
       return {
-        pages: data.pages.map(page => ({
+        pages: data.pages.map((page) => ({
           notifications: page?.notifications || [],
           hasMore: page?.hasMore || false
         })),
         pageParams: data.pageParams
       }
     },
-    // Thêm refetchOnWindowFocus để cập nhật khi tab được focus lại
     refetchOnWindowFocus: true,
-    // Thêm staleTime ngắn để đảm bảo dữ liệu luôn mới
     staleTime: 10 * 1000 // 10 giây
   })
 }
 
 export const useMarkNotificationAsRead = () => {
   const queryClient = useQueryClient()
-  
+
   return useMutation({
     mutationFn: (notificationId: string) => notificationService.markAsRead(notificationId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['NOTIFICATIONS'] })
     },
-    onError: () => {
+    onError: (e: any) => {
+      console.log({ e })
       toast.error('Không thể đánh dấu thông báo đã đọc')
     }
   })
@@ -48,14 +47,19 @@ export const useMarkNotificationAsRead = () => {
 
 export const useMarkAllNotificationsAsRead = () => {
   const queryClient = useQueryClient()
-  
+
   return useMutation({
-    mutationFn: () => notificationService.markAllAsRead(),
+    mutationFn: () => {
+      console.log('Calling markAllAsRead API')
+      return notificationService.markAllAsRead()
+    },
     onSuccess: () => {
+      console.log('Mark all as read success')
       toast.success('Đã đánh dấu tất cả thông báo đã đọc')
       queryClient.invalidateQueries({ queryKey: ['NOTIFICATIONS'] })
     },
-    onError: () => {
+    onError: (error) => {
+      console.error('Mark all as read error:', error)
       toast.error('Không thể đánh dấu tất cả thông báo đã đọc')
     }
   })
@@ -63,7 +67,7 @@ export const useMarkAllNotificationsAsRead = () => {
 
 export const useDeleteNotificationMutation = () => {
   const queryClient = useQueryClient()
-  
+
   return useMutation({
     mutationFn: (notificationId: string) => notificationService.deleteNotification(notificationId),
     onSuccess: () => {
@@ -77,7 +81,7 @@ export const useDeleteNotificationMutation = () => {
 
 export const useDeleteAllNotificationsMutation = () => {
   const queryClient = useQueryClient()
-  
+
   return useMutation({
     mutationFn: () => notificationService.deleteAllNotifications(),
     onSuccess: () => {
@@ -89,6 +93,3 @@ export const useDeleteAllNotificationsMutation = () => {
     }
   })
 }
-
-
-

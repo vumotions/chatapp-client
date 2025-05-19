@@ -1,26 +1,39 @@
+import { Socket } from 'socket.io-client'
 import httpRequest from '~/config/http-request'
-import { useSocket } from '~/providers/socket-provider'
-
-interface CommentData {
-  content: string
-  parentId?: string
-  tempId?: string
-}
 
 class CommentService {
+  // Lấy comments của một bài viết
   async getComments(postId: string, page = 1, limit = 10, parentId?: string) {
     try {
-      const params = {
-        page,
-        limit,
-        postId,
-        ...(parentId && { parentId })
+      // Kiểm tra tham số đầu vào
+      if (!postId) {
+        console.error('postId is required for getComments')
+        throw new Error('postId is required')
       }
       
-      const response = await httpRequest.get(`/posts/comments`, { params })
+      // Tạo đối tượng params
+      const params: Record<string, any> = {
+        page,
+        limit,
+        postId
+      }
       
-      // Đảm bảo dữ liệu trả về có cấu trúc đúng
-      console.log('Comment API Response:', response.data)
+      // Chỉ thêm parentId nếu nó tồn tại
+      if (parentId) {
+        params.parentId = parentId
+      }
+      
+      // Kiểm tra httpRequest
+      if (!httpRequest || typeof httpRequest.get !== 'function') {
+        console.error('httpRequest is not valid or get is not a function')
+        throw new Error('HTTP client is not properly initialized')
+      }
+      
+      // Gọi API
+      const response = await httpRequest.get('/posts/comments', { params })
+      
+      // Log response để debug
+      console.log('Comment API Response:', response)
       
       return response
     } catch (error) {
@@ -29,68 +42,53 @@ class CommentService {
     }
   }
 
-  async createComment(postId: string, data: CommentData) {
-    // Kiểm tra postId hợp lệ trước khi gọi API
-    if (!postId) {
-      console.error('Invalid postId for createComment:', postId)
-      return Promise.reject(new Error('Invalid postId'))
+  // Tạo comment mới
+  async createComment(postId: string, data: { content: string; parentId?: string; tempId?: string }) {
+    try {
+      const response = await httpRequest.post('/posts/comments', {
+        postId,
+        content: data.content,
+        parentId: data.parentId,
+        tempId: data.tempId
+      })
+      return response
+    } catch (error) {
+      console.error('Error in createComment:', error)
+      throw error
     }
-    
-    // Log để debug
-    console.log(`Creating comment:`, { postId, ...data })
-    
-    return httpRequest.post('/posts/comments', { 
-      postId, 
-      content: data.content,
-      parentId: data.parentId,
-      tempId: data.tempId // Thêm tempId vào request
-    })
   }
   
-  // Phương thức để tham gia vào room của bài viết
-  joinPostRoom(socket: any, postId: string) {
-    if (!socket || !postId) return
-    socket.emit('JOIN_POST_ROOM', postId)
-  }
-  
-  // Phương thức để tham gia vào room của comment
-  joinCommentRoom(socket: any, commentId: string) {
-    if (!socket || !commentId) return
-    socket.emit('JOIN_COMMENT_ROOM', commentId)
-  }
-  
-  // Phương thức để rời khỏi room của bài viết
-  leavePostRoom(socket: any, postId: string) {
-    if (!socket || !postId) return
-    socket.emit('LEAVE_POST_ROOM', postId)
-  }
-  
-  // Phương thức để rời khỏi room của comment
-  leaveCommentRoom(socket: any, commentId: string) {
-    if (!socket || !commentId) return
-    socket.emit('LEAVE_COMMENT_ROOM', commentId)
-  }
-
+  // Like/unlike comment
   async likeComment(commentId: string) {
-    if (!commentId) {
-      console.error('Invalid commentId for likeComment:', commentId)
-      return Promise.reject(new Error('Invalid commentId'))
+    try {
+      const response = await httpRequest.post(`/comments/${commentId}/like`)
+      return response
+    } catch (error) {
+      console.error('Error in likeComment:', error)
+      throw error
     }
-    
-    console.log(`Liking comment:`, commentId)
-    
-    return httpRequest.post('/posts/comments/like', { commentId })
   }
-
-  async unlikeComment(commentId: string) {
-    if (!commentId) {
-      console.error('Invalid commentId for unlikeComment:', commentId)
-      return Promise.reject(new Error('Invalid commentId'))
-    }
-    
-    console.log(`Unliking comment:`, commentId)
-    
-    return httpRequest.delete(`/posts/comments/like/${commentId}`)
+  
+  // Tham gia vào room của bài viết (socket)
+  joinPostRoom(socket: Socket, postId: string) {
+    if (!socket || !postId) return
+    socket.emit('JOIN_POST_ROOM', { postId })
+  }
+  
+  // Rời khỏi room của bài viết (socket)
+  leavePostRoom(socket: Socket, postId: string) {
+    if (!socket || !postId) return
+    socket.emit('LEAVE_POST_ROOM', { postId })
+  }
+  
+  // Tham gia vào room của comment (socket)
+  joinCommentRoom(socket: Socket, commentId: string) {
+    socket.emit('JOIN_COMMENT_ROOM', { commentId })
+  }
+  
+  // Rời khỏi room của comment (socket)
+  leaveCommentRoom(socket: Socket, commentId: string) {
+    socket.emit('LEAVE_COMMENT_ROOM', { commentId })
   }
 }
 

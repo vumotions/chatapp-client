@@ -10,8 +10,26 @@ class UserService {
   updateProfile(data: any) {
     return httpRequest.patch('/user/my-profile', data)
   }
+
+  // Block user
+  blockUser(userId: string) {
+    return httpRequest.post('/user/block', { userId })
+  }
+
+  // Unblock user
+  unblockUser(userId: string) {
+    return httpRequest.post('/user/unblock', { userId })
+  }
+
+  // Get blocked users
+  getBlockedUsers() {
+    return httpRequest.get('/user/blocked-users')
+  }
 }
 
 const userService = new UserService()
 export default userService
+
+
+
 

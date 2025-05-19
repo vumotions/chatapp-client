@@ -108,6 +108,7 @@ function NotificationPopover() {
 
   // Handle mark all as read
   const handleMarkAllAsRead = () => {
+    console.log('Attempting to mark all notifications as read')
     markAllAsRead()
     setOptionsOpen(false)
   }
@@ -145,26 +146,81 @@ function NotificationPopover() {
     if (!socket) return
 
     const handleNewNotification = (notification: any) => {
-      // Khi có thông báo mới (không phải NEW_MESSAGE), cập nhật UI
-      if (notification.type !== NOTIFICATION_TYPE.NEW_MESSAGE) {
-        // Không cần làm gì đặc biệt vì NotificationListener đã cập nhật cache
-        // Nhưng chúng ta có thể gọi refetch để đảm bảo dữ liệu mới nhất
-        if (!open) {
-          // Nếu popover đang đóng, chỉ cần refetch khi mở
-          // Đã có chỉ báo hasUnread
-        } else {
-          // Nếu popover đang mở, refetch ngay lập tức
+      console.log('NotificationPopover received notification:', notification)
+
+      // Xử lý cập nhật thông báo
+      if (notification.isUpdate) {
+        // Nếu là cập nhật tất cả thông báo đã đọc
+        if (notification.allRead) {
+          // Gọi refetch để lấy dữ liệu mới nhất
+          refetch()
+          return
+        }
+
+        // Cập nhật một thông báo cụ thể
+        queryClient.setQueryData(['NOTIFICATIONS', tab], (oldData: any) => {
+          if (!oldData) return oldData
+
+          // Cập nhật thông báo trong tất cả các trang
+          const updatedPages = oldData.pages.map((page: any) => {
+            const updatedNotifications = page.notifications.map((item: any) => {
+              if (item._id === notification._id) {
+                return { ...item, ...notification }
+              }
+              return item
+            })
+
+            return {
+              ...page,
+              notifications: updatedNotifications
+            }
+          })
+
+          return {
+            ...oldData,
+            pages: updatedPages
+          }
+        })
+      }
+      // Xử lý thông báo mới
+      else if (notification.type !== NOTIFICATION_TYPE.NEW_MESSAGE) {
+        // Thêm thông báo mới vào đầu danh sách
+        queryClient.setQueryData(['NOTIFICATIONS', tab], (oldData: any) => {
+          if (!oldData) {
+            return {
+              pages: [{ notifications: [notification], hasMore: true }],
+              pageParams: [1]
+            }
+          }
+
+          // Thêm thông báo mới vào trang đầu tiên
+          const updatedPages = [...oldData.pages]
+          if (updatedPages.length > 0) {
+            updatedPages[0] = {
+              ...updatedPages[0],
+              notifications: [notification, ...(updatedPages[0].notifications || [])]
+            }
+          }
+
+          return {
+            ...oldData,
+            pages: updatedPages
+          }
+        })
+
+        // Nếu popover đang mở, refetch để đảm bảo dữ liệu mới nhất
+        if (open) {
           refetch()
         }
       }
     }
 
-    socket?.on(SOCKET_EVENTS.NOTIFICATION_NEW, handleNewNotification)
+    socket.on(SOCKET_EVENTS.NOTIFICATION_NEW, handleNewNotification)
 
     return () => {
-      socket?.off(SOCKET_EVENTS.NOTIFICATION_NEW, handleNewNotification)
+      socket.off(SOCKET_EVENTS.NOTIFICATION_NEW, handleNewNotification)
     }
-  }, [socket, open])
+  }, [socket, open, tab, queryClient, refetch])
 
   // Xử lý chấp nhận lời mời kết bạn
   const handleAcceptFriendRequest = (e: React.MouseEvent, notificationId: string, senderId: string) => {
@@ -180,6 +236,8 @@ function NotificationPopover() {
         queryClient.invalidateQueries({ queryKey: ['FRIENDS'] })
         // Cập nhật lại danh sách gợi ý bạn bè
         queryClient.invalidateQueries({ queryKey: ['FRIEND_SUGGESTIONS'] })
+        // Cập nhật trạng thái bạn bè
+        queryClient.invalidateQueries({ queryKey: ['FRIEND_STATUS'] })
       },
       onError: (error: any) => {
         toast.error(error?.response?.data?.message || 'Có lỗi xảy ra khi chấp nhận lời mời')
@@ -228,40 +286,40 @@ function NotificationPopover() {
   // Hàm lấy nội dung thông báo
   const getNotificationContent = (notification: any) => {
     // Xác định tên người gửi
-    let senderName = 'Ai đó';
+    let senderName = 'Ai đó'
 
     if (notification.senderId && typeof notification.senderId === 'object') {
-      senderName = notification.senderId.name || 'Người dùng';
+      senderName = notification.senderId.name || 'Người dùng'
     }
 
     switch (notification.type) {
       case NOTIFICATION_TYPE.FRIEND_REQUEST:
-        return `${senderName} đã gửi cho bạn lời mời kết bạn`;
+        return `${senderName} đã gửi cho bạn lời mời kết bạn`
       case NOTIFICATION_TYPE.FRIEND_ACCEPTED:
-        return `${senderName} đã chấp nhận lời mời kết bạn của bạn`;
+        return `${senderName} đã chấp nhận lời mời kết bạn của bạn`
       case NOTIFICATION_TYPE.JOIN_REQUEST:
         if (notification.metadata?.chatName) {
           if (notification.metadata.invitedUsers && notification.metadata.invitedUsers.length > 0) {
-            return `${senderName} đã mời ${notification.metadata.invitedUsers.length} người vào nhóm "${notification.metadata.chatName}"`;
+            return `${senderName} đã mời ${notification.metadata.invitedUsers.length} người vào nhóm "${notification.metadata.chatName}"`
           }
-          return `${senderName} muốn tham gia nhóm "${notification.metadata.chatName}"`;
+          return `${senderName} muốn tham gia nhóm "${notification.metadata.chatName}"`
         }
-        return `${senderName} muốn tham gia nhóm của bạn`;
+        return `${senderName} muốn tham gia nhóm của bạn`
       case NOTIFICATION_TYPE.NEW_MESSAGE:
         if (notification.metadata?.chatName) {
-          return `${senderName} đã gửi tin nhắn trong nhóm "${notification.metadata.chatName}"`;
+          return `${senderName} đã gửi tin nhắn trong nhóm "${notification.metadata.chatName}"`
         }
-        return `${senderName} đã gửi cho bạn một tin nhắn mới`;
+        return `${senderName} đã gửi cho bạn một tin nhắn mới`
       case NOTIFICATION_TYPE.LIKE:
-        return `${senderName} đã thích bài viết của bạn`;
+        return `${senderName} đã thích bài viết của bạn`
       case NOTIFICATION_TYPE.NEW_COMMENT:
-        return `${senderName} đã bình luận về bài viết của bạn`;
+        return `${senderName} đã bình luận về bài viết của bạn`
       case NOTIFICATION_TYPE.MENTION:
-        return `${senderName} đã nhắc đến bạn trong một bình luận`;
+        return `${senderName} đã nhắc đến bạn trong một bình luận`
       default:
-        return notification.content || `Bạn có một thông báo mới (${notification.type})`;
+        return notification.content || `Bạn có một thông báo mới (${notification.type})`
     }
-  };
+  }
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -377,37 +435,39 @@ function NotificationPopover() {
                 // Tạo biến tạm thời để kiểm tra trạng thái xử lý
                 const isProcessed =
                   item.processed === true ||
-                  (item.relatedId && item.relatedId.status && item.relatedId.status !== FRIEND_REQUEST_STATUS.PENDING) ||
-                  processedIds.includes(item._id);
+                  (item.relatedId &&
+                    item.relatedId.status &&
+                    item.relatedId.status !== FRIEND_REQUEST_STATUS.PENDING) ||
+                  processedIds.includes(item._id)
 
                 // Lấy thông tin người gửi
-                const senderName = item.senderId?.name || 'Người dùng';
-                
+                const senderName = item.senderId?.name || 'Người dùng'
+
                 // Tạo nội dung thông báo dựa trên loại
-                let notificationText = '';
-                
+                let notificationText = ''
+
                 if (item.type === NOTIFICATION_TYPE.FRIEND_REQUEST) {
-                  notificationText = `${senderName} đã gửi cho bạn lời mời kết bạn`;
+                  notificationText = `${senderName} đã gửi cho bạn lời mời kết bạn`
                 } else if (item.type === NOTIFICATION_TYPE.FRIEND_ACCEPTED) {
-                  notificationText = `${senderName} đã chấp nhận lời mời kết bạn của bạn`;
+                  notificationText = `${senderName} đã chấp nhận lời mời kết bạn của bạn`
                 } else if (item.type === NOTIFICATION_TYPE.JOIN_REQUEST) {
                   if (item.metadata?.chatName) {
                     if (item.metadata.invitedUsers && item.metadata.invitedUsers.length > 0) {
-                      notificationText = `${senderName} đã mời ${item.metadata.invitedUsers.length} người vào nhóm "${item.metadata.chatName}"`;
+                      notificationText = `${senderName} đã mời ${item.metadata.invitedUsers.length} người vào nhóm "${item.metadata.chatName}"`
                     } else {
-                      notificationText = `${senderName} muốn tham gia nhóm "${item.metadata.chatName}"`;
+                      notificationText = `${senderName} muốn tham gia nhóm "${item.metadata.chatName}"`
                     }
                   } else {
-                    notificationText = `${senderName} muốn tham gia nhóm của bạn`;
+                    notificationText = `${senderName} muốn tham gia nhóm của bạn`
                   }
                 } else if (item.type === NOTIFICATION_TYPE.NEW_MESSAGE) {
                   if (item.metadata?.chatName) {
-                    notificationText = `${senderName} đã gửi tin nhắn trong nhóm "${item.metadata.chatName}"`;
+                    notificationText = `${senderName} đã gửi tin nhắn trong nhóm "${item.metadata.chatName}"`
                   } else {
-                    notificationText = `${senderName} đã gửi cho bạn một tin nhắn mới`;
+                    notificationText = `${senderName} đã gửi cho bạn một tin nhắn mới`
                   }
                 } else {
-                  notificationText = item.content || `Bạn có một thông báo mới (${item.type})`;
+                  notificationText = item.content || `Bạn có một thông báo mới (${item.type})`
                 }
 
                 return (

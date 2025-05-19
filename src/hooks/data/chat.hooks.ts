@@ -62,7 +62,8 @@ export const useStartConversationMutation = () => {
   const router = useRouter()
   return useMutation({
     mutationFn: (userId: string) => conversationsService.createConversation([userId]),
-    onSuccess: (conversation) => {
+    onSuccess: (data) => {
+      const conversation = data.conversation
       if (conversation && conversation._id) {
         toast.success('Đã mở cuộc trò chuyện!')
         router.push(`/messages/${conversation._id}`)
@@ -767,19 +768,26 @@ export const useClearChatHistory = () => {
 
   return useMutation({
     mutationFn: (conversationId: string) => conversationsService.clearChatHistory(conversationId),
-    onSuccess: (_, conversationId) => {
-      // Cập nhật cache để xóa tin nhắn
+    onSuccess: (data, conversationId) => {
+      // Cập nhật cache để xóa tin nhắn cũ và hiển thị tin nhắn hệ thống
       queryClient.setQueryData(['MESSAGES', conversationId], (oldData: any) => {
         if (!oldData) return oldData
 
+        // Chỉ giữ lại tin nhắn hệ thống mới
+        const systemMessage = data?.systemMessage;
+        
         return {
           ...oldData,
-          pages: [{ messages: [], hasMore: false }]
+          pages: [{
+            messages: systemMessage ? [systemMessage] : [],
+            hasMore: false,
+            conversation: oldData.pages[0]?.conversation
+          }]
         }
       })
 
-      // Invalidate để tải lại tin nhắn mới (nếu có)
-      queryClient.invalidateQueries({ queryKey: ['MESSAGES', conversationId] })
+      // Cập nhật danh sách chat để hiển thị tin nhắn hệ thống mới
+      // (Không cần cập nhật cache ở đây vì đã được xử lý bởi socket)
 
       toast.success('Đã xóa lịch sử tin nhắn')
     },

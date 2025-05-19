@@ -103,7 +103,7 @@ export default function ConversationItem({
       participants.forEach((participant: any) => {
         socket.emit(SOCKET_EVENTS.CHECK_ONLINE, participant._id, (isUserOnline: boolean) => {
           if (isUserOnline) {
-            setOnlineUsers(prev => new Set([...prev, participant._id]))
+            setOnlineUsers((prev) => new Set([...prev, participant._id]))
             setIsOnline(true)
           }
         })
@@ -113,14 +113,14 @@ export default function ConversationItem({
       const handleGroupUserOnline = (userId: string) => {
         const isGroupMember = participants.some((p: any) => p._id === userId)
         if (isGroupMember) {
-          setOnlineUsers(prev => new Set([...prev, userId]))
+          setOnlineUsers((prev) => new Set([...prev, userId]))
           setIsOnline(true)
         }
       }
 
       // Lắng nghe sự kiện offline cho group
       const handleGroupUserOffline = (userId: string) => {
-        setOnlineUsers(prev => {
+        setOnlineUsers((prev) => {
           const newSet = new Set([...prev])
           newSet.delete(userId)
           // Nếu không còn ai online, cập nhật trạng thái
@@ -340,12 +340,12 @@ export default function ConversationItem({
         </div>
       </div>
       <div className='ml-2 opacity-0 group-hover:opacity-100'>
-        <ConversationActions conversationId={conversation._id} isArchived={isArchived} />
+        <ConversationActions
+          conversationId={conversation._id}
+          isArchived={isArchived}
+          otherUserId={otherUserId as any}
+        />
       </div>
     </div>
   )
 }
-
-
-
-

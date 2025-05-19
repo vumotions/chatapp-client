@@ -51,6 +51,7 @@ import { FriendActionButton } from './components/friend-action-button'
 import { PinnedMessages } from './components/pinned-messages'
 import { CallFrame } from '~/components/call/call-frame'
 import { CALL_TYPE } from '~/constants/enums'
+import { useIsBlockedByUser } from '~/hooks/data/user.hooks'
 
 const PRIMARY_RGB = '14, 165, 233' // Giá trị RGB của màu primary (sky-500)
 const SUCCESS_RGB = '34, 197, 94' // Giá trị RGB của màu green-500
@@ -111,7 +112,8 @@ function ChatDetail({ params }: Props) {
 
   // Sử dụng hook bảo vệ
   const { isLoading: isCheckingAccess, hasAccess } = useProtectedChat(chatId)
-
+  // Thêm hook để kiểm tra người dùng có bị chặn không
+  const { data: isBlockedByUser = false } = useIsBlockedByUser(otherUserId!)
   const [isAtBottom, setIsAtBottom] = useState(true)
   const [showScrollButton, setShowScrollButton] = useState(false)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -2376,26 +2378,28 @@ function ChatDetail({ params }: Props) {
               <Input
                 className='flex-1 resize-none rounded-full p-4'
                 placeholder={
-                  !canSendMessages
-                    ? sendPermission?.isMuted
-                      ? `Bị cấm chat${
-                          sendPermission.mutedUntil
-                            ? ` đến ${format(new Date(sendPermission.mutedUntil), 'dd/MM/yyyy')}`
-                            : ''
-                        }`
-                      : sendPermission?.restrictedByGroupSettings
-                        ? `Chỉ admin được gửi tin nhắn${
-                            sendPermission.restrictUntil
-                              ? ` đến ${format(new Date(sendPermission.restrictUntil), 'dd/MM/yyyy')}`
+                  isBlockedByUser
+                    ? 'Bạn không thể gửi tin nhắn cho người dùng này vì họ đã chặn bạn'
+                    : !canSendMessages
+                      ? sendPermission?.isMuted
+                        ? `Bị cấm chat${
+                            sendPermission.mutedUntil
+                              ? ` đến ${format(new Date(sendPermission.mutedUntil), 'dd/MM/yyyy')}`
                               : ''
                           }`
-                        : 'Không có quyền gửi tin nhắn'
-                    : 'Nhập tin nhắn...'
+                        : sendPermission?.restrictedByGroupSettings
+                          ? `Chỉ admin được gửi tin nhắn${
+                              sendPermission.restrictUntil
+                                ? ` đến ${format(new Date(sendPermission.restrictUntil), 'dd/MM/yyyy')}`
+                                : ''
+                            }`
+                          : 'Không có quyền gửi tin nhắn'
+                      : 'Nhập tin nhắn...'
                 }
                 value={message}
                 onChange={handleInputChange}
                 onKeyDown={handleKeyPress}
-                disabled={!canSendMessages}
+                disabled={!canSendMessages || isBlockedByUser}
               />
               {message.trim() && canSendMessages ? (
                 <Button onClick={handleSendMessage} size='icon' className='rounded-full'>
@@ -2407,7 +2411,7 @@ function ChatDetail({ params }: Props) {
                   variant='outline'
                   size='icon'
                   className='rounded-full hover:bg-pink-100 dark:hover:bg-pink-900/30'
-                  disabled={!canSendMessages}
+                  disabled={!canSendMessages || isBlockedByUser}
                 >
                   <Heart className='h-5 w-5 fill-pink-500 text-pink-500' />
                 </Button>

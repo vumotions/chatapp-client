@@ -15,10 +15,12 @@ import {
   useSendFriendRequestMutation
 } from '~/hooks/data/friends.hook'
 import FriendSuggestionItemSkeleton from './friend-suggestion-item-skeleton'
+import { useSession } from 'next-auth/react'
 
 // Skeleton component cho item gợi ý kết bạn
 
 export default function FriendSuggestions() {
+  const { status } = useSession()
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(6) // Mặc định 6 items mỗi trang
 
@@ -142,6 +144,26 @@ export default function FriendSuggestions() {
     setSelectedAccept(userId)
     try {
       await acceptFriendRequest.mutateAsync(userId)
+      
+      // Cập nhật cache trực tiếp
+      queryClient.setQueryData(['FRIEND_SUGGESTIONS', page, limit], (oldData: any) => {
+        if (!oldData) return oldData
+
+        const newData = { ...oldData }
+        // Lọc bỏ người dùng đã chấp nhận kết bạn khỏi danh sách gợi ý
+        newData.data.data.suggestions = newData.data.data.suggestions.filter(
+          (user: any) => user._id !== userId
+        )
+
+        return newData
+      })
+      
+      // Invalidate các query liên quan
+      queryClient.invalidateQueries({ queryKey: ['FRIENDS'] })
+      queryClient.invalidateQueries({ queryKey: ['FRIEND_STATUS'] })
+      queryClient.invalidateQueries({ queryKey: ['FRIEND_SUGGESTIONS'] })
+      
+      toast.success('Đã chấp nhận lời mời kết bạn')
     } catch (e) {
       // error handled by hook
     } finally {
@@ -153,8 +175,7 @@ export default function FriendSuggestions() {
     setSelectedMsg(userId)
     try {
       const response = await startConversation.mutateAsync(userId)
-      // Chuyển hướng đến trang chat
-      window.location.href = `/messages/${response.data.data._id}`
+      console.log({ response })
     } catch (e) {
       // error handled by hook
     } finally {
@@ -196,7 +217,7 @@ export default function FriendSuggestions() {
         </div>
 
         <div className='mx-auto max-w-[800px]' ref={containerRef}>
-          {isLoading ? (
+          {isLoading || status === 'loading' ? (
             <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3'>
               {[...Array(limit)].map((_, index) => (
                 <FriendSuggestionItemSkeleton key={index} />
@@ -214,7 +235,7 @@ export default function FriendSuggestions() {
                 transition={{ duration: 0.3 }}
                 className='grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3'
               >
-                {suggestions.map((user) => {
+                {suggestions.map((user: any) => {
                   // Kiểm tra xem người dùng đã gửi lời mời chưa
                   const isPending =
                     pendingIds.includes(user._id) || user.status === 'PENDING' || justSentIds.includes(user._id)

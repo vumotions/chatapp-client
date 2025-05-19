@@ -1,9 +1,9 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState, useCallback, useEffect } from 'react'
 import { debounce } from 'lodash'
 import friendService from '~/services/friend.service'
 import userService from '~/services/user.service'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import httpRequest from '~/config/http-request'
 import { toast } from 'sonner'
 
 // Hook để tìm kiếm người dùng
@@ -101,15 +101,72 @@ export const useUpdateProfileMutation = () => {
   })
 }
 
+// Hook để block người dùng
+export const useBlockUserMutation = () => {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: (userId: string) => userService.blockUser(userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['BLOCKED_USERS'] })
+      toast.success('Đã chặn người dùng thành công')
+    },
+    onError: (error) => {
+      toast.error('Không thể chặn người dùng. Vui lòng thử lại sau.')
+      console.error('Block user error:', error)
+    }
+  })
+}
 
+// Hook để unblock người dùng
+export const useUnblockUserMutation = () => {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: (userId: string) => userService.unblockUser(userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['BLOCKED_USERS'] })
+      toast.success('Đã bỏ chặn người dùng thành công')
+    },
+    onError: (error) => {
+      toast.error('Không thể bỏ chặn người dùng. Vui lòng thử lại sau.')
+      console.error('Unblock user error:', error)
+    }
+  })
+}
 
+// Hook để lấy danh sách người dùng bị chặn
+export const useBlockedUsers = () => {
+  return useQuery({
+    queryKey: ['BLOCKED_USERS'],
+    queryFn: async () => {
+      try {
+        const response = await userService.getBlockedUsers()
+        return response?.data?.data?.blockedUsers || []
+      } catch (error) {
+        console.error('Error fetching blocked users:', error)
+        throw error
+      }
+    }
+  })
+}
 
-
-
-
-
-
-
-
-
+// Hook kiểm tra xem người dùng hiện tại có bị chặn bởi người dùng khác không
+export const useIsBlockedByUser = (userId: string | undefined) => {
+  return useQuery({
+    queryKey: ['IS_BLOCKED_BY_USER', userId],
+    queryFn: async () => {
+      if (!userId) return false
+      
+      try {
+        const response = await httpRequest.get(`/user/is-blocked-by/${userId}`)
+        return response.data.data.isBlocked
+      } catch (error) {
+        console.error('Error checking if blocked by user:', error)
+        return false
+      }
+    },
+    enabled: !!userId
+  })
+}
 

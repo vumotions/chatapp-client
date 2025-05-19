@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
-import { MoreHorizontal, Archive, History } from 'lucide-react'
+import { useState, useMemo } from 'react'
+import { MoreHorizontal, Archive, History, UserX, UserCheck } from 'lucide-react'
 import { useArchiveChat, useClearChatHistory } from '~/hooks/data/chat.hooks'
+import { useBlockUserMutation, useUnblockUserMutation, useBlockedUsers } from '~/hooks/data/user.hooks'
 import {
   Dialog,
   DialogClose,
@@ -13,38 +14,62 @@ import {
   DialogTitle,
   DialogTrigger
 } from '~/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from '~/components/ui/alert-dialog'
 import { Button } from '~/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '~/components/ui/popover'
+import { useQuery } from '@tanstack/react-query'
+import httpRequest from '~/config/http-request'
+import { useSession } from 'next-auth/react'
+import { toast } from 'sonner'
 
 type ConversationActionsProps = {
   conversationId: string
   isArchived?: boolean
+  otherUserId?: string
 }
 
-export function ConversationActions({ conversationId, isArchived = false }: ConversationActionsProps) {
+export function ConversationActions({ conversationId, isArchived = false, otherUserId }: ConversationActionsProps) {
   const [isClearHistoryDialogOpen, setIsClearHistoryDialogOpen] = useState(false)
+  const [isBlockDialogOpen, setIsBlockDialogOpen] = useState(false)
   const [isPopoverOpen, setIsPopoverOpen] = useState(false)
+  const { data: session } = useSession()
 
   // Sử dụng hook đã tạo
   const { archiveChat, unarchiveChat } = useArchiveChat()
   const clearChatHistory = useClearChatHistory()
+  const blockUser = useBlockUserMutation()
+  const unblockUser = useUnblockUserMutation()
+  const { data: blockedUsers } = useBlockedUsers()
+
+  // Kiểm tra xem người dùng đã bị block chưa
+  const isUserBlocked = useMemo(() => {
+    if (!blockedUsers || !otherUserId) return false
+
+    return blockedUsers.some((user: any) => {
+      const userId = typeof user === 'object' ? user._id : user
+      return userId === otherUserId
+    })
+  }, [blockedUsers, otherUserId])
 
   // Xử lý khi xóa lịch sử chat
   const handleClearHistory = () => {
-    // Đóng dialog và popover
     setIsClearHistoryDialogOpen(false)
     setIsPopoverOpen(false)
-
-    // Gọi API xóa lịch sử chat
     clearChatHistory.mutate(conversationId)
   }
 
   // Xử lý khi lưu trữ/bỏ lưu trữ cuộc trò chuyện
   const handleArchiveToggle = () => {
-    // Đóng popover
     setIsPopoverOpen(false)
-
-    // Thực hiện lưu trữ hoặc bỏ lưu trữ
     if (isArchived) {
       unarchiveChat.mutate(conversationId)
     } else {
@@ -52,10 +77,38 @@ export function ConversationActions({ conversationId, isArchived = false }: Conv
     }
   }
 
+  // Xử lý khi block/unblock người dùng
+  const handleBlockToggle = () => {
+    setIsPopoverOpen(false)
+
+    if (!otherUserId) {
+      toast.error('Không thể xác định người dùng để chặn')
+      return
+    }
+
+    if (isUserBlocked) {
+      // Unblock user ngay lập tức
+      unblockUser.mutate(otherUserId)
+    } else {
+      // Hiển thị dialog xác nhận trước khi block
+      setIsBlockDialogOpen(true)
+    }
+  }
+
+  // Xử lý khi xác nhận block người dùng
+  const confirmBlockUser = () => {
+    if (!otherUserId) return
+    blockUser.mutate(otherUserId)
+    setIsBlockDialogOpen(false)
+  }
+
   // Ngăn sự kiện lan truyền khi click vào button
   const handleButtonClick = (e: React.MouseEvent) => {
     e.stopPropagation()
   }
+
+  // Xác định xem có hiển thị nút block/unblock không
+  const showBlockOption = !!otherUserId
 
   return (
     <div onClick={(e) => e.stopPropagation()}>
@@ -81,19 +134,15 @@ export function ConversationActions({ conversationId, isArchived = false }: Conv
                 handleArchiveToggle()
               }}
             >
-              <Archive className='h-4 w-4 mr-2' />
+              <Archive className='mr-2 h-4 w-4' />
               {isArchived ? 'Bỏ lưu trữ' : 'Lưu trữ'}
             </Button>
 
             {/* Nút xóa lịch sử chat */}
             <Dialog open={isClearHistoryDialogOpen} onOpenChange={setIsClearHistoryDialogOpen}>
               <DialogTrigger asChild>
-                <Button
-                  variant='ghost'
-                  className='text-foreground w-full justify-start'
-                  onClick={handleButtonClick}
-                >
-                  <History className='h-4 w-4 mr-2' />
+                <Button variant='ghost' className='text-foreground w-full justify-start' onClick={handleButtonClick}>
+                  <History className='mr-2 h-4 w-4' />
                   Xóa lịch sử chat
                 </Button>
               </DialogTrigger>
@@ -101,7 +150,8 @@ export function ConversationActions({ conversationId, isArchived = false }: Conv
                 <DialogHeader>
                   <DialogTitle>Xóa lịch sử chat</DialogTitle>
                   <DialogDescription>
-                    Bạn có chắc chắn muốn xóa lịch sử chat? Hành động này sẽ xóa tất cả tin nhắn cũ và không thể hoàn tác.
+                    Bạn có chắc chắn muốn xóa lịch sử chat? Hành động này sẽ xóa tất cả tin nhắn cũ và không thể hoàn
+                    tác.
                   </DialogDescription>
                 </DialogHeader>
                 <DialogFooter>
@@ -114,11 +164,48 @@ export function ConversationActions({ conversationId, isArchived = false }: Conv
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+
+            {showBlockOption && (
+              <Button variant='ghost' className='text-foreground w-full justify-start' onClick={handleBlockToggle}>
+                {isUserBlocked ? (
+                  <>
+                    <UserCheck className='mr-2 h-4 w-4' />
+                    Hủy chặn
+                  </>
+                ) : (
+                  <>
+                    <UserX className='mr-2 h-4 w-4' />
+                    Chặn
+                  </>
+                )}
+              </Button>
+            )}
           </div>
         </PopoverContent>
       </Popover>
+
+      {isBlockDialogOpen && (
+        <AlertDialog open={isBlockDialogOpen} onOpenChange={setIsBlockDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Chặn người dùng</AlertDialogTitle>
+              <AlertDialogDescription>
+                Bạn có chắc chắn muốn chặn người dùng này không? Người dùng này sẽ không thể gửi tin nhắn cho bạn nữa.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel asChild>
+                <Button variant='outline'>Hủy</Button>
+              </AlertDialogCancel>
+              <AlertDialogAction asChild>
+                <Button variant='destructive' onClick={confirmBlockUser}>
+                  Chặn
+                </Button>
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </div>
   )
 }
-
-

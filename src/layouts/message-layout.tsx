@@ -1,7 +1,7 @@
 'use client'
 
 import { AnimatePresence, motion } from 'framer-motion'
-import { Archive, Edit, Home, Inbox, Settings } from 'lucide-react'
+import { Archive, Edit, Home, Inbox, Settings, UserX } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
@@ -17,6 +17,7 @@ import useMediaQuery from '~/hooks/use-media-query'
 import { usePathname } from '~/i18n/navigation'
 import { cn } from '~/lib/utils'
 import { LayoutProps } from '~/types/props.types'
+import BlockedUsersList from '~/components/ui/chat/blocked-users-list'
 
 export default function MessageLayout({ children }: LayoutProps) {
   const searchParams = useSearchParams()
@@ -31,7 +32,7 @@ export default function MessageLayout({ children }: LayoutProps) {
   const currentFilter = searchParams.get('filter') || 'all'
   // Lấy view từ URL hoặc mặc định là 'inbox'
   const viewParam = searchParams.get('view') || 'inbox'
-  const validViews = ['inbox', 'drafts', 'archived']
+  const validViews = ['inbox', 'blocked-users', 'archived']
   const currentView = validViews.includes(viewParam) ? viewParam : 'inbox'
 
   // Kiểm tra xem có đang xem chi tiết cuộc trò chuyện không
@@ -84,6 +85,8 @@ export default function MessageLayout({ children }: LayoutProps) {
         return 'Inbox'
       case 'archived':
         return 'Archive'
+      case 'blocked-users':
+        return 'Blocked Users'
       case 'drafts':
         return 'Drafts'
       default:
@@ -175,7 +178,7 @@ export default function MessageLayout({ children }: LayoutProps) {
           })}
         >
           <ScrollArea className='h-screen'>
-             <div className='mt-4 flex justify-center flex-col items-center'>
+            <div className='mt-4 flex flex-col items-center justify-center'>
               <NetworkStatusIndicator />
             </div>
             <Nav
@@ -189,11 +192,11 @@ export default function MessageLayout({ children }: LayoutProps) {
                   onClick: () => handleNavClick('inbox')
                 },
                 {
-                  title: 'Drafts',
+                  title: 'Blocked Users',
                   label: '',
-                  icon: Edit,
-                  variant: currentView === 'drafts' ? 'default' : 'ghost',
-                  onClick: () => handleNavClick('drafts')
+                  icon: UserX,
+                  variant: currentView === 'blocked-users' ? 'default' : 'ghost',
+                  onClick: () => handleNavClick('blocked-users')
                 },
                 {
                   title: 'Archive',
@@ -228,32 +231,44 @@ export default function MessageLayout({ children }: LayoutProps) {
         </ResizablePanel>
         <ResizableHandle withHandle />
         <ResizablePanel defaultSize={minLayout[1]} minSize={40}>
-          <Tabs defaultValue={currentFilter} onValueChange={handleChangeTab}>
-            <div className='flex items-center px-4 py-2'>
-              <h1 className='text-xl font-bold'>{getViewTitle()}</h1>
-              <TabsList className='ml-auto'>
-                <TabsTrigger
-                  value='all'
-                  className='dark:data-[state=active]:bg-background text-zinc-600 dark:text-zinc-200'
-                >
-                  All messages
-                </TabsTrigger>
-                <TabsTrigger
-                  value='unread'
-                  className='dark:data-[state=active]:bg-background text-zinc-600 dark:text-zinc-200'
-                >
-                  Unread
-                </TabsTrigger>
-              </TabsList>
+          {currentView === 'blocked-users' ? (
+            // Hiển thị danh sách người dùng bị chặn
+            <div className='flex h-full flex-col'>
+              <div className='flex items-center px-4 py-3'>
+                <h1 className='text-xl font-bold'>{getViewTitle()}</h1>
+              </div>
+              <Separator />
+              <BlockedUsersList />
             </div>
-            <Separator />
-            <TabsContent value='all' className='m-0'>
-              <ChatList />
-            </TabsContent>
-            <TabsContent value='unread' className='m-0'>
-              <ChatList />
-            </TabsContent>
-          </Tabs>
+          ) : (
+            // Hiển thị danh sách chat như bình thường
+            <Tabs defaultValue={currentFilter} onValueChange={handleChangeTab}>
+              <div className='flex items-center px-4 py-2'>
+                <h1 className='text-xl font-bold'>{getViewTitle()}</h1>
+                <TabsList className='ml-auto'>
+                  <TabsTrigger
+                    value='all'
+                    className='dark:data-[state=active]:bg-background text-zinc-600 dark:text-zinc-200'
+                  >
+                    All messages
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value='unread'
+                    className='dark:data-[state=active]:bg-background text-zinc-600 dark:text-zinc-200'
+                  >
+                    Unread
+                  </TabsTrigger>
+                </TabsList>
+              </div>
+              <Separator />
+              <TabsContent value='all' className='m-0'>
+                <ChatList />
+              </TabsContent>
+              <TabsContent value='unread' className='m-0'>
+                <ChatList />
+              </TabsContent>
+            </Tabs>
+          )}
         </ResizablePanel>
         <ResizableHandle withHandle />
         <ResizablePanel defaultSize={minLayout[2]} minSize={35}>

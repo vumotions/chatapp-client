@@ -20,6 +20,14 @@ export default function NotificationListener() {
     const handleNewNotification = (notification: any) => {
       console.log('Received new notification via socket:', notification)
 
+      // Kiểm tra nếu là thông báo chấp nhận lời mời kết bạn
+      if (notification.type === NOTIFICATION_TYPE.FRIEND_ACCEPTED) {
+        // Invalidate các query liên quan đến bạn bè
+        queryClient.invalidateQueries({ queryKey: ['FRIENDS'] })
+        queryClient.invalidateQueries({ queryKey: ['FRIEND_STATUS'] })
+        queryClient.invalidateQueries({ queryKey: ['FRIEND_SUGGESTIONS'] })
+      }
+
       // Hiển thị toast thông báo
       if (notification) {
         let message = ''
@@ -50,16 +58,19 @@ export default function NotificationListener() {
             message = notification.content || 'Bạn có thông báo mới'
         }
 
-        toast(message, {
-          position: 'bottom-left',
-          description: 'Nhấp để xem chi tiết',
-          action: {
-            label: 'Xem',
-            onClick: () => {
-              document.getElementById('notification-trigger')?.click()
+        // Hiển thị toast nếu không phải là cập nhật
+        if (!notification.isUpdate) {
+          toast(message, {
+            position: 'bottom-left',
+            description: 'Nhấp để xem chi tiết',
+            action: {
+              label: 'Xem',
+              onClick: () => {
+                document.getElementById('notification-trigger')?.click()
+              }
             }
-          }
-        })
+          })
+        }
       }
 
       // Cập nhật cache thông báo trực tiếp

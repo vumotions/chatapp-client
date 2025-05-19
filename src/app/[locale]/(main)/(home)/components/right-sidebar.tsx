@@ -51,7 +51,7 @@ export default function RightSidebarFriendList() {
   const [debouncedQuery, setDebouncedQuery] = useState('')
   // Sử dụng useTransition để theo dõi trạng thái chuyển trang
   const [isPending, startTransition] = useTransition()
-  const isMobile = useMediaQuery('(max-width: 768px)')
+  const isMobile = useMediaQuery('(max-width: 1024px)')
 
   const isLoading = status === 'loading'
 
@@ -112,7 +112,7 @@ export default function RightSidebarFriendList() {
     if (!socket || !friends || !friends.length) return
 
     // Kiểm tra trạng thái online ban đầu cho tất cả bạn bè
-    friends.forEach((friend) => {
+    friends.forEach((friend: any) => {
       socket.emit(SOCKET_EVENTS.CHECK_ONLINE, friend._id, (isUserOnline: boolean, lastActiveTime: string) => {
         if (isUserOnline) {
           setOnlineUsers((prev) => new Set([...prev, friend._id]))
@@ -191,13 +191,10 @@ export default function RightSidebarFriendList() {
 
   // Xử lý khi click vào nút Profile
   const handleViewProfile = (friendId: string, username: string) => {
-    // Nếu đang trong quá trình chuyển trang, không làm gì cả
     if (isPending || processingProfileId === friendId) return
 
-    // Đánh dấu đang xử lý cho bạn bè này
     setProcessingProfileId(friendId)
 
-    // Sử dụng startTransition để đánh dấu chuyển trang
     startTransition(() => {
       router.push(`/profile/${username}`)
     })
@@ -232,12 +229,11 @@ export default function RightSidebarFriendList() {
     const days = Math.floor(diffMs / 86400000)
     return `Hoạt động ${days} ngày trước`
   }
-
   return (
     <div
       className={cn('sticky top-0 h-fit w-fit lg:w-[250px]', {
         'hidden lg:flex': !session,
-        hidden: (isMobile && !sortedFriends) || (isMobile && sortedFriends.length === 0)
+        '!hidden': (isMobile && !sortedFriends) || (isMobile && sortedFriends.length === 0)
       })}
     >
       <Card>
@@ -355,7 +351,7 @@ export default function RightSidebarFriendList() {
 
                         {/* Desktop: hiện avatar kèm tên, sử dụng HoverCard */}
                         <div className='hidden w-full lg:block'>
-                          <FriendHoverCard 
+                          <FriendHoverCard
                             friend={friend}
                             isOnline={isOnline(friend._id)}
                             lastActive={getLastActive(friend._id)}
@@ -378,9 +374,7 @@ export default function RightSidebarFriendList() {
                                     {formatLastActive(getLastActive(friend._id)!)}
                                   </span>
                                 )}
-                                {isOnline(friend._id) && (
-                                  <span className='text-xs text-green-500'>Đang hoạt động</span>
-                                )}
+                                {isOnline(friend._id) && <span className='text-xs text-green-500'>Đang hoạt động</span>}
                               </div>
                             </div>
                           </FriendHoverCard>

@@ -1,25 +1,25 @@
-import { axiosInstance } from '@/lib/axios'
+import httpRequest from '~/config/http-request'
 
 class PostService {
   getPosts(page = 1, limit = 10) {
-    return axiosInstance.get(`/posts/get-posts`, {
+    return httpRequest.get(`/posts/get-posts`, {
       params: {
         page,
         limit
       }
     })
   }
-  
+
   getPostById(id: string) {
     if (!id) {
       console.error('Invalid id for getPostById:', id)
       return Promise.reject(new Error('Invalid id'))
     }
-    return axiosInstance.get(`/posts/${id}`)
+    return httpRequest.get(`/posts/${id}`)
   }
-  
+
   createPost(formData: FormData) {
-    return axiosInstance.post('/posts/create-post', formData, {
+    return httpRequest.post('/posts/create-post', formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       }
@@ -27,7 +27,7 @@ class PostService {
   }
 
   async updatePost(id: string, formData: FormData) {
-    return axiosInstance.put(`/posts/${id}`, formData, {
+    return httpRequest.put(`/posts/${id}`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       }
@@ -35,45 +35,40 @@ class PostService {
   }
 
   async deletePost(id: string) {
-    return axiosInstance.delete(`/posts/${id}`)
+    return httpRequest.delete(`/posts/${id}`)
   }
 
   likePost(postId: string) {
-    return axiosInstance.post('/posts/like', { postId })
+    return httpRequest.post('/posts/like', { postId })
   }
-  
+
   unlikePost(postId: string) {
-    return axiosInstance.delete(`/posts/like/${postId}`)
+    return httpRequest.delete(`/posts/like/${postId}`)
   }
-  
+
   sharePost(postId: string) {
     if (!postId) {
       console.error('Invalid postId for sharePost:', postId)
       return Promise.reject(new Error('Invalid postId'))
     }
-    
-    return axiosInstance.post('/posts/share', { postId })
+
+    return httpRequest.post('/posts/share', { postId })
   }
 
   async getComments(postId: string, page = 1, limit = 10) {
-    return axiosInstance.get(`/posts/${postId}/comments?page=${page}&limit=${limit}`)
+    return httpRequest.get(`/posts/${postId}/comments?page=${page}&limit=${limit}`)
   }
 
   async createComment(postId: string, content: string) {
-    return axiosInstance.post(`/posts/${postId}/comments`, { content })
+    return httpRequest.post(`/posts/${postId}/comments`, { content })
   }
 
   async deleteComment(postId: string, commentId: string) {
-    return axiosInstance.delete(`/posts/${postId}/comments/${commentId}`)
+    return httpRequest.delete(`/posts/${postId}/comments/${commentId}`)
   }
 
   getUserPosts(userId: string, page = 1, limit = 5) {
-    if (!userId) {
-      console.error('Invalid userId for getUserPosts:', userId)
-      return Promise.reject(new Error('Invalid userId'))
-    }
-    
-    return axiosInstance.get(`/posts/user/${userId}`, {
+    return httpRequest.get(`/posts/user/${userId}`, {
       params: {
         page,
         limit

@@ -97,6 +97,8 @@ export const useRemoveFriendMutation = () => {
     onSuccess: () => {
       toast.success('Đã hủy kết bạn')
       queryClient.invalidateQueries({ queryKey: ['FRIENDS'] })
+      // Thêm dòng này để cập nhật trạng thái bạn bè
+      queryClient.invalidateQueries({ queryKey: ['FRIEND_STATUS'] })
     },
     onError: () => {
       toast.error('Hủy kết bạn thất bại!')

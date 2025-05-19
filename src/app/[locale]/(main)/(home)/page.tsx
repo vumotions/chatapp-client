@@ -1,74 +1,93 @@
 'use client'
 
-import PostSkeleton from '~/components/post-skeleton'
+import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
+import { useSession } from 'next-auth/react'
+import InfiniteScroll from 'react-infinite-scroll-component'
+import { toast } from 'sonner'
+import FriendSuggestions from '~/components/friend-suggestions'
 import { Post } from '~/components/posts/post'
+import PostEditorV2 from '~/components/posts/post-editor-v2'
+import { PostSkeleton } from '~/components/posts/post-skeleton'
 
+import postService from '~/services/post.service'
 import RightSidebarFriendList from './components/right-sidebar'
 
-import { useSession } from 'next-auth/react'
-import { cn } from '~/lib/utils'
-import FriendSuggestions from '~/components/friend-suggestions'
-import useMediaQuery from '~/hooks/use-media-query'
-import PostEditorV2 from '~/components/posts/post-editor-v2'
-import { useState, useEffect } from 'react'
-import postService from '@/services/post.service'
-import { toast } from 'sonner'
-
 function Home() {
-  const [posts, setPosts] = useState([])
-  const [loading, setLoading] = useState(false)
-  const [currentPage, setCurrentPage] = useState(1)
-  const [hasMore, setHasMore] = useState(true)
+  const { data: session } = useSession()
+  const queryClient = useQueryClient() // Thêm dòng này
 
-  const fetchPosts = async () => {
-    try {
-      setLoading(true)
-      const response = await postService.getPosts(currentPage, 10)
-      if (response && response.data) {
-        const newPosts = response.data.data || []
-        setPosts(prev => currentPage === 1 ? newPosts : [...prev, ...newPosts])
-        setHasMore(response.data.data.hasMore || false)
+  // Sử dụng useInfiniteQuery thay vì useState và useEffect
+  const { data, isLoading, isError, fetchNextPage, hasNextPage } = useInfiniteQuery({
+    queryKey: ['POSTS'],
+    queryFn: async ({ pageParam = 1 }) => {
+      const response = await postService.getPosts(pageParam, 10)
+      return response.data
+    },
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) => {
+      if (lastPage && lastPage.data.hasMore) {
+        return lastPage.data.currentPage + 1
       }
+      return undefined
+    },
+    staleTime: 1000 * 60 * 5, // 5 phút
+    refetchOnWindowFocus: false
+  })
+
+  // Làm phẳng danh sách bài viết từ tất cả các trang
+  const posts = data?.pages.flatMap((page) => page.data) || []
+
+  // Hàm để làm mới danh sách bài viết
+  const refreshPosts = async () => {
+    try {
+      await queryClient.invalidateQueries({ queryKey: ['POSTS'] })
+      toast.success('Đã làm mới danh sách bài viết')
     } catch (error) {
-      console.error('Error fetching posts:', error)
-      toast.error('Không thể tải bài viết')
-    } finally {
-      setLoading(false)
+      console.error('Error refreshing posts:', error)
+      toast.error('Không thể làm mới bài viết')
     }
   }
-
-  useEffect(() => {
-    fetchPosts()
-  }, [currentPage])
-
-  // const isMobile = useMediaQuery('(max-width: 768px)')
 
   return (
     <div className='mx-auto flex max-w-screen-2xl gap-4 py-4 lg:flex-row'>
       {/* Main Content */}
       <div className='flex flex-1 flex-col gap-4'>
         {/* Status input */}
-        <PostEditorV2 getPosts={fetchPosts} />
+        <PostEditorV2 getPosts={refreshPosts} />
         {/* Post */}
         <FriendSuggestions />
-        {loading && !posts.length ? (
-          // Initial loading state
-          <>
-            <PostSkeleton />
-            <PostSkeleton />
-            <PostSkeleton />
-          </>
-        ) : null}
-        {/* <PostSkeleton /> */}
-        {!loading && posts.map((post) => {
-          return (
-              <Post key={post._id} post={post}/>
-          )
-        })}
+
+        {/* Sử dụng InfiniteScroll để tải thêm bài viết khi cuộn */}
+        <InfiniteScroll
+          dataLength={posts.length || 0}
+          next={fetchNextPage}
+          hasMore={!!hasNextPage}
+          loader={
+            <div className='space-y-4'>
+              <PostSkeleton />
+              <PostSkeleton />
+            </div>
+          }
+          endMessage={<div className='text-muted-foreground p-2 text-center text-xs'>Không còn bài viết nào nữa</div>}
+        >
+          {isLoading ? (
+            // Initial loading state
+            <div className='space-y-4'>
+              <PostSkeleton />
+              <PostSkeleton />
+              <PostSkeleton />
+            </div>
+          ) : isError ? (
+            <div className='text-muted-foreground p-4 text-center'>Không thể tải bài viết. Vui lòng thử lại sau.</div>
+          ) : posts.length === 0 ? (
+            <div className='text-muted-foreground p-4 text-center'>Chưa có bài viết nào.</div>
+          ) : (
+            posts.map((post) => <Post key={post._id} post={post} />)
+          )}
+        </InfiniteScroll>
       </div>
 
       {/* Right Sidebar (friends list) */}
-
       <RightSidebarFriendList />
     </div>
   )
