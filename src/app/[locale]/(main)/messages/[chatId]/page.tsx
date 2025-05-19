@@ -1085,32 +1085,47 @@ function ChatDetail({ params }: Props) {
       // Cập nhật quyền gửi tin nhắn
       refetchSendPermission()
 
-      // Nếu có tin nhắn hệ thống, thêm vào danh sách tin nhắn
-      if (data.message) {
-        // Cập nhật cache tin nhắn để hiển thị tin nhắn hệ thống
-        queryClient.setQueryData(['MESSAGES', chatId], (oldData: any) => {
-          if (!oldData) return oldData
+      // Kiểm tra nếu có thay đổi về cài đặt "Chỉ quản trị viên được gửi tin nhắn"
+      if (data.onlyAdminsCanSend !== undefined) {
+        // Hiển thị thông báo nếu không phải người cập nhật
+        if (data.updatedBy !== session?.user?._id) {
+          if (data.onlyAdminsCanSend) {
+            const restrictUntilText = data.restrictUntil
+              ? `đến ${new Date(data.restrictUntil).toLocaleString('vi-VN')}`
+              : 'cho đến khi có thay đổi'
 
-          const updatedPages = [...oldData.pages]
+            toast.info(`Chế độ "Chỉ quản trị viên được gửi tin nhắn" đã được bật ${restrictUntilText}`)
+          } else {
+            toast.info('Chế độ "Chỉ quản trị viên được gửi tin nhắn" đã được tắt')
+          }
+        }
 
-          // Thêm tin nhắn hệ thống vào trang đầu tiên
-          if (updatedPages.length > 0 && updatedPages[0].messages) {
-            // Kiểm tra xem tin nhắn đã tồn tại chưa
-            const messageExists = updatedPages[0].messages.some((msg: any) => msg._id === data.message._id)
+        // Thêm tin nhắn hệ thống vào cache nếu có
+        if (data.message) {
+          queryClient.setQueryData(['MESSAGES', chatId], (oldData: any) => {
+            if (!oldData) return oldData
 
-            if (!messageExists) {
-              updatedPages[0] = {
-                ...updatedPages[0],
-                messages: [...updatedPages[0].messages, data.message]
+            const updatedPages = [...oldData.pages]
+
+            // Thêm tin nhắn hệ thống vào trang đầu tiên
+            if (updatedPages.length > 0 && updatedPages[0].messages) {
+              // Kiểm tra xem tin nhắn đã tồn tại chưa
+              const messageExists = updatedPages[0].messages.some((msg: any) => msg._id === data.message._id)
+
+              if (!messageExists) {
+                updatedPages[0] = {
+                  ...updatedPages[0],
+                  messages: [...updatedPages[0].messages, data.message]
+                }
               }
             }
-          }
 
-          return {
-            ...oldData,
-            pages: updatedPages
-          }
-        })
+            return {
+              ...oldData,
+              pages: updatedPages
+            }
+          })
+        }
       }
     }
 
@@ -1126,7 +1141,7 @@ function ChatDetail({ params }: Props) {
       socket.off(SOCKET_EVENTS.MEMBER_MUTED, handleGroupSettingsChanged)
       socket.off(SOCKET_EVENTS.MEMBER_UNMUTED, handleGroupSettingsChanged)
     }
-  }, [socket, chatId, refetchSendPermission])
+  }, [socket, chatId, refetchSendPermission, queryClient, session?.user?._id])
 
   const handleSendHeartEmoji = () => {
     // Kiểm tra quyền gửi tin nhắn
@@ -2330,7 +2345,7 @@ function ChatDetail({ params }: Props) {
           <Separator className='mt-auto' />
 
           {/* Hiển thị thông báo khi không có quyền gửi tin nhắn */}
-          {!canSendMessages && sendPermission && (
+          {/* {!canSendMessages && sendPermission && (
             <div className='bg-muted/50 border-primary/20 mx-4 mt-2 rounded-md border-l-2 p-2 text-sm'>
               {sendPermission.isMuted ? (
                 <p>
@@ -2354,13 +2369,29 @@ function ChatDetail({ params }: Props) {
                 <p>Bạn không có quyền gửi tin nhắn trong nhóm này</p>
               )}
             </div>
-          )}
+          )} */}
 
           <div className='p-4'>
             <div className='flex items-end gap-4'>
               <Input
                 className='flex-1 resize-none rounded-full p-4'
-                placeholder={canSendMessages ? 'Nhập tin nhắn...' : 'Bạn không thể gửi tin nhắn'}
+                placeholder={
+                  !canSendMessages
+                    ? sendPermission?.isMuted
+                      ? `Bị cấm chat${
+                          sendPermission.mutedUntil
+                            ? ` đến ${format(new Date(sendPermission.mutedUntil), 'dd/MM/yyyy')}`
+                            : ''
+                        }`
+                      : sendPermission?.restrictedByGroupSettings
+                      ? `Chỉ admin được gửi tin nhắn${
+                          sendPermission.restrictUntil
+                            ? ` đến ${format(new Date(sendPermission.restrictUntil), 'dd/MM/yyyy')}`
+                            : ''
+                        }`
+                      : 'Không có quyền gửi tin nhắn'
+                    : 'Nhập tin nhắn...'
+                }
                 value={message}
                 onChange={handleInputChange}
                 onKeyDown={handleKeyPress}

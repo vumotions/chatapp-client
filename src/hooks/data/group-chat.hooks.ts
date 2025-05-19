@@ -206,7 +206,7 @@ export const useCheckJoinRequestStatusQuery = (conversationId: string | undefine
 // Thêm hook mới để cập nhật cài đặt "Chỉ quản trị viên được gửi tin nhắn"
 export function useUpdateSendMessageRestrictionMutation() {
   const queryClient = useQueryClient()
-  
+
   return useMutation({
     mutationFn: ({
       conversationId,
@@ -240,13 +240,8 @@ export function useCheckSendMessagePermissionQuery(chatId: string | undefined) {
     },
     enabled: !!chatId,
     refetchOnWindowFocus: false,
+    refetchInterval: 60 * 1000,
+    refetchIntervalInBackground: true,
     staleTime: 1000 * 60 // 1 phút
   })
 }
-
-
-
-
-
-
-

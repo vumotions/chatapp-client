@@ -197,7 +197,7 @@ function MessagePopover() {
                     <div className='ml-3 flex-1'>
                       <div className={cn('text-sm', isUnread ? 'font-bold' : 'font-medium')}>{chatInfo.name}</div>
                       <div className={cn(
-                        'truncate text-sm', 
+                        'truncate text-sm max-w-[200px]', 
                         isUnread ? 'font-semibold text-foreground' : 'text-muted-foreground'
                       )}>
                         {typeof chat.lastMessage === 'string'
