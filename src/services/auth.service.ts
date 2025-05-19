@@ -1,14 +1,14 @@
 import httpRequest from '~/config/http-request'
-import { FormCodeValues, FormLoginValues, FormRegisterValues, FormForgotPasswordValues } from '~/schemas/form.schemas'
+import { FormCodeValues, FormForgotPasswordValues, FormLoginValues, FormRegisterValues } from '~/schemas/form.schemas'
 import {
+  ConfirmResetPasswordResponse,
   GetMyProfileResponse,
   LoginResponse,
   RegisterResponse,
-  SendEmailVerificationResponse,
-  VerifyAccountResponse,
   RequestResetPasswordResponse,
-  ConfirmResetPasswordResponse,
-  ResetPasswordResponse
+  ResetPasswordResponse,
+  SendEmailVerificationResponse,
+  VerifyAccountResponse
 } from '~/types/auth.types'
 
 class AuthService {

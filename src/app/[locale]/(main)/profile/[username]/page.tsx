@@ -3,8 +3,12 @@
 import { format } from 'date-fns'
 import { Calendar, Users } from 'lucide-react'
 import { useSession } from 'next-auth/react'
-import { use, useState } from 'react'
+import { use, useMemo, useState } from 'react'
+import InfiniteScroll from 'react-infinite-scroll-component'
 import FriendHoverCard from '~/components/friend-hover-card'
+import PostSkeleton from '~/components/post-skeleton'
+import { Post } from '~/components/posts/post'
+import { ProfileEditDialog } from '~/components/profile-edit-dialog'
 import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
 import { Button } from '~/components/ui/button'
 import { Card, CardContent } from '~/components/ui/card'
@@ -27,10 +31,10 @@ import {
   useRemoveFriendMutation,
   useSendFriendRequestMutation
 } from '~/hooks/data/friends.hook'
+import { useUserPosts } from '~/hooks/data/post.hooks'
 import { useUserByUsername } from '~/hooks/data/user.hooks'
 import ProfileSkeleton from '../components/profile-skeleton'
 import NotFound from '../not-found'
-import { ProfileEditDialog } from '~/components/profile-edit-dialog'
 
 type Props = {
   params: Promise<{
@@ -43,7 +47,24 @@ function Profile({ params }: Props) {
   const { data: session } = useSession()
   const { data: profileFriends, isLoading: isLoadingProfileFriends } = useFriendsByUsername(username)
   const { data: profileData, isLoading, error, isError, refetch } = useUserByUsername(username)
+
   const isMyProfile = session?.user?.username === username
+
+  // Đảm bảo hook này được gọi ở mức cao nhất, không phụ thuộc vào điều kiện
+  const {
+    data: userPostsData,
+    isLoading: isLoadingPosts,
+    fetchNextPage,
+    hasNextPage
+  } = useUserPosts(profileData?._id || '', {
+    enabled: !!profileData?._id
+  })
+
+  // Tổng hợp bài viết từ tất cả các trang - đặt useMemo ở mức cao nhất
+  const userPosts = useMemo(() => {
+    return userPostsData?.pages.flatMap((page) => page.posts) || []
+  }, [userPostsData])
+
   const {
     data: friendStatus,
     refetch: refetchStatus,
@@ -156,10 +177,7 @@ function Profile({ params }: Props) {
             {isMyProfile ? (
               <>
                 <Button size='sm'>+ Thêm vào tin</Button>
-                <ProfileEditDialog 
-                  userData={profileData}
-                  onProfileUpdated={handleProfileUpdated}
-                />
+                <ProfileEditDialog userData={profileData} onProfileUpdated={handleProfileUpdated} />
               </>
             ) : (
               <>
@@ -286,7 +304,7 @@ function Profile({ params }: Props) {
                   ))
                 ) : profileFriends && profileFriends.length > 0 ? (
                   // Hiển thị danh sách bạn bè với HoverCard
-                  profileFriends.slice(0, 9).map((friend) => (
+                  profileFriends.slice(0, 9).map((friend: any) => (
                     <FriendHoverCard key={friend._id} friend={friend}>
                       <div className='hover:bg-muted flex items-center gap-3 rounded-md p-2 transition-colors'>
                         <Avatar className='h-12 w-12 flex-shrink-0'>
@@ -330,45 +348,44 @@ function Profile({ params }: Props) {
             </Card>
           )}
 
-          {/* Bài viết mẫu */}
-          <Card className='py-0'>
-            <CardContent className='space-y-2 p-4'>
-              {/* Header */}
-              <div className='flex items-center gap-3'>
-                <Avatar className='h-10 w-10'>
-                  <AvatarImage src={profileData?.avatar} alt={profileData?.name || 'User'} />
-                  <AvatarFallback>{profileData?.name?.[0] || 'U'}</AvatarFallback>
-                </Avatar>
-                <div className='text-sm'>
-                  <p className='font-medium'>{profileData?.name || 'User'}</p>
-                  <p className='text-muted-foreground text-xs'>31 tháng 5, 2022</p>
+          {/* Bài viết của người dùng */}
+          <div className='space-y-4'>
+            <h3 className='px-1 font-semibold'>Bài viết</h3>
+
+            {/* Sử dụng InfiniteScroll để tải thêm bài viết khi cuộn */}
+            <InfiniteScroll
+              dataLength={userPosts?.length || 0}
+              next={fetchNextPage}
+              hasMore={!!hasNextPage}
+              loader={
+                <div className='space-y-4'>
+                  <PostSkeleton />
+                  <PostSkeleton />
                 </div>
-              </div>
-              {/* Video */}
-              <div className='bg-muted aspect-video rounded-md' />
-              {/* Text content */}
-              <p className='text-sm'>
-                Dù bạn không hoàn hảo, nhưng rồi sẽ có người đến và yêu bạn bằng tất cả chân thành ❤️
-              </p>
-              {/* Reactions */}
-              <div className='text-muted-foreground mt-2 flex justify-between border-t pt-2 text-xs'>
-                <div>👍❤️ {profileData?.name || 'User'} và Rinoa Zoro</div>
-                <div>10 bình luận</div>
-              </div>
-              {/* Actions */}
-              <div className='mt-2 flex justify-between border-t pt-2 text-sm'>
-                <Button variant='ghost' size='sm'>
-                  👍 Thương thương
-                </Button>
-                <Button variant='ghost' size='sm'>
-                  💬 Bình luận
-                </Button>
-                <Button variant='ghost' size='sm'>
-                  ↗️ Chia sẻ
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+              }
+              endMessage={
+                <div className='text-muted-foreground p-2 text-center text-xs'>Không còn bài viết nào nữa</div>
+              }
+            >
+              {isLoadingPosts ? (
+                <div className='space-y-4'>
+                  <PostSkeleton />
+                  <PostSkeleton />
+                  <PostSkeleton />
+                </div>
+              ) : userPosts?.length === 0 ? (
+                <Card className='py-4'>
+                  <CardContent className='text-muted-foreground text-center'>
+                    {isMyProfile
+                      ? 'Bạn chưa có bài viết nào'
+                      : `${profileData?.name || 'Người dùng'} chưa có bài viết nào`}
+                  </CardContent>
+                </Card>
+              ) : (
+                userPosts?.filter((post) => post && post._id).map((post) => <Post key={post._id} post={post} />)
+              )}
+            </InfiniteScroll>
+          </div>
         </div>
       </div>
 
