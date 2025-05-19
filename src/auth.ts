@@ -5,9 +5,8 @@ import GoogleProvider from 'next-auth/providers/google'
 import { omit } from 'lodash'
 import httpRequest from './config/http-request'
 import nextEnv from './config/next-env'
-import { refreshToken } from './lib/utils'
-import { LoginResponse } from './types/auth.types'
 import authService from './services/auth.service'
+import { LoginResponse } from './types/auth.types'
 
 const auth: AuthOptions = {
   pages: {
@@ -114,7 +113,6 @@ const auth: AuthOptions = {
      */
     async session({ session, token, user }: any) {
       // Send properties to the client, like an access_token from a provider.
-      console.log({ session, token, user })
       session.user = token.user
       session.accessToken = token.accessToken
       session.refreshToken = token.refreshToken
@@ -153,7 +151,6 @@ const auth: AuthOptions = {
         token.refreshToken = token?.refresh_token || token?.refreshToken
       }
 
-      console.log('Returning token:', token)
       return token
     }
   },

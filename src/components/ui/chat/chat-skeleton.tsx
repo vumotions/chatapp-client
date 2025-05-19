@@ -12,7 +12,7 @@ export default function ChatSkeleton() {
         </div>
       </div>
       <Skeleton className='h-full w-full grow rounded-md' />
-      <div className='flex space-x-2'>
+      <div className='flex shrink-0 space-x-2'>
         <Skeleton className='h-10 w-full rounded-full' />
         <Skeleton className='h-10 w-10 rounded-full' />
       </div>
