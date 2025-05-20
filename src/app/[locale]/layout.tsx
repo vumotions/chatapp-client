@@ -15,6 +15,7 @@ import ReactQueryProvider from '~/providers/query-client-provider'
 import SocketProvider from '~/providers/socket-provider'
 import { ThemeProvider } from '~/providers/theme-provider'
 import './globals.css'
+import { CallManager } from '~/components/call/call-manager'
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -75,6 +76,7 @@ function Layout({ params, children }: Props) {
                     }
                   }}
                 />
+                <CallManager />
                 <NetworkStatus />
               </BProgressProvider>
             </ThemeProvider>
@@ -86,3 +88,6 @@ function Layout({ params, children }: Props) {
 }
 
 export default Layout
+
+
+

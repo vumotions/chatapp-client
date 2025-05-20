@@ -1,3 +1,5 @@
+'use client'
+
 import { motion } from 'framer-motion'
 import { Maximize, Mic, MicOff, Minimize, Monitor, Phone, Video, VideoOff } from 'lucide-react'
 import { useSession } from 'next-auth/react'
@@ -159,6 +161,7 @@ export function CallFrame({
 
         const stream = await navigator.mediaDevices.getUserMedia(constraints)
         localStreamRef.current = stream
+        console.log('Got local stream:', stream, 'Video tracks:', stream.getVideoTracks().length)
 
         // Hiển thị video local
         if (localVideoRef.current) {
@@ -343,45 +346,53 @@ export function CallFrame({
         chatId,
         recipientId
       })
-      onClose()
+      // Đặt trạng thái ENDED và đóng sau 1 giây
+      setCallStatus(CALL_STATUS.ENDED)
+      setTimeout(() => {
+        onClose()
+      }, 1000)
     }
   }
 
-  const toggleMute = () => {
-    if (!localStreamRef.current) return
+  const toggleMute = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!localStreamRef.current) return;
 
     localStreamRef.current.getAudioTracks().forEach((track) => {
-      track.enabled = isMuted
-    })
+      track.enabled = isMuted;
+    });
 
-    setIsMuted(!isMuted)
+    setIsMuted(!isMuted);
 
     if (socket) {
       socket.emit(SOCKET_EVENTS.TOGGLE_AUDIO, {
         chatId,
         recipientId,
         isMuted: !isMuted
-      })
+      });
     }
-  }
+  };
 
-  const toggleCamera = () => {
-    if (!localStreamRef.current || callType === CALL_TYPE.AUDIO) return
+  const toggleCamera = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    console.log('Toggle camera, current state:', { isCameraOff, hasStream: !!localStreamRef.current });
+    if (!localStreamRef.current || callType === CALL_TYPE.AUDIO) return;
 
     localStreamRef.current.getVideoTracks().forEach((track) => {
-      track.enabled = isCameraOff
-    })
+      console.log('Setting video track enabled:', isCameraOff);
+      track.enabled = isCameraOff;
+    });
 
-    setIsCameraOff(!isCameraOff)
+    setIsCameraOff(!isCameraOff);
 
     if (socket) {
       socket.emit(SOCKET_EVENTS.TOGGLE_VIDEO, {
         chatId,
         recipientId,
         isCameraOff: !isCameraOff
-      })
+      });
     }
-  }
+  };
 
   const toggleScreenSharing = async () => {
     if (!peerConnectionRef.current) return
@@ -685,16 +696,7 @@ export function CallFrame({
             )}
 
             <button
-              onClick={() => {
-                socket?.emit(SOCKET_EVENTS.CALL_ENDED, {
-                  chatId,
-                  recipientId
-                })
-                setCallStatus(CALL_STATUS.ENDED)
-                setTimeout(() => {
-                  onClose()
-                }, 1000)
-              }}
+              onClick={handleEndCall}
               className='flex h-10 w-10 items-center justify-center rounded-full bg-red-500 text-white'
             >
               <Phone className='h-5 w-5 rotate-135' />
@@ -705,3 +707,8 @@ export function CallFrame({
     </div>
   )
 }
+
+
+
+
+

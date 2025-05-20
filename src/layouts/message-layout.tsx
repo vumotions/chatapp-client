@@ -94,7 +94,8 @@ export default function MessageLayout({ children }: LayoutProps) {
     }
   }
 
-  // Nếu là mobile và đang xem chi tiết chat, chỉ hiển thị phần chi tiết
+  // Trong phần xử lý cho mobile
+  // Thay đổi phần này:
   if (isMobile && isViewingChat) {
     return (
       <AnimatePresence mode='wait'>
@@ -115,42 +116,133 @@ export default function MessageLayout({ children }: LayoutProps) {
   // Nếu là mobile và đang xem danh sách, chỉ hiển thị phần danh sách
   if (isMobile) {
     return (
-      <AnimatePresence mode='wait'>
-        <motion.div
-          className='flex h-full flex-col'
-          initial={{ x: '-100%' }}
-          animate={{ x: 0 }}
-          exit={{ x: '-100%' }}
-          transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-        >
-          <Tabs defaultValue={currentFilter} onValueChange={handleChangeTab}>
-            <div className='flex items-center px-4 py-2'>
-              <h1 className='text-xl font-bold'>{getViewTitle()}</h1>
-              <TabsList className='ml-auto'>
-                <TabsTrigger
-                  value='all'
-                  className='dark:data-[state=active]:bg-background text-zinc-600 dark:text-zinc-200'
-                >
-                  All messages
-                </TabsTrigger>
-                <TabsTrigger
-                  value='unread'
-                  className='dark:data-[state=active]:bg-background text-zinc-600 dark:text-zinc-200'
-                >
-                  Unread
-                </TabsTrigger>
-              </TabsList>
+      <TooltipProvider delayDuration={0}>
+        <div className='flex h-full flex-col'>
+          <div className='flex h-full'>
+            {/* Nav bên trái - luôn hiển thị */}
+            <div className='border-r w-[60px] pt-4'>
+              <ScrollArea className='h-screen'>
+                <div className='mt-4 flex flex-col items-center justify-center'>
+                  <NetworkStatusIndicator />
+                </div>
+                <Nav
+                  isCollapsed={true}
+                  links={[
+                    {
+                      title: 'Inbox',
+                      label: '',
+                      icon: Inbox,
+                      variant: currentView === 'inbox' ? 'default' : 'ghost',
+                      onClick: () => handleNavClick('inbox')
+                    },
+                    {
+                      title: 'Blocked Users',
+                      label: '',
+                      icon: UserX,
+                      variant: currentView === 'blocked-users' ? 'default' : 'ghost',
+                      onClick: () => handleNavClick('blocked-users')
+                    },
+                    {
+                      title: 'Archive',
+                      label: '',
+                      icon: Archive,
+                      variant: currentView === 'archived' ? 'default' : 'ghost',
+                      onClick: () => handleNavClick('archived')
+                    }
+                  ]}
+                />
+                <Separator />
+                <Nav
+                  isCollapsed={true}
+                  links={[
+                    {
+                      title: 'Home',
+                      label: '',
+                      icon: Home,
+                      variant: 'ghost',
+                      href: '/'
+                    },
+                    {
+                      title: 'Settings',
+                      label: '',
+                      icon: Settings,
+                      variant: 'ghost',
+                      href: '/settings'
+                    }
+                  ]}
+                />
+              </ScrollArea>
             </div>
-            <Separator />
-            <TabsContent value='all' className='m-0'>
-              <ChatList />
-            </TabsContent>
-            <TabsContent value='unread' className='m-0'>
-              <ChatList />
-            </TabsContent>
-          </Tabs>
-        </motion.div>
-      </AnimatePresence>
+
+            {/* Phần nội dung chính */}
+            <div className='flex-1 relative'>
+              {isViewingChat ? (
+                <AnimatePresence mode='wait'>
+                  <motion.div
+                    key='chat-detail'
+                    className='flex h-full flex-col absolute inset-0 z-10 bg-background'
+                    initial={{ x: '100%' }}
+                    animate={{ x: 0 }}
+                    exit={{ x: '100%' }}
+                    transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                  >
+                    {children}
+                  </motion.div>
+                </AnimatePresence>
+              ) : (
+                <AnimatePresence mode='wait'>
+                  <motion.div
+                    className='flex h-full flex-col'
+                    initial={{ x: '-100%' }}
+                    animate={{ x: 0 }}
+                    exit={{ x: '-100%' }}
+                    transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                  >
+                    {currentView === 'blocked-users' ? (
+                      // Hiển thị danh sách người dùng bị chặn
+                      <div className='flex h-full flex-col'>
+                        <div className='flex items-center px-4 py-3'>
+                          <h1 className='text-xl font-bold'>{getViewTitle()}</h1>
+                        </div>
+                        <Separator />
+                        <BlockedUsersList />
+                      </div>
+                    ) : (
+                      // Hiển thị danh sách chat như bình thường
+                      <Tabs defaultValue={currentFilter} onValueChange={handleChangeTab}>
+                        <div className='flex items-center px-4 py-2'>
+                          <h1 className='text-xl font-bold'>{getViewTitle()}</h1>
+                          <TabsList className='ml-auto'>
+                            <TabsTrigger
+                              value='all'
+                              className='dark:data-[state=active]:bg-background text-zinc-600 dark:text-zinc-200'
+                            >
+                              All messages
+                            </TabsTrigger>
+                            <TabsTrigger
+                              value='unread'
+                              className='dark:data-[state=active]:bg-background text-zinc-600 dark:text-zinc-200'
+                            >
+                              Unread
+                            </TabsTrigger>
+                          </TabsList>
+                        </div>
+                        <Separator />
+                        <TabsContent value='all' className='m-0'>
+                          <ChatList />
+                        </TabsContent>
+                        <TabsContent value='unread' className='m-0'>
+                          <ChatList />
+                        </TabsContent>
+                      </Tabs>
+                    )}
+                  </motion.div>
+                </AnimatePresence>
+              )}
+            </div>
+          </div>
+        </div>
+      </TooltipProvider>
     )
   }
 

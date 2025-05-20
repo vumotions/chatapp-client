@@ -40,18 +40,24 @@ import ChatSkeleton from '~/components/ui/chat/chat-skeleton'
 import { MessageActions } from '~/components/ui/chat/message-actions'
 import MessageLoading from '~/components/ui/chat/message-loading'
 import httpRequest from '~/config/http-request'
-import { CHAT_TYPE, FRIEND_REQUEST_STATUS, MEDIA_TYPE, MESSAGE_STATUS, MESSAGE_TYPE } from '~/constants/enums'
+import {
+  CALL_TYPE,
+  CHAT_TYPE,
+  FRIEND_REQUEST_STATUS,
+  MEDIA_TYPE,
+  MESSAGE_STATUS,
+  MESSAGE_TYPE
+} from '~/constants/enums'
 import SOCKET_EVENTS from '~/constants/socket-events'
 import { useFriendStatus } from '~/hooks/data/friends.hook'
 import { useCheckSendMessagePermissionQuery } from '~/hooks/data/group-chat.hooks'
+import { useIsBlockedByUser } from '~/hooks/data/user.hooks'
 import useMediaQuery from '~/hooks/use-media-query'
 import { useProtectedChat } from '~/hooks/use-protected-chat'
 import { useRouter } from '~/i18n/navigation'
+import { startCall } from '~/lib/call-helper'
 import { FriendActionButton } from './components/friend-action-button'
 import { PinnedMessages } from './components/pinned-messages'
-import { CallFrame } from '~/components/call/call-frame'
-import { CALL_TYPE } from '~/constants/enums'
-import { useIsBlockedByUser } from '~/hooks/data/user.hooks'
 
 const PRIMARY_RGB = '14, 165, 233' // Giá trị RGB của màu primary (sky-500)
 const SUCCESS_RGB = '34, 197, 94' // Giá trị RGB của màu green-500
@@ -98,17 +104,6 @@ function ChatDetail({ params }: Props) {
     isOnline: false,
     lastActive: null
   })
-
-  // Thêm state cho cuộc gọi
-  const [isAudioCallActive, setIsAudioCallActive] = useState(false)
-  const [isVideoCallActive, setIsVideoCallActive] = useState(false)
-  const [incomingCall, setIncomingCall] = useState<{
-    callerId: string
-    callerName: string
-    callerAvatar?: string
-    callType: CALL_TYPE
-  } | null>(null)
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
 
   // Sử dụng hook bảo vệ
   const { isLoading: isCheckingAccess, hasAccess } = useProtectedChat(chatId)
@@ -291,183 +286,6 @@ function ChatDetail({ params }: Props) {
     }
   }, [socket, chatId])
 
-  // Lấy thông tin người dùng khác trong cuộc trò chuyện
-  const otherUser = useMemo(() => {
-    if (!data?.pages[0]?.conversation?.participants) return null
-    return data.pages[0].conversation.participants.find((p: { _id: string }) => p._id !== session?.user?._id) || null
-  }, [data?.pages[0]?.conversation?.participants, session?.user?._id])
-
-  // Cập nhật useEffect lắng nghe sự kiện nhận tin nhắn mới
-  useEffect(() => {
-    if (!socket || !chatId) return
-
-    const handleReceiveMessage = (message: any) => {
-      // Kiểm tra xem tin nhắn có thuộc về cuộc trò chuyện hiện tại không
-      if (message.chatId !== chatId) return
-
-      // Khi nhận được tin nhắn mới, xóa trạng thái typing của người gửi
-      if (message.senderId && typingUsers[message.senderId]) {
-        setTypingUsers((prev) => ({ ...prev, [message.senderId]: false }))
-      }
-
-      // Kiểm tra xem tin nhắn có tempId không và tempId đó có trong danh sách đã gửi không
-      if (message.tempId && sentTempIds.has(message.tempId)) {
-        // Cập nhật cache để thay thế tin nhắn tạm thời bằng tin nhắn thật
-        queryClient.setQueryData(['MESSAGES', chatId], (oldData: any) => {
-          if (!oldData) return oldData
-
-          // Tìm và thay thế tin nhắn tạm thời trong cache
-          const updatedPages = oldData.pages.map((page: any) => {
-            if (!page.messages) return page
-
-            const updatedMessages = page.messages.map((msg: any) => {
-              if (msg._id === message.tempId) {
-                // Thay thế tin nhắn tạm thời bằng tin nhắn thật
-                return {
-                  ...message,
-                  senderId: message.senderId, // Giữ nguyên dạng string
-                  senderInfo: {
-                    _id: message.senderId,
-                    name: session?.user?.name || 'You',
-                    avatar: session?.user?.avatar || ''
-                  },
-                  status: MESSAGE_STATUS.DELIVERED
-                }
-              }
-              return msg
-            })
-
-            return {
-              ...page,
-              messages: updatedMessages
-            }
-          })
-
-          return {
-            ...oldData,
-            pages: updatedPages
-          }
-        })
-
-        // Xóa tempId khỏi danh sách đã gửi
-        setSentTempIds((prev) => {
-          const newSet = new Set(prev)
-          newSet.delete(message.tempId)
-          return newSet
-        })
-
-        // Cập nhật danh sách chat
-        queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] })
-        queryClient.invalidateQueries({ queryKey: ['ARCHIVED_CHAT_LIST'] })
-        return
-      }
-
-      // Nếu không phải tin nhắn thay thế, thêm tin nhắn mới vào cache
-      const isSentByCurrentUser = String(message.senderId) === String(session?.user?._id)
-
-      // Xử lý thông tin người gửi
-      let senderInfo
-
-      // Nếu là người dùng hiện tại
-      if (isSentByCurrentUser) {
-        senderInfo = {
-          _id: session?.user?._id,
-          name: session?.user?.name || 'You',
-          avatar: session?.user?.avatar || ''
-        }
-      }
-      // Nếu là nhóm chat, tìm thông tin người gửi trong danh sách thành viên
-      else if (isGroupChat) {
-        const sender = data?.pages[0]?.conversation?.participants?.find((p: any) => p._id === message.senderId)
-        console.log('SENDER: ', { sender })
-        if (sender) {
-          senderInfo = {
-            _id: message.senderId,
-            name: sender.name || 'User',
-            avatar: sender.avatar || ''
-          }
-        } else {
-          // Nếu không tìm thấy trong danh sách thành viên, sử dụng thông tin từ message
-          senderInfo = {
-            _id: message.senderId,
-            name: message.senderName || 'User',
-            avatar: message.senderAvatar || ''
-          }
-        }
-      }
-      // Nếu là chat 1-1, sử dụng otherUser
-      else if (otherUser) {
-        senderInfo = {
-          _id: message.senderId,
-          name: otherUser.name || 'User',
-          avatar: otherUser.avatar || ''
-        }
-      }
-      // Fallback
-      else {
-        senderInfo = {
-          _id: message.senderId,
-          name: message.senderName || 'User',
-          avatar: message.senderAvatar || ''
-        }
-      }
-
-      // Chuẩn bị tin nhắn với định dạng đúng
-      const formattedMessage = {
-        ...message,
-        senderId: senderInfo,
-        status: isSentByCurrentUser
-          ? MESSAGE_STATUS.DELIVERED
-          : isAtBottom && document.visibilityState === 'visible'
-            ? MESSAGE_STATUS.SEEN
-            : MESSAGE_STATUS.DELIVERED
-      }
-
-      // Thêm tin nhắn mới vào cache
-      queryClient.setQueryData(['MESSAGES', chatId], (oldData: any) => {
-        if (!oldData) return oldData
-
-        // Tạo bản sao của trang đầu tiên và thêm tin nhắn mới
-        const firstPage = { ...oldData.pages[0] }
-        firstPage.messages = [...firstPage.messages, formattedMessage]
-
-        return {
-          ...oldData,
-          pages: [firstPage, ...oldData.pages.slice(1)]
-        }
-      })
-
-      // Nếu tin nhắn từ người khác và người dùng đang ở gần cuối, đánh dấu là đã đọc
-      if (!isSentByCurrentUser && isAtBottom) {
-        socket.emit(SOCKET_EVENTS.MARK_AS_READ, {
-          chatId,
-          messageIds: [message._id]
-        })
-      }
-
-      // Chỉ cuộn xuống khi không đang tải tin nhắn cũ và người dùng đang ở gần cuối
-      const scrollableDiv = document.getElementById('messageScrollableDiv')
-      // Xác định isAtBottom ở đây để tránh lỗi
-      const isNearBottom = scrollableDiv
-        ? scrollableDiv.scrollHeight - scrollableDiv.scrollTop - scrollableDiv.clientHeight < 200
-        : false
-
-      if (!isFetchingNextPage && isNearBottom) {
-        setTimeout(() => {
-          if (scrollableDiv) {
-            scrollableDiv.scrollTop = scrollableDiv.scrollHeight
-          }
-        }, 300)
-      }
-    }
-
-    socket.on(SOCKET_EVENTS.RECEIVE_MESSAGE, handleReceiveMessage)
-
-    return () => {
-      socket.off(SOCKET_EVENTS.RECEIVE_MESSAGE, handleReceiveMessage)
-    }
-  }, [socket, chatId, session?.user, sentTempIds, queryClient, isAtBottom, otherUser, data])
-
   // Lắng nghe sự kiện typing từ người dùng khác
   useEffect(() => {
     if (!socket || !chatId) return
@@ -615,8 +433,6 @@ function ChatDetail({ params }: Props) {
         socket.off(SOCKET_EVENTS.USER_OFFLINE, handleUserOffline)
       }
     } else {
-      // Logic cho chat riêng tư
-      const otherUser = data?.pages[0]?.conversation?.participants?.find((p: any) => p._id !== session?.user?._id)
       if (!otherUser) return
 
       // Kiểm tra trạng thái online ban đầu
@@ -1683,6 +1499,186 @@ function ChatDetail({ params }: Props) {
 
   const isGroupChat = data?.pages[0]?.conversation?.type === 'GROUP'
 
+  const otherUser = useMemo(() => {
+    if (!data?.pages[0]?.conversation || isGroupChat) return null
+
+    const currentUserId = session?.user?._id
+    const participant = data.pages[0].conversation.participants?.find((p: any) => p._id !== currentUserId)
+
+    return participant || null
+  }, [data?.pages, session?.user?._id, isGroupChat])
+
+  // Cập nhật useEffect lắng nghe sự kiện nhận tin nhắn mới
+  useEffect(() => {
+    if (!socket || !chatId) return
+
+    const handleReceiveMessage = (message: any) => {
+      // Kiểm tra xem tin nhắn có thuộc về cuộc trò chuyện hiện tại không
+      if (message.chatId !== chatId) return
+
+      // Khi nhận được tin nhắn mới, xóa trạng thái typing của người gửi
+      if (message.senderId && typingUsers[message.senderId]) {
+        setTypingUsers((prev) => ({ ...prev, [message.senderId]: false }))
+      }
+
+      // Kiểm tra xem tin nhắn có tempId không và tempId đó có trong danh sách đã gửi không
+      if (message.tempId && sentTempIds.has(message.tempId)) {
+        // Cập nhật cache để thay thế tin nhắn tạm thời bằng tin nhắn thật
+        queryClient.setQueryData(['MESSAGES', chatId], (oldData: any) => {
+          if (!oldData) return oldData
+
+          // Tìm và thay thế tin nhắn tạm thời trong cache
+          const updatedPages = oldData.pages.map((page: any) => {
+            if (!page.messages) return page
+
+            const updatedMessages = page.messages.map((msg: any) => {
+              if (msg._id === message.tempId) {
+                // Thay thế tin nhắn tạm thời bằng tin nhắn thật
+                return {
+                  ...message,
+                  senderId: message.senderId, // Giữ nguyên dạng string
+                  senderInfo: {
+                    _id: message.senderId,
+                    name: session?.user?.name || 'You',
+                    avatar: session?.user?.avatar || ''
+                  },
+                  status: MESSAGE_STATUS.DELIVERED
+                }
+              }
+              return msg
+            })
+
+            return {
+              ...page,
+              messages: updatedMessages
+            }
+          })
+
+          return {
+            ...oldData,
+            pages: updatedPages
+          }
+        })
+
+        // Xóa tempId khỏi danh sách đã gửi
+        setSentTempIds((prev) => {
+          const newSet = new Set(prev)
+          newSet.delete(message.tempId)
+          return newSet
+        })
+
+        // Cập nhật danh sách chat
+        queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] })
+        queryClient.invalidateQueries({ queryKey: ['ARCHIVED_CHAT_LIST'] })
+        return
+      }
+
+      // Nếu không phải tin nhắn thay thế, thêm tin nhắn mới vào cache
+      const isSentByCurrentUser = String(message.senderId) === String(session?.user?._id)
+
+      // Xử lý thông tin người gửi
+      let senderInfo
+
+      // Nếu là người dùng hiện tại
+      if (isSentByCurrentUser) {
+        senderInfo = {
+          _id: session?.user?._id,
+          name: session?.user?.name || 'You',
+          avatar: session?.user?.avatar || ''
+        }
+      }
+      // Nếu là nhóm chat, tìm thông tin người gửi trong danh sách thành viên
+      else if (isGroupChat) {
+        const sender = data?.pages[0]?.conversation?.participants?.find((p: any) => p._id === message.senderId)
+        console.log('SENDER: ', { sender })
+        if (sender) {
+          senderInfo = {
+            _id: message.senderId,
+            name: sender.name || 'User',
+            avatar: sender.avatar || ''
+          }
+        } else {
+          // Nếu không tìm thấy trong danh sách thành viên, sử dụng thông tin từ message
+          senderInfo = {
+            _id: message.senderId,
+            name: message.senderName || 'User',
+            avatar: message.senderAvatar || ''
+          }
+        }
+      }
+      // Nếu là chat 1-1, sử dụng otherUser
+      else if (otherUser) {
+        senderInfo = {
+          _id: message.senderId,
+          name: otherUser.name || 'User',
+          avatar: otherUser.avatar || ''
+        }
+      }
+      // Fallback
+      else {
+        senderInfo = {
+          _id: message.senderId,
+          name: message.senderName || 'User',
+          avatar: message.senderAvatar || ''
+        }
+      }
+
+      // Chuẩn bị tin nhắn với định dạng đúng
+      const formattedMessage = {
+        ...message,
+        senderId: senderInfo,
+        status: isSentByCurrentUser
+          ? MESSAGE_STATUS.DELIVERED
+          : isAtBottom && document.visibilityState === 'visible'
+            ? MESSAGE_STATUS.SEEN
+            : MESSAGE_STATUS.DELIVERED
+      }
+
+      // Thêm tin nhắn mới vào cache
+      queryClient.setQueryData(['MESSAGES', chatId], (oldData: any) => {
+        if (!oldData) return oldData
+
+        // Tạo bản sao của trang đầu tiên và thêm tin nhắn mới
+        const firstPage = { ...oldData.pages[0] }
+        firstPage.messages = [...firstPage.messages, formattedMessage]
+
+        return {
+          ...oldData,
+          pages: [firstPage, ...oldData.pages.slice(1)]
+        }
+      })
+
+      // Nếu tin nhắn từ người khác và người dùng đang ở gần cuối, đánh dấu là đã đọc
+      if (!isSentByCurrentUser && isAtBottom) {
+        socket.emit(SOCKET_EVENTS.MARK_AS_READ, {
+          chatId,
+          messageIds: [message._id]
+        })
+      }
+
+      // Chỉ cuộn xuống khi không đang tải tin nhắn cũ và người dùng đang ở gần cuối
+      const scrollableDiv = document.getElementById('messageScrollableDiv')
+      // Xác định isAtBottom ở đây để tránh lỗi
+      const isNearBottom = scrollableDiv
+        ? scrollableDiv.scrollHeight - scrollableDiv.scrollTop - scrollableDiv.clientHeight < 200
+        : false
+
+      if (!isFetchingNextPage && isNearBottom) {
+        setTimeout(() => {
+          if (scrollableDiv) {
+            scrollableDiv.scrollTop = scrollableDiv.scrollHeight
+          }
+        }, 300)
+      }
+    }
+
+    socket.on(SOCKET_EVENTS.RECEIVE_MESSAGE, handleReceiveMessage)
+
+    return () => {
+      socket.off(SOCKET_EVENTS.RECEIVE_MESSAGE, handleReceiveMessage)
+    }
+  }, [socket, chatId, session?.user, sentTempIds, queryClient, isAtBottom, otherUser, data])
+
   const totalParticipantsCount = useMemo(() => {
     if (!data?.pages[0]?.conversation?.participants || !isGroupChat) return 0
     return data.pages[0].conversation.participants.filter((p: any) => p._id !== session?.user?._id).length
@@ -1756,44 +1752,42 @@ function ChatDetail({ params }: Props) {
     }
   }
 
-  // Nếu đang kiểm tra quyền truy cập hoặc không có quyền, hiển thị skeleton
-  if (isCheckingAccess || !hasAccess) {
-    return <ChatSkeleton />
-  }
-
   // Thêm các hàm xử lý cuộc gọi
   const handleStartAudioCall = () => {
-    if (!otherUser?._id) return
-    setIsAudioCallActive(true)
-
-    // Thông báo cho server về cuộc gọi
-    if (socket) {
-      socket.emit(SOCKET_EVENTS.INITIATE_CALL, {
-        recipientId: otherUser._id,
-        chatId,
-        callType: CALL_TYPE.AUDIO
-      })
+    if (!otherUser?._id) {
+      console.error('No recipient found')
+      return
     }
+
+    console.log('Starting audio call with:', otherUser)
+    startCall({
+      recipientId: otherUser._id,
+      recipientName: otherUser.name || 'User',
+      recipientAvatar: otherUser.avatar,
+      chatId: chatId as string,
+      callType: CALL_TYPE.AUDIO
+    })
   }
 
   const handleStartVideoCall = () => {
-    if (!otherUser?._id) return
-    setIsVideoCallActive(true)
-
-    // Thông báo cho server về cuộc gọi
-    if (socket) {
-      socket.emit(SOCKET_EVENTS.INITIATE_CALL, {
-        recipientId: otherUser._id,
-        chatId,
-        callType: CALL_TYPE.VIDEO
-      })
+    if (!otherUser?._id) {
+      console.error('No recipient found')
+      return
     }
+
+    console.log('Starting video call with:', otherUser)
+    startCall({
+      recipientId: otherUser._id,
+      recipientName: otherUser.name || 'User',
+      recipientAvatar: otherUser.avatar,
+      chatId: chatId as string,
+      callType: CALL_TYPE.VIDEO
+    })
   }
 
-  const handleEndCall = () => {
-    setIsAudioCallActive(false)
-    setIsVideoCallActive(false)
-    setIncomingCall(null)
+  // Nếu đang kiểm tra quyền truy cập hoặc không có quyền, hiển thị skeleton
+  if (isCheckingAccess || !hasAccess) {
+    return <ChatSkeleton />
   }
 
   return (
@@ -1921,23 +1915,39 @@ function ChatDetail({ params }: Props) {
                         {/* Nút gọi thoại */}
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <Button variant='ghost' size='icon' onClick={handleStartAudioCall}>
+                            <Button
+                              variant='ghost'
+                              size='icon'
+                              onClick={handleStartAudioCall}
+                              disabled={!userStatus.isOnline}
+                              title={userStatus.isOnline ? 'Gọi thoại' : 'Người dùng đang offline'}
+                            >
                               <Phone className='h-5 w-5' />
                               <span className='sr-only'>Gọi thoại</span>
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent>Gọi thoại</TooltipContent>
+                          <TooltipContent>
+                            {userStatus.isOnline ? 'Gọi thoại' : 'Người dùng đang offline'}
+                          </TooltipContent>
                         </Tooltip>
 
                         {/* Nút gọi video */}
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <Button variant='ghost' size='icon' onClick={handleStartVideoCall}>
+                            <Button
+                              variant='ghost'
+                              size='icon'
+                              onClick={handleStartVideoCall}
+                              disabled={!userStatus.isOnline}
+                              title={userStatus.isOnline ? 'Gọi video' : 'Người dùng đang offline'}
+                            >
                               <Video className='h-5 w-5' />
                               <span className='sr-only'>Gọi video</span>
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent>Gọi video</TooltipContent>
+                          <TooltipContent>
+                            {userStatus.isOnline ? 'Gọi video' : 'Người dùng đang offline'}
+                          </TooltipContent>
                         </Tooltip>
 
                         {otherUserId && (
@@ -2420,34 +2430,6 @@ function ChatDetail({ params }: Props) {
           </div>
         </div>
       )}
-
-      {/* Render CallFrame khi có cuộc gọi */}
-      <AnimatePresence mode='wait'>
-        {isAudioCallActive && otherUser?._id && (
-          <CallFrame
-            key='audio-call'
-            chatId={chatId as string}
-            recipientId={otherUser._id}
-            recipientName={otherUser?.name || ''}
-            recipientAvatar={otherUser?.avatar}
-            callType={CALL_TYPE.AUDIO}
-            isInitiator={true}
-            onClose={handleEndCall}
-          />
-        )}
-        {isVideoCallActive && otherUser?._id && (
-          <CallFrame
-            key='video-call'
-            chatId={chatId as string}
-            recipientId={otherUser._id}
-            recipientName={otherUser?.name || ''}
-            recipientAvatar={otherUser?.avatar}
-            callType={CALL_TYPE.VIDEO}
-            isInitiator={true}
-            onClose={handleEndCall}
-          />
-        )}
-      </AnimatePresence>
     </div>
   )
 }

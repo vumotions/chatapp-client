@@ -8,9 +8,10 @@ import { v4 as uuidv4 } from 'uuid'
 import CreateGroupChatDialog from '~/components/create-group-chat-dialog'
 import ConversationItem from '~/components/ui/chat/conversation-item'
 import { Input } from '~/components/ui/input'
+import { ScrollArea } from '~/components/ui/scroll-area'
 import { Skeleton } from '~/components/ui/skeleton'
 import SOCKET_EVENTS from '~/constants/socket-events'
-import { useArchiveChat } from '~/hooks/data/chat.hooks'
+import { useArchiveChat, useChatList } from '~/hooks/data/chat.hooks'
 import { useSocket } from '~/hooks/use-socket'
 import conversationsService from '~/services/conversations.service'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -113,19 +114,15 @@ export function ChatList() {
     }
   }, [debouncedSetQuery])
 
-  // Fetch danh sách cuộc trò chuyện
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, isError } = useInfiniteQuery({
-    queryKey: ['CHAT_LIST', debouncedQuery, filter],
-    queryFn: ({ pageParam = 1 }) => conversationsService.getConversations(pageParam, 10, filter, debouncedQuery),
-    getNextPageParam: (lastPage) => {
-      if (lastPage.hasMore) {
-        return lastPage.currentPage + 1
-      }
-      return undefined
-    },
-    initialPageParam: 1,
-    enabled: activeView === 'inbox' // Chỉ fetch khi đang ở chế độ xem inbox
-  })
+  // Sử dụng hook useChatList với enabled phù hợp
+  const { 
+    data, 
+    fetchNextPage, 
+    hasNextPage, 
+    isFetchingNextPage, 
+    isLoading, 
+    isError 
+  } = useChatList(filter, debouncedQuery, activeView === 'inbox')
 
   // Fetch danh sách cuộc trò chuyện đã lưu trữ
   const archivedChats = useInfiniteQuery({
@@ -225,10 +222,10 @@ export function ChatList() {
       </div>
 
       {/* Hiển thị danh sách cuộc trò chuyện dựa trên chế độ xem hiện tại */}
-      <div className='flex-1 overflow-auto'>
+      <ScrollArea className='h-[calc(100vh-180px)]'>
         {activeView === 'inbox' ? (
           // Hiển thị hộp thư đến
-          <div className='flex-1 overflow-auto p-2'>
+          <div className='p-2'>
             {isLoading ? (
               renderChatSkeletons()
             ) : isError ? (
@@ -252,7 +249,7 @@ export function ChatList() {
           </div>
         ) : (
           // Hiển thị đã lưu trữ
-          <div className='flex-1 overflow-auto p-2'>
+          <div className='p-2'>
             {archivedChats.isLoading ? (
               renderChatSkeletons()
             ) : archivedChats.isError ? (
@@ -277,7 +274,7 @@ export function ChatList() {
             )}
           </div>
         )}
-      </div>
+      </ScrollArea>
     </div>
   )
 }

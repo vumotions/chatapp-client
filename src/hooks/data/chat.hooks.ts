@@ -27,11 +27,11 @@ export const useMessages = (chatId: string) => {
   })
 }
 
-export const useChatList = (filter: string = '') => {
+export const useChatList = (filter: string = 'all', searchQuery: string = '', enabled: boolean = true) => {
   return useInfiniteQuery({
-    queryKey: ['CHAT_LIST', filter],
+    queryKey: ['CHAT_LIST', filter, searchQuery],
     queryFn: async ({ pageParam = 1 }) => {
-      const response = await conversationsService.getConversations(pageParam, 10, filter)
+      const response = await conversationsService.getConversations(pageParam, 10, filter, searchQuery)
       return response
     },
     initialPageParam: 1,
@@ -44,7 +44,8 @@ export const useChatList = (filter: string = '') => {
     staleTime: 1000 * 60 * 5, // 5 phút
     gcTime: 1000 * 60 * 5, // 5 phút
     refetchOnWindowFocus: false, // Tắt refetch khi focus
-    refetchInterval: false // Tắt polling tự động
+    refetchInterval: false, // Tắt polling tự động
+    enabled: enabled // Thêm tham số enabled
   })
 }
 
@@ -774,15 +775,17 @@ export const useClearChatHistory = () => {
         if (!oldData) return oldData
 
         // Chỉ giữ lại tin nhắn hệ thống mới
-        const systemMessage = data?.systemMessage;
-        
+        const systemMessage = data?.systemMessage
+
         return {
           ...oldData,
-          pages: [{
-            messages: systemMessage ? [systemMessage] : [],
-            hasMore: false,
-            conversation: oldData.pages[0]?.conversation
-          }]
+          pages: [
+            {
+              messages: systemMessage ? [systemMessage] : [],
+              hasMore: false,
+              conversation: oldData.pages[0]?.conversation
+            }
+          ]
         }
       })
 

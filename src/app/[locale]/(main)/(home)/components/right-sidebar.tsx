@@ -295,15 +295,15 @@ export default function RightSidebarFriendList() {
                                 }}
                               >
                                 {processingFriendId === friend._id ? (
-                                  <div className='relative flex size-12 items-center justify-center'>
-                                    <Avatar className='size-12 opacity-50'>
+                                  <div className='relative flex size-10 items-center justify-center md:size-12'>
+                                    <Avatar className='size-10 opacity-50 md:size-12'>
                                       <AvatarImage src={friend.avatar} alt={friend.name} />
                                       <AvatarFallback>{friend.name?.[0]}</AvatarFallback>
                                     </Avatar>
                                     <Loader2 className='absolute h-5 w-5 animate-spin' />
                                   </div>
                                 ) : (
-                                  <Avatar className='size-12'>
+                                  <Avatar className='size-10 md:size-12'>
                                     <AvatarImage src={friend.avatar} alt={friend.name} />
                                     <AvatarFallback>{friend.name?.[0]}</AvatarFallback>
                                   </Avatar>

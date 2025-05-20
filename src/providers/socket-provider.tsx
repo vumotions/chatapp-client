@@ -164,8 +164,18 @@ function SocketProvider({ children }: Props) {
 
     // Lắng nghe sự kiện RECEIVE_MESSAGE để cập nhật tin nhắn cuối cùng
     socket.on(SOCKET_EVENTS.RECEIVE_MESSAGE, (message) => {
+      // Định dạng lại tin nhắn để đảm bảo cấu trúc senderId đúng
+      const formattedMessage = {
+        ...message,
+        senderId: message.senderInfo || {
+          _id: message.senderId,
+          name: message.senderName || 'User',
+          avatar: message.senderAvatar || ''
+        }
+      }
+      
       // Cập nhật state để các component con có thể phản ứng
-      setLastMessage(message)
+      setLastMessage(formattedMessage)
 
       // Cập nhật cache cho danh sách chat
       queryClient
@@ -184,7 +194,7 @@ function SocketProvider({ children }: Props) {
                   if (conv._id === message.chatId) {
                     return {
                       ...conv,
-                      lastMessage: message,
+                      lastMessage: formattedMessage,
                       updatedAt: message.createdAt,
                       read: message.senderId === session?.user?._id // Đánh dấu đã đọc nếu là tin nhắn của chính mình
                     }
@@ -215,7 +225,7 @@ function SocketProvider({ children }: Props) {
             // Thêm tin nhắn mới vào trang cuối cùng
             const updatedLastPage = {
               ...lastPage,
-              messages: [...lastPage.messages, message]
+              messages: [...lastPage.messages, formattedMessage]
             }
 
             // Cập nhật pages
@@ -347,16 +357,16 @@ function SocketProvider({ children }: Props) {
     })
 
     // Lắng nghe sự kiện LAST_MESSAGE_UPDATED
-    socket.on(SOCKET_EVENTS.LAST_MESSAGE_UPDATED, (data) => {
-      const { conversationId, lastMessage } = data;
-      
+    socket.on(SOCKET_EVENTS.LAST_MESSAGE_UPDATED, (data: any) => {
+      const { conversationId, lastMessage } = data
+
       // Cập nhật cache cho danh sách chat
       queryClient
         .getQueryCache()
         .findAll({ queryKey: ['CHAT_LIST'] })
         .forEach((query) => {
           queryClient.setQueryData(query.queryKey, (oldData: any) => {
-            if (!oldData) return oldData;
+            if (!oldData) return oldData
 
             return {
               ...oldData,
@@ -368,14 +378,14 @@ function SocketProvider({ children }: Props) {
                       ...conv,
                       lastMessage: lastMessage,
                       updatedAt: lastMessage.createdAt
-                    };
+                    }
                   }
-                  return conv;
+                  return conv
                 })
               }))
-            };
-          });
-        });
+            }
+          })
+        })
 
       // Cập nhật tương tự cho danh sách chat đã lưu trữ
       queryClient
@@ -384,7 +394,7 @@ function SocketProvider({ children }: Props) {
         .forEach((query) => {
           // Tương tự như trên
           queryClient.setQueryData(query.queryKey, (oldData: any) => {
-            if (!oldData) return oldData;
+            if (!oldData) return oldData
 
             return {
               ...oldData,
@@ -396,15 +406,15 @@ function SocketProvider({ children }: Props) {
                       ...conv,
                       lastMessage: lastMessage,
                       updatedAt: lastMessage.createdAt
-                    };
+                    }
                   }
-                  return conv;
+                  return conv
                 })
               }))
-            };
-          });
-        });
-    });
+            }
+          })
+        })
+    })
 
     return () => {
       socket.off(SOCKET_EVENTS.RECEIVE_MESSAGE)
