@@ -62,8 +62,73 @@ export function CallFrame({
   const remoteVideoRef = useRef<HTMLVideoElement>(null)
   const callContainerRef = useRef<HTMLDivElement>(null)
 
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null)
+  const localStreamRef = useRef<MediaStream | null>(null)
+  const screenStreamRef = useRef<MediaStream | null>(null)
+
   // Tạo ref để theo dõi trạng thái stream
   const streamRestoreRef = useRef<boolean>(false)
+
+  // Thêm hàm mới để dừng tất cả media tracks
+  const stopAllMediaTracks = () => {
+    console.log('Stopping all media tracks')
+
+    // Dừng local stream
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((track) => {
+        console.log(`Stopping local track: ${track.kind}`)
+        track.stop()
+        track.enabled = false // Thêm dòng này để đảm bảo track bị vô hiệu hóa
+      })
+      localStreamRef.current = null // Đặt thành null để giải phóng tham chiếu
+    }
+
+    // Dừng screen sharing stream
+    if (screenStreamRef.current) {
+      screenStreamRef.current.getTracks().forEach((track) => {
+        console.log(`Stopping screen track: ${track.kind}`)
+        track.stop()
+        track.enabled = false // Thêm dòng này để đảm bảo track bị vô hiệu hóa
+      })
+      screenStreamRef.current = null // Đặt thành null để giải phóng tham chiếu
+    }
+
+    // Đóng peer connection
+    if (peerConnectionRef.current) {
+      peerConnectionRef.current.getSenders().forEach((sender) => {
+        if (sender.track) {
+          sender.track.stop()
+          sender.track.enabled = false
+        }
+      })
+      peerConnectionRef.current.close()
+      peerConnectionRef.current = null
+    }
+
+    // Xóa srcObject khỏi video elements
+    if (localVideoRef.current) {
+      localVideoRef.current.srcObject = null
+    }
+
+    if (remoteVideoRef.current) {
+      remoteVideoRef.current.srcObject = null
+    }
+
+    // Thêm đoạn code này để đảm bảo tất cả các tracks đều bị dừng
+    try {
+      // Yêu cầu trình duyệt dừng tất cả các tracks đang hoạt động
+      navigator.mediaDevices
+        .getUserMedia({ audio: true, video: true })
+        .then((tempStream) => {
+          tempStream.getTracks().forEach((track) => {
+            track.stop()
+          })
+        })
+        .catch((err) => console.log('Không thể lấy media stream tạm thời:', err))
+    } catch (error) {
+      console.error('Lỗi khi cố gắng dừng tất cả media tracks:', error)
+    }
+  }
 
   // Hàm khôi phục stream không sử dụng setTimeout
   const restoreVideoStreams = () => {
@@ -210,10 +275,6 @@ export function CallFrame({
     }
   }, [isFullscreen, isMobile, isMinimizedOnMobile])
 
-  const peerConnectionRef = useRef<RTCPeerConnection | null>(null)
-  const localStreamRef = useRef<MediaStream | null>(null)
-  const screenStreamRef = useRef<MediaStream | null>(null)
-
   // Thiết lập kết nối WebRTC
   useEffect(() => {
     if (!socket || !chatId) return
@@ -331,6 +392,9 @@ export function CallFrame({
     }
 
     const handleCallRejected = () => {
+      // Dừng tất cả media tracks
+      stopAllMediaTracks()
+
       setCallStatus(CALL_STATUS.REJECTED)
       setTimeout(() => {
         onClose()
@@ -338,6 +402,9 @@ export function CallFrame({
     }
 
     const handleCallEnded = () => {
+      // Dừng tất cả media tracks
+      stopAllMediaTracks()
+
       setCallStatus(CALL_STATUS.ENDED)
       setTimeout(() => {
         onClose()
@@ -412,10 +479,14 @@ export function CallFrame({
   }
 
   const handleEndCall = () => {
+    // Dừng tất cả media tracks trước khi gửi sự kiện kết thúc cuộc gọi
+    stopAllMediaTracks()
+
     socket?.emit(SOCKET_EVENTS.CALL_ENDED, {
       chatId,
       recipientId
     })
+
     // Đặt trạng thái ENDED và đóng sau 1 giây
     setCallStatus(CALL_STATUS.ENDED)
     setTimeout(() => {
