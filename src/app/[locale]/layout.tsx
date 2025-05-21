@@ -5,6 +5,7 @@ import { Geist, Geist_Mono } from 'next/font/google'
 import { notFound } from 'next/navigation'
 import { use } from 'react'
 import { Toaster } from 'sonner'
+import { CallManager } from '~/components/call/call-manager'
 import { NetworkStatus } from '~/components/network-status'
 import NotificationListener from '~/components/notification-listener'
 import TokenRefresher from '~/components/token-refresher'
@@ -15,7 +16,6 @@ import ReactQueryProvider from '~/providers/query-client-provider'
 import SocketProvider from '~/providers/socket-provider'
 import { ThemeProvider } from '~/providers/theme-provider'
 import './globals.css'
-import { CallManager } from '~/components/call/call-manager'
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -58,26 +58,28 @@ function Layout({ params, children }: Props) {
             <ThemeProvider attribute='class' defaultTheme='dark' enableSystem disableTransitionOnChange>
               <BProgressProvider>
                 <ReactQueryProvider>
-                  <SocketProvider>{children}</SocketProvider>
+                  <SocketProvider>
+                    {children}
+                    <CallManager />
+                  </SocketProvider>
                   <TokenRefresher />
                   <NotificationListener />
+                  <Toaster
+                    position='bottom-left'
+                    toastOptions={{
+                      style: {
+                        background: 'var(--background)',
+                        color: 'var(--foreground)',
+                        border: '1px solid var(--border)'
+                      },
+                      actionButtonStyle: {
+                        backgroundColor: 'var(--primary)',
+                        color: 'var(--primary-foreground)'
+                      }
+                    }}
+                  />
+                  <NetworkStatus />
                 </ReactQueryProvider>
-                <Toaster
-                  position='bottom-left'
-                  toastOptions={{
-                    style: {
-                      background: 'var(--background)',
-                      color: 'var(--foreground)',
-                      border: '1px solid var(--border)'
-                    },
-                    actionButtonStyle: {
-                      backgroundColor: 'var(--primary)',
-                      color: 'var(--primary-foreground)'
-                    }
-                  }}
-                />
-                <CallManager />
-                <NetworkStatus />
               </BProgressProvider>
             </ThemeProvider>
           </NextAuthProvider>
@@ -88,6 +90,3 @@ function Layout({ params, children }: Props) {
 }
 
 export default Layout
-
-
-

@@ -1919,7 +1919,7 @@ function ChatDetail({ params }: Props) {
                               variant='ghost'
                               size='icon'
                               onClick={handleStartAudioCall}
-                              disabled={!userStatus.isOnline}
+                              // disabled={!userStatus.isOnline}
                               title={userStatus.isOnline ? 'Gọi thoại' : 'Người dùng đang offline'}
                             >
                               <Phone className='h-5 w-5' />
@@ -1938,7 +1938,7 @@ function ChatDetail({ params }: Props) {
                               variant='ghost'
                               size='icon'
                               onClick={handleStartVideoCall}
-                              disabled={!userStatus.isOnline}
+                              // disabled={!userStatus.isOnline}
                               title={userStatus.isOnline ? 'Gọi video' : 'Người dùng đang offline'}
                             >
                               <Video className='h-5 w-5' />

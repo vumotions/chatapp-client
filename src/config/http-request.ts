@@ -39,22 +39,44 @@ class HttpRequest {
         ) {
           prevRequest.sent = true
 
-          const session = await getSession()
+          try {
+            const session = await getSession()
 
-          const { accessToken } = await refreshToken(session?.refreshToken || '')
-          if (accessToken) {
-            prevRequest.usingNewAccessToken = true
-            prevRequest.headers.Authorization = `Bearer ${accessToken}`
-            return this.instance(prevRequest)
+            const { accessToken } = await refreshToken(session?.refreshToken || '')
+
+            if (accessToken) {
+              prevRequest.usingNewAccessToken = true
+              prevRequest.headers.Authorization = `Bearer ${accessToken}`
+              return this.instance(prevRequest)
+            } else {
+              await signOut({
+                redirect: true,
+                callbackUrl: '/auth/login'
+              })
+
+              return Promise.reject(new Error('Failed to refresh access token'))
+            }
+          } catch (error) {
+            console.error('Error refreshing token:', error)
+
+            if (
+              isAxiosUnauthorizedError<{ name: string; message: string }>(error) &&
+              error.response?.data.name === 'REFRESH_TOKEN_EXPIRED_ERROR'
+            ) {
+              console.log('Refresh token expired, signing out')
+            } else {
+              console.error('Other error during refresh, signing out')
+            }
+
+            await signOut({
+              redirect: true,
+              callbackUrl: '/auth/login'
+            })
+
+            return Promise.reject(new Error('Authentication failed, please login again'))
           }
         }
 
-        if (
-          isAxiosUnauthorizedError<{ name: string; message: string }>(error) &&
-          error.response?.data.name === 'REFRESH_TOKEN_EXPIRED_ERROR'
-        ) {
-          await signOut?.()
-        }
         return Promise.reject(error)
       }
     )
