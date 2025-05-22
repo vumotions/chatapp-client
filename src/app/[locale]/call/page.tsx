@@ -79,9 +79,18 @@ export default function CallPage() {
         }
         
         // Thêm tracks vào peer connection
-        stream.getTracks().forEach(track => {
-          peerConnectionRef.current?.addTrack(track, stream)
-        })
+        const audioTracks = stream.getAudioTracks();
+        const videoTracks = stream.getVideoTracks();
+
+        // Add audio tracks first
+        audioTracks.forEach(track => {
+          peerConnectionRef.current?.addTrack(track, stream);
+        });
+
+        // Then add video tracks
+        videoTracks.forEach(track => {
+          peerConnectionRef.current?.addTrack(track, stream);
+        });
         
         // Xử lý khi nhận được remote tracks
         peerConnectionRef.current.ontrack = (event) => {

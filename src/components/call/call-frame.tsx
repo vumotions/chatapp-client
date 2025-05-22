@@ -10,6 +10,7 @@ import { CALL_STATUS, CALL_TYPE } from '~/constants/enums'
 import SOCKET_EVENTS from '~/constants/socket-events'
 import { useIsMobile } from '~/hooks/use-mobile'
 import { useSocket } from '~/hooks/use-socket'
+import { Avatar, AvatarImage, AvatarFallback } from '~/components/ui/avatar'
 
 // Định nghĩa interface cho CallFrameProps
 interface CallFrameProps {
@@ -167,13 +168,43 @@ export function CallFrame({
   // Thêm hàm để toggle trạng thái thu nhỏ trên mobile
   const toggleMinimizeOnMobile = () => {
     if (isMobile) {
-      if (isMinimizedOnMobile) {
-        // Chuyển từ thu nhỏ sang full screen
-        setIsMinimizedOnMobile(false)
-        streamRestoreRef.current = true
+      const newState = !isMinimizedOnMobile;
+      setIsMinimizedOnMobile(newState);
+      
+      // Nếu đang chuyển từ thu nhỏ sang full screen
+      if (!newState && callContainerRef.current) {
+        // Xóa hoàn toàn tất cả style inline
+        callContainerRef.current.removeAttribute('style');
+        
+        // Thiết lập lại style từ đầu
+        Object.assign(callContainerRef.current.style, {
+          position: 'fixed',
+          top: '0',
+          left: '0',
+          right: '0',
+          bottom: '0',
+          width: '100%',
+          height: '100%',
+          maxWidth: '100%',
+          borderRadius: '0',
+          transform: 'none',
+          zIndex: '100',
+          display: 'flex',
+          flexDirection: 'column',
+          backgroundColor: 'var(--card)',
+          overflow: 'hidden'
+        });
+        
+        // Reset vị trí trong state
+        setPosition({
+          x: 0,
+          y: 0
+        });
+        
+        // Đảm bảo khôi phục stream
+        streamRestoreRef.current = true;
       } else {
-        // Chuyển sang trạng thái thu nhỏ
-        setIsMinimizedOnMobile(true)
+        streamRestoreRef.current = true;
       }
     }
   }
@@ -282,35 +313,44 @@ export function CallFrame({
     const initializeCall = async () => {
       try {
         // Cấu hình ICE servers
-        const configuration: RTCConfiguration = {
-          iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }]
+        const configuration = {
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' }
+          ]
         }
-
+        
         // Tạo peer connection
         peerConnectionRef.current = new RTCPeerConnection(configuration)
-
+        
         // Lấy stream từ camera và microphone
-        const constraints: MediaStreamConstraints = {
+        const constraints = {
           audio: true,
           video: callType === CALL_TYPE.VIDEO
         }
-
+        
         const stream = await navigator.mediaDevices.getUserMedia(constraints)
         localStreamRef.current = stream
-        console.log('Got local stream:', stream, 'Video tracks:', stream.getVideoTracks().length)
-
+        
         // Hiển thị video local
         if (localVideoRef.current) {
           localVideoRef.current.srcObject = stream
         }
-
-        // Thêm tracks vào peer connection
-        stream.getTracks().forEach((track) => {
-          if (peerConnectionRef.current) {
-            peerConnectionRef.current.addTrack(track, stream)
-          }
-        })
-
+        
+        // Add tracks in a consistent order - always add audio first, then video
+        const audioTracks = stream.getAudioTracks();
+        const videoTracks = stream.getVideoTracks();
+        
+        // Add audio tracks first
+        audioTracks.forEach(track => {
+          peerConnectionRef.current?.addTrack(track, stream);
+        });
+        
+        // Then add video tracks
+        videoTracks.forEach(track => {
+          peerConnectionRef.current?.addTrack(track, stream);
+        });
+        
         // Xử lý khi nhận được remote tracks
         peerConnectionRef.current.ontrack = (event) => {
           if (remoteVideoRef.current && event.streams && event.streams[0]) {
@@ -682,7 +722,9 @@ export function CallFrame({
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{
             opacity: 1,
-            scale: 1
+            scale: 1,
+            // Đảm bảo reset transform khi không ở chế độ thu nhỏ trên mobile
+            ...(isMobile && !isMinimizedOnMobile ? { x: 0, y: 0 } : {})
           }}
           exit={{ opacity: 0, scale: 0.9 }}
           transition={{
@@ -769,13 +811,10 @@ export function CallFrame({
           {/* Thanh tiêu đề */}
           <div className='absolute top-0 right-0 left-0 z-10 flex items-center justify-between bg-gradient-to-b from-black/70 to-transparent p-3'>
             <div className='flex items-center gap-2'>
-              <div className='bg-primary text-primary-foreground flex h-8 w-8 items-center justify-center rounded-full'>
-                {recipientAvatar ? (
-                  <img src={recipientAvatar} alt={recipientName} className='h-full w-full rounded-full object-cover' />
-                ) : (
-                  <span className='text-sm font-medium'>{recipientName.charAt(0)}</span>
-                )}
-              </div>
+              <Avatar className='h-8 w-8 flex items-center justify-center'>
+                <AvatarImage src={recipientAvatar} alt={recipientName} className='object-cover' />
+                <AvatarFallback className='bg-primary text-primary-foreground'>{recipientName.charAt(0)}</AvatarFallback>
+              </Avatar>
               {(!isMobile || !isMinimizedOnMobile) && (
                 <div>
                   <h3 className='text-sm font-medium text-white'>{recipientName}</h3>
@@ -856,13 +895,12 @@ export function CallFrame({
                           isMobile && isMinimizedOnMobile ? 'h-16 w-16' : 'h-24 w-24'
                         }`}
                       >
-                        {recipientAvatar ? (
-                          <img src={recipientAvatar} alt={recipientName} className='h-full w-full object-cover' />
-                        ) : (
-                          <span className={`font-medium ${isMobile && isMinimizedOnMobile ? 'text-xl' : 'text-3xl'}`}>
+                        <Avatar className={`${isMobile && isMinimizedOnMobile ? 'h-16 w-16' : 'h-24 w-24'} flex items-center justify-center`}>
+                          <AvatarImage src={recipientAvatar} alt={recipientName} className='object-cover' />
+                          <AvatarFallback className={`${isMobile && isMinimizedOnMobile ? 'text-xl' : 'text-3xl'} font-medium bg-primary text-primary-foreground`}>
                             {recipientName.charAt(0)}
-                          </span>
-                        )}
+                          </AvatarFallback>
+                        </Avatar>
                       </div>
                     </div>
                   </div>
@@ -930,15 +968,12 @@ export function CallFrame({
                 {isCameraOff && (
                   <div className='bg-card flex h-full w-full items-center justify-center'>
                     <div className='bg-primary text-primary-foreground flex h-12 w-12 items-center justify-center overflow-hidden rounded-full'>
-                      {session?.user?.avatar ? (
-                        <img
-                          src={session.user.avatar}
-                          alt={session?.user?.name || ''}
-                          className='h-full w-full object-cover'
-                        />
-                      ) : (
-                        <span className='text-sm font-medium'>{session?.user?.name?.[0] || '?'}</span>
-                      )}
+                      <Avatar className='h-12 w-12 flex items-center justify-center'>
+                        <AvatarImage src={session?.user?.avatar} alt={session?.user?.name || ''} className='object-cover' />
+                        <AvatarFallback className='text-sm font-medium bg-primary text-primary-foreground'>
+                          {session?.user?.name?.[0] || '?'}
+                        </AvatarFallback>
+                      </Avatar>
                     </div>
                   </div>
                 )}
@@ -1011,3 +1046,4 @@ export function CallFrame({
     </div>
   )
 }
+

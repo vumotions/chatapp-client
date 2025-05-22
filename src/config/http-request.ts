@@ -56,22 +56,19 @@ class HttpRequest {
 
               return Promise.reject(new Error('Failed to refresh access token'))
             }
-          } catch (error) {
-            console.error('Error refreshing token:', error)
-
-            if (
-              isAxiosUnauthorizedError<{ name: string; message: string }>(error) &&
-              error.response?.data.name === 'REFRESH_TOKEN_EXPIRED_ERROR'
-            ) {
-              console.log('Refresh token expired, signing out')
-            } else {
-              console.error('Other error during refresh, signing out')
-            }
-
+          } catch (error: any) {
             await signOut({
               redirect: true,
               callbackUrl: '/auth/login'
             })
+            // if (
+            //   isAxiosUnauthorizedError<{ name: string; message: string }>(error) &&
+            //   error.response?.data.name === 'REFRESH_TOKEN_EXPIRED_ERROR'
+            // ) {
+
+            // } else {
+            //   console.error('Other error during refresh, signing out')
+            // }
 
             return Promise.reject(new Error('Authentication failed, please login again'))
           }

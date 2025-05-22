@@ -62,7 +62,7 @@ function Layout({ params, children }: Props) {
                     {children}
                     <CallManager />
                   </SocketProvider>
-                  <TokenRefresher />
+                  {/* <TokenRefresher /> */}
                   <NotificationListener />
                   <Toaster
                     position='bottom-left'
