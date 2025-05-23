@@ -53,6 +53,20 @@ export function CallFrame({
   const [preAcceptMuted, setPreAcceptMuted] = useState<boolean>(false)
   const [preAcceptCameraOff, setPreAcceptCameraOff] = useState<boolean>(callType === CALL_TYPE.AUDIO)
 
+  // Thêm hàm để toggle camera trước khi chấp nhận cuộc gọi
+  const togglePreAcceptCamera = () => {
+    if (!localStreamRef.current || callType === CALL_TYPE.AUDIO) return
+
+    // Thay đổi trạng thái camera
+    const newState = !preAcceptCameraOff
+    setPreAcceptCameraOff(newState)
+
+    // Áp dụng trạng thái mới cho stream
+    localStreamRef.current.getVideoTracks().forEach((track) => {
+      track.enabled = !newState
+    })
+  }
+
   // State cho vị trí - luôn khởi tạo ở giữa màn hình
   const [position, setPosition] = useState(() => {
     // Tính toán vị trí mặc định dựa trên kích thước màn hình
@@ -583,6 +597,12 @@ export function CallFrame({
       setIsMuted(preAcceptMuted)
       setIsCameraOff(preAcceptCameraOff)
 
+      // Nếu đã có stream camera từ preview, sử dụng lại
+      if (localStreamRef.current && callType === CALL_TYPE.VIDEO) {
+        // Dừng các track hiện tại (chỉ có video)
+        localStreamRef.current.getTracks().forEach((track) => track.stop())
+      }
+
       // Khởi tạo WebRTC
       await initializeWebRTC()
 
@@ -600,8 +620,6 @@ export function CallFrame({
           })
         }
       }
-
-      console.log('Call accepted and WebRTC initialized')
     } catch (error) {
       console.error('Error accepting call:', error)
       toast.error('Không thể kết nối cuộc gọi. Vui lòng thử lại.')
@@ -882,6 +900,50 @@ export function CallFrame({
       ? 'fixed bottom-16 right-4 w-[200px] h-[250px] rounded-xl overflow-hidden border border-gray-700 bg-black/30 backdrop-blur-md shadow-lg z-50'
       : ''
 
+  // Thêm hàm để khởi tạo camera trước khi chấp nhận cuộc gọi
+  const initializeLocalPreviewBeforeAccept = async () => {
+    try {
+      // Chỉ khởi tạo camera nếu là cuộc gọi video và người nhận cuộc gọi
+      if (callType === CALL_TYPE.VIDEO && !isInitiator) {
+        const constraints = {
+          audio: false, // Không bật mic trước khi chấp nhận
+          video: true
+        }
+
+        const stream = await navigator.mediaDevices.getUserMedia(constraints)
+        localStreamRef.current = stream
+
+        // Hiển thị video local
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = stream
+          console.log('Set local preview video before accepting call')
+        }
+
+        // Áp dụng trạng thái camera
+        stream.getVideoTracks().forEach((track) => {
+          track.enabled = !preAcceptCameraOff
+        })
+      }
+    } catch (error) {
+      console.error('Error initializing local preview:', error)
+    }
+  }
+
+  // Thêm useEffect để khởi tạo camera khi nhận được cuộc gọi
+  useEffect(() => {
+    // Chỉ khởi tạo nếu là người nhận cuộc gọi và đang ở trạng thái ringing
+    if (!isInitiator && callStatus === CALL_STATUS.RINGING) {
+      initializeLocalPreviewBeforeAccept()
+    }
+
+    // Cleanup function
+    return () => {
+      if (!isInitiator && callStatus === CALL_STATUS.RINGING && localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach((track) => track.stop())
+      }
+    }
+  }, [isInitiator, callStatus, callType])
+
   return (
     <div className='pointer-events-none fixed inset-0 z-50 flex items-center justify-center'>
       <div className='flex h-full w-full items-center justify-center' ref={constraintsRef}>
@@ -1114,9 +1176,13 @@ export function CallFrame({
                   muted
                   disablePictureInPicture
                   controlsList='nodownload nofullscreen noremoteplayback'
-                  className={`h-full w-full object-cover ${isCameraOff ? 'hidden' : ''}`}
+                  className={`h-full w-full object-cover ${
+                    (isCameraOff && callStatus === CALL_STATUS.CONNECTED) || 
+                    (preAcceptCameraOff && callStatus === CALL_STATUS.RINGING) ? 'hidden' : ''
+                  }`}
                 />
-                {isCameraOff && (
+                {((isCameraOff && callStatus === CALL_STATUS.CONNECTED) || 
+                  (preAcceptCameraOff && callStatus === CALL_STATUS.RINGING)) && (
                   <div className='bg-card flex h-full w-full items-center justify-center'>
                     <div className='bg-primary text-primary-foreground flex h-12 w-12 items-center justify-center overflow-hidden rounded-full'>
                       <Avatar className='flex h-12 w-12 items-center justify-center'>
@@ -1172,7 +1238,7 @@ export function CallFrame({
                     {/* Nút tắt camera (chỉ hiển thị khi là cuộc gọi video) */}
                     {callType === CALL_TYPE.VIDEO && (
                       <button
-                        onClick={() => setPreAcceptCameraOff(!preAcceptCameraOff)}
+                        onClick={togglePreAcceptCamera}
                         className={`flex items-center justify-center rounded-full transition-colors duration-200 ${
                           isMobile ? 'h-10 w-10' : 'h-12 w-12'
                         } ${
@@ -1347,6 +1413,16 @@ export function CallFrame({
               {callStatus === CALL_STATUS.RINGING ? (
                 // Nút chấp nhận/từ chối khi đang đổ chuông
                 <>
+                  {callType === CALL_TYPE.VIDEO && (
+                    <button
+                      onClick={togglePreAcceptCamera}
+                      className={`flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-200 ${
+                        preAcceptCameraOff ? 'bg-red-500/90' : 'bg-black/50'
+                      } text-white backdrop-blur-sm`}
+                    >
+                      {preAcceptCameraOff ? <VideoOff className='h-3 w-3' /> : <Video className='h-3 w-3' />}
+                    </button>
+                  )}
                   <button
                     onClick={handleRejectCall}
                     className='flex h-7 w-7 items-center justify-center rounded-full bg-red-500/90 text-white shadow-sm'
@@ -1430,5 +1506,6 @@ export function CallFrame({
     </div>
   )
 }
+
 
 
