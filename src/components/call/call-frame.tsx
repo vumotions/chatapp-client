@@ -1177,12 +1177,16 @@ export function CallFrame({
                   disablePictureInPicture
                   controlsList='nodownload nofullscreen noremoteplayback'
                   className={`h-full w-full object-cover ${
-                    (isCameraOff && callStatus === CALL_STATUS.CONNECTED) || 
-                    (preAcceptCameraOff && callStatus === CALL_STATUS.RINGING) ? 'hidden' : ''
+                    (isCameraOff && callStatus === CALL_STATUS.CONNECTED) ||
+                    (preAcceptCameraOff && callStatus === CALL_STATUS.RINGING) ||
+                    (isInitiator && isCameraOff && callStatus === CALL_STATUS.CALLING)
+                      ? 'hidden'
+                      : ''
                   }`}
                 />
-                {((isCameraOff && callStatus === CALL_STATUS.CONNECTED) || 
-                  (preAcceptCameraOff && callStatus === CALL_STATUS.RINGING)) && (
+                {((isCameraOff && callStatus === CALL_STATUS.CONNECTED) ||
+                  (preAcceptCameraOff && callStatus === CALL_STATUS.RINGING) ||
+                  (isInitiator && isCameraOff && callStatus === CALL_STATUS.CALLING)) && (
                   <div className='bg-card flex h-full w-full items-center justify-center'>
                     <div className='bg-primary text-primary-foreground flex h-12 w-12 items-center justify-center overflow-hidden rounded-full'>
                       <Avatar className='flex h-12 w-12 items-center justify-center'>
@@ -1506,6 +1510,3 @@ export function CallFrame({
     </div>
   )
 }
-
-
-
