@@ -11,6 +11,7 @@ import SOCKET_EVENTS from '~/constants/socket-events'
 import { useIsMobile } from '~/hooks/use-mobile'
 import { useSocket } from '~/hooks/use-socket'
 import { Avatar, AvatarImage, AvatarFallback } from '~/components/ui/avatar'
+import { useCallStore } from '~/stores/call.store'
 
 // Định nghĩa interface cho CallFrameProps
 interface CallFrameProps {
@@ -44,6 +45,14 @@ export function CallFrame({
   // Thêm state để theo dõi trạng thái thu nhỏ trên mobile
   const [isMinimizedOnMobile, setIsMinimizedOnMobile] = useState<boolean>(false)
 
+  // Thêm state để theo dõi trạng thái mic và camera của đối phương
+  const [remoteAudioMuted, setRemoteAudioMuted] = useState<boolean>(false)
+  const [remoteVideoOff, setRemoteVideoOff] = useState<boolean>(callType === CALL_TYPE.AUDIO)
+
+  // Thêm state để theo dõi trạng thái mic và camera trước khi chấp nhận cuộc gọi
+  const [preAcceptMuted, setPreAcceptMuted] = useState<boolean>(false)
+  const [preAcceptCameraOff, setPreAcceptCameraOff] = useState<boolean>(callType === CALL_TYPE.AUDIO)
+
   // State cho vị trí - luôn khởi tạo ở giữa màn hình
   const [position, setPosition] = useState(() => {
     // Tính toán vị trí mặc định dựa trên kích thước màn hình
@@ -72,41 +81,31 @@ export function CallFrame({
 
   // Thêm hàm mới để dừng tất cả media tracks
   const stopAllMediaTracks = () => {
-    console.log('Stopping all media tracks')
-
     // Dừng local stream
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((track) => {
-        console.log(`Stopping local track: ${track.kind}`)
-        track.stop()
-        track.enabled = false // Thêm dòng này để đảm bảo track bị vô hiệu hóa
+        try {
+          track.stop()
+        } catch (error) {
+          console.error('Error stopping track:', error)
+        }
       })
-      localStreamRef.current = null // Đặt thành null để giải phóng tham chiếu
+      localStreamRef.current = null
     }
 
     // Dừng screen sharing stream
     if (screenStreamRef.current) {
       screenStreamRef.current.getTracks().forEach((track) => {
-        console.log(`Stopping screen track: ${track.kind}`)
-        track.stop()
-        track.enabled = false // Thêm dòng này để đảm bảo track bị vô hiệu hóa
-      })
-      screenStreamRef.current = null // Đặt thành null để giải phóng tham chiếu
-    }
-
-    // Đóng peer connection
-    if (peerConnectionRef.current) {
-      peerConnectionRef.current.getSenders().forEach((sender) => {
-        if (sender.track) {
-          sender.track.stop()
-          sender.track.enabled = false
+        try {
+          track.stop()
+        } catch (error) {
+          console.error('Error stopping screen track:', error)
         }
       })
-      peerConnectionRef.current.close()
-      peerConnectionRef.current = null
+      screenStreamRef.current = null
     }
 
-    // Xóa srcObject khỏi video elements
+    // Xóa srcObject từ video elements
     if (localVideoRef.current) {
       localVideoRef.current.srcObject = null
     }
@@ -168,14 +167,14 @@ export function CallFrame({
   // Thêm hàm để toggle trạng thái thu nhỏ trên mobile
   const toggleMinimizeOnMobile = () => {
     if (isMobile) {
-      const newState = !isMinimizedOnMobile;
-      setIsMinimizedOnMobile(newState);
-      
+      const newState = !isMinimizedOnMobile
+      setIsMinimizedOnMobile(newState)
+
       // Nếu đang chuyển từ thu nhỏ sang full screen
       if (!newState && callContainerRef.current) {
         // Xóa hoàn toàn tất cả style inline
-        callContainerRef.current.removeAttribute('style');
-        
+        callContainerRef.current.removeAttribute('style')
+
         // Thiết lập lại style từ đầu
         Object.assign(callContainerRef.current.style, {
           position: 'fixed',
@@ -193,18 +192,18 @@ export function CallFrame({
           flexDirection: 'column',
           backgroundColor: 'var(--card)',
           overflow: 'hidden'
-        });
-        
+        })
+
         // Reset vị trí trong state
         setPosition({
           x: 0,
           y: 0
-        });
-        
+        })
+
         // Đảm bảo khôi phục stream
-        streamRestoreRef.current = true;
+        streamRestoreRef.current = true
       } else {
-        streamRestoreRef.current = true;
+        streamRestoreRef.current = true
       }
     }
   }
@@ -306,93 +305,143 @@ export function CallFrame({
     }
   }, [isFullscreen, isMobile, isMinimizedOnMobile])
 
-  // Thiết lập kết nối WebRTC
+  // Thêm state để theo dõi remote stream
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null)
+
+  // Hàm khởi tạo WebRTC được định nghĩa bên ngoài useEffect
+  const initializeWebRTC = async () => {
+    try {
+      // Cấu hình ICE servers
+      const configuration = {
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }]
+      }
+
+      // Tạo peer connection
+      peerConnectionRef.current = new RTCPeerConnection(configuration)
+
+      // Log để debug
+      console.log('Created peer connection:', peerConnectionRef.current)
+
+      // Xử lý sự kiện ontrack - quan trọng để hiển thị video của đối phương
+      peerConnectionRef.current.ontrack = (event) => {
+        console.log('Received remote track:', event.track.kind, 'enabled:', event.track.enabled)
+
+        if (event.streams && event.streams[0]) {
+          const stream = event.streams[0]
+          console.log('Received remote stream with ID:', stream.id)
+
+          // Lưu stream vào state để React re-render
+          setRemoteStream(stream)
+
+          // Cập nhật video element trực tiếp
+          if (remoteVideoRef.current) {
+            remoteVideoRef.current.srcObject = stream
+            console.log('Set remote video source directly')
+          }
+
+          // Cập nhật trạng thái UI
+          if (event.track.kind === 'video') {
+            setRemoteVideoOff(false)
+            setCallStatus(CALL_STATUS.CONNECTED)
+            console.log('Video track received, updating UI')
+          }
+        }
+      }
+
+      // Lấy stream từ camera và microphone
+      const constraints = {
+        audio: true,
+        video: callType === CALL_TYPE.VIDEO
+      }
+
+      console.log('Getting user media with constraints:', constraints)
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints)
+      localStreamRef.current = stream
+
+      // Hiển thị video local
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = stream
+        console.log('Set local video source')
+      }
+
+      // Thêm tracks vào peer connection
+      stream.getTracks().forEach((track) => {
+        console.log('Adding track to peer connection:', track.kind)
+        peerConnectionRef.current?.addTrack(track, stream)
+      })
+
+      // Xử lý ICE candidates
+      peerConnectionRef.current.onicecandidate = (event) => {
+        if (event.candidate) {
+          console.log('Sending ICE candidate')
+          socket?.emit(SOCKET_EVENTS.ICE_CANDIDATE, {
+            candidate: event.candidate,
+            recipientId
+          })
+        }
+      }
+
+      // Xử lý thay đổi trạng thái kết nối
+      peerConnectionRef.current.onconnectionstatechange = () => {
+        console.log('Connection state changed:', peerConnectionRef.current?.connectionState)
+
+        if (peerConnectionRef.current?.connectionState === 'connected') {
+          console.log('WebRTC connection established')
+          setCallStatus(CALL_STATUS.CONNECTED)
+        } else if (
+          peerConnectionRef.current?.connectionState === 'failed' ||
+          peerConnectionRef.current?.connectionState === 'closed'
+        ) {
+          console.error('WebRTC connection failed or closed')
+          setCallStatus(CALL_STATUS.FAILED)
+        }
+      }
+
+      // Nếu là người nhận cuộc gọi, tạo answer
+      if (!isInitiator) {
+        // Đợi cho đến khi nhận được offer từ người gọi
+        console.log('Waiting for offer as call recipient')
+      }
+      // Nếu là người gọi, tạo offer
+      else {
+        console.log('Creating offer as call initiator')
+        const offer = await peerConnectionRef.current.createOffer()
+        await peerConnectionRef.current.setLocalDescription(offer)
+
+        socket?.emit(SOCKET_EVENTS.SDP_OFFER, {
+          sdp: offer,
+          recipientId,
+          chatId
+        })
+      }
+    } catch (error) {
+      console.error('Error initializing WebRTC:', error)
+      toast.error('Không thể khởi tạo cuộc gọi. Vui lòng thử lại.')
+      setCallStatus(CALL_STATUS.FAILED)
+    }
+  }
+
+  // useEffect cho WebRTC
   useEffect(() => {
     if (!socket || !chatId) return
 
-    const initializeCall = async () => {
-      try {
-        // Cấu hình ICE servers
-        const configuration = {
-          iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' }
-          ]
-        }
-        
-        // Tạo peer connection
-        peerConnectionRef.current = new RTCPeerConnection(configuration)
-        
-        // Lấy stream từ camera và microphone
-        const constraints = {
-          audio: true,
-          video: callType === CALL_TYPE.VIDEO
-        }
-        
-        const stream = await navigator.mediaDevices.getUserMedia(constraints)
-        localStreamRef.current = stream
-        
-        // Hiển thị video local
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = stream
-        }
-        
-        // Add tracks in a consistent order - always add audio first, then video
-        const audioTracks = stream.getAudioTracks();
-        const videoTracks = stream.getVideoTracks();
-        
-        // Add audio tracks first
-        audioTracks.forEach(track => {
-          peerConnectionRef.current?.addTrack(track, stream);
-        });
-        
-        // Then add video tracks
-        videoTracks.forEach(track => {
-          peerConnectionRef.current?.addTrack(track, stream);
-        });
-        
-        // Xử lý khi nhận được remote tracks
-        peerConnectionRef.current.ontrack = (event) => {
-          if (remoteVideoRef.current && event.streams && event.streams[0]) {
-            remoteVideoRef.current.srcObject = event.streams[0]
-            setCallStatus(CALL_STATUS.CONNECTED)
-          }
-        }
-
-        // Xử lý ICE candidates
-        peerConnectionRef.current.onicecandidate = (event) => {
-          if (event.candidate) {
-            socket?.emit(SOCKET_EVENTS.ICE_CANDIDATE, {
-              candidate: event.candidate,
-              recipientId
-            })
-          }
-        }
-
-        // Nếu là người gọi, tạo offer
-        if (isInitiator) {
-          const offer = await peerConnectionRef.current.createOffer()
-          await peerConnectionRef.current.setLocalDescription(offer)
-
-          socket?.emit(SOCKET_EVENTS.SDP_OFFER, {
-            sdp: offer,
-            recipientId,
-            chatId
-          })
-        }
-      } catch (error) {
-        console.error('Error initializing call:', error)
-        toast.error('Không thể khởi tạo cuộc gọi. Vui lòng kiểm tra quyền truy cập camera và microphone.')
-      }
+    // Nếu là người gọi, khởi tạo WebRTC ngay
+    if (isInitiator) {
+      initializeWebRTC()
     }
-
-    initializeCall()
 
     // Xử lý các sự kiện socket
     const handleOffer = async (data: { sdp: RTCSessionDescriptionInit; callerId: string }) => {
       if (!peerConnectionRef.current) return
 
       try {
+        // Kiểm tra trạng thái của kết nối trước khi đặt remote description
+        if (peerConnectionRef.current.signalingState === 'closed') {
+          console.log('Cannot set remote description: connection is closed')
+          return
+        }
+
         await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(data.sdp))
         const answer = await peerConnectionRef.current.createAnswer()
         await peerConnectionRef.current.setLocalDescription(answer)
@@ -410,6 +459,12 @@ export function CallFrame({
       if (!peerConnectionRef.current) return
 
       try {
+        // Kiểm tra trạng thái của kết nối trước khi đặt remote description
+        if (peerConnectionRef.current.signalingState === 'closed') {
+          console.log('Cannot set remote description: connection is closed')
+          return
+        }
+
         await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(data.sdp))
         setCallStatus(CALL_STATUS.CONNECTING)
       } catch (error) {
@@ -421,6 +476,12 @@ export function CallFrame({
       if (!peerConnectionRef.current) return
 
       try {
+        // Kiểm tra trạng thái của kết nối trước khi thêm ICE candidate
+        if (peerConnectionRef.current.signalingState === 'closed') {
+          console.log('Cannot add ICE candidate: connection is closed')
+          return
+        }
+
         await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(data.candidate))
       } catch (error) {
         console.error('Error handling ICE candidate:', error)
@@ -452,11 +513,15 @@ export function CallFrame({
     }
 
     const handleToggleAudio = (data: { isMuted: boolean }) => {
-      setIsMuted(data.isMuted)
+      // Chỉ cập nhật UI để hiển thị trạng thái mic của người khác
+      // KHÔNG tắt mic của mình
+      setRemoteAudioMuted(data.isMuted)
     }
 
     const handleToggleVideo = (data: { isCameraOff: boolean }) => {
-      setIsCameraOff(data.isCameraOff)
+      // Chỉ cập nhật UI để hiển thị trạng thái camera của người khác
+      // KHÔNG tắt camera của mình
+      setRemoteVideoOff(data.isCameraOff)
     }
 
     socket?.on(SOCKET_EVENTS.SDP_OFFER, handleOffer)
@@ -488,26 +553,59 @@ export function CallFrame({
       socket?.off(SOCKET_EVENTS.TOGGLE_VIDEO, handleToggleVideo)
 
       // Dọn dẹp
-      if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach((track) => track.stop())
-      }
+      stopAllMediaTracks()
 
-      if (screenStreamRef.current) {
-        screenStreamRef.current.getTracks().forEach((track) => track.stop())
-      }
-
+      // Đóng kết nối peer một cách an toàn
       if (peerConnectionRef.current) {
-        peerConnectionRef.current.close()
+        try {
+          peerConnectionRef.current.close()
+        } catch (error) {
+          console.error('Error closing peer connection:', error)
+        } finally {
+          peerConnectionRef.current = null
+        }
       }
     }
   }, [socket, chatId, recipientId, callType, isInitiator, onClose])
 
-  const handleAcceptCall = () => {
-    socket?.emit(SOCKET_EVENTS.CALL_ACCEPTED, {
-      chatId,
-      callerId: recipientId
-    })
-    setCallStatus(CALL_STATUS.CONNECTING)
+  const handleAcceptCall = async () => {
+    try {
+      // Thông báo cho người gọi rằng cuộc gọi đã được chấp nhận
+      socket?.emit(SOCKET_EVENTS.CALL_ACCEPTED, {
+        chatId,
+        callerId: recipientId
+      })
+
+      // Cập nhật trạng thái
+      setCallStatus(CALL_STATUS.CONNECTING)
+
+      // Áp dụng trạng thái mic và camera trước khi kết nối
+      setIsMuted(preAcceptMuted)
+      setIsCameraOff(preAcceptCameraOff)
+
+      // Khởi tạo WebRTC
+      await initializeWebRTC()
+
+      // Đảm bảo trạng thái được áp dụng cho stream
+      if (localStreamRef.current) {
+        // Áp dụng trạng thái mic
+        localStreamRef.current.getAudioTracks().forEach((track) => {
+          track.enabled = !preAcceptMuted
+        })
+
+        // Áp dụng trạng thái camera
+        if (callType === CALL_TYPE.VIDEO) {
+          localStreamRef.current.getVideoTracks().forEach((track) => {
+            track.enabled = !preAcceptCameraOff
+          })
+        }
+      }
+
+      console.log('Call accepted and WebRTC initialized')
+    } catch (error) {
+      console.error('Error accepting call:', error)
+      toast.error('Không thể kết nối cuộc gọi. Vui lòng thử lại.')
+    }
   }
 
   const handleRejectCall = () => {
@@ -531,6 +629,8 @@ export function CallFrame({
     setCallStatus(CALL_STATUS.ENDED)
     setTimeout(() => {
       onClose()
+      // Cập nhật store để xóa thông tin cuộc gọi
+      useCallStore.getState().endCall()
     }, 1000)
   }
 
@@ -538,15 +638,17 @@ export function CallFrame({
     e.stopPropagation()
     if (!localStreamRef.current) return
 
+    // Thay đổi trạng thái mic của mình
     localStreamRef.current.getAudioTracks().forEach((track) => {
       track.enabled = isMuted
     })
 
     setIsMuted(!isMuted)
 
+    // Gửi thông báo trạng thái mic của mình cho người khác
     socket?.emit(SOCKET_EVENTS.TOGGLE_AUDIO, {
-      chatId,
       recipientId,
+      chatId,
       isMuted: !isMuted
     })
 
@@ -557,15 +659,17 @@ export function CallFrame({
     e.stopPropagation()
     if (!localStreamRef.current || callType === CALL_TYPE.AUDIO) return
 
+    // Thay đổi trạng thái camera của mình
     localStreamRef.current.getVideoTracks().forEach((track) => {
       track.enabled = isCameraOff
     })
 
     setIsCameraOff(!isCameraOff)
 
+    // Gửi thông báo trạng thái camera của mình cho người khác
     socket?.emit(SOCKET_EVENTS.TOGGLE_VIDEO, {
-      chatId,
       recipientId,
+      chatId,
       isCameraOff: !isCameraOff
     })
   }
@@ -708,6 +812,76 @@ export function CallFrame({
     return () => window.removeEventListener('resize', adjustInitialPosition)
   }, [isMobile, isMinimizedOnMobile]) // Thêm dependencies
 
+  // Trong useEffect để lắng nghe các sự kiện socket
+  useEffect(() => {
+    if (!socket) return
+
+    // Xử lý sự kiện TOGGLE_VIDEO
+    const handleToggleVideo = (data: { isCameraOff: boolean }) => {
+      console.log('Received TOGGLE_VIDEO event:', data)
+      setRemoteVideoOff(data.isCameraOff)
+    }
+
+    // Đăng ký lắng nghe sự kiện
+    socket.on(SOCKET_EVENTS.TOGGLE_VIDEO, handleToggleVideo)
+
+    return () => {
+      // Hủy đăng ký khi component unmount
+      socket.off(SOCKET_EVENTS.TOGGLE_VIDEO, handleToggleVideo)
+    }
+  }, [socket])
+
+  {
+    /* Thêm log để debug */
+  }
+
+  useEffect(() => {
+    if (remoteVideoRef.current) {
+      console.log('Remote video element:', remoteVideoRef.current)
+      console.log('Remote video srcObject:', remoteVideoRef.current.srcObject)
+
+      // Kiểm tra xem video có đang phát không
+      remoteVideoRef.current.onplaying = () => {
+        console.log('Remote video is playing')
+      }
+
+      remoteVideoRef.current.onloadedmetadata = () => {
+        console.log('Remote video metadata loaded')
+      }
+    }
+  }, [remoteVideoRef.current?.srcObject])
+
+  // Thêm useEffect để theo dõi trạng thái của remoteVideoRef
+  useEffect(() => {
+    if (remoteVideoRef.current) {
+      // Thêm event listener để debug
+      remoteVideoRef.current.onloadedmetadata = () => {
+        console.log('Remote video metadata loaded')
+        remoteVideoRef.current?.play().catch((err) => {
+          console.error('Error playing remote video:', err)
+        })
+      }
+
+      remoteVideoRef.current.onplay = () => {
+        console.log('Remote video is playing')
+        // Đảm bảo trạng thái UI được cập nhật
+        if (callStatus !== CALL_STATUS.CONNECTED) {
+          setCallStatus(CALL_STATUS.CONNECTED)
+        }
+      }
+
+      remoteVideoRef.current.onerror = (e) => {
+        console.error('Remote video error:', e)
+      }
+    }
+  }, [remoteVideoRef.current, callStatus])
+
+  // Thay đổi toàn bộ container khi thu nhỏ trên mobile để có hiệu ứng glass
+  const minimizedContainerClass =
+    isMobile && isMinimizedOnMobile
+      ? 'fixed bottom-16 right-4 w-[200px] h-[250px] rounded-xl overflow-hidden border border-gray-700 bg-black/30 backdrop-blur-md shadow-lg z-50'
+      : ''
+
   return (
     <div className='pointer-events-none fixed inset-0 z-50 flex items-center justify-center'>
       <div className='flex h-full w-full items-center justify-center' ref={constraintsRef}>
@@ -811,9 +985,13 @@ export function CallFrame({
           {/* Thanh tiêu đề */}
           <div className='absolute top-0 right-0 left-0 z-10 flex items-center justify-between bg-gradient-to-b from-black/70 to-transparent p-3'>
             <div className='flex items-center gap-2'>
-              <Avatar className='h-8 w-8 flex items-center justify-center'>
+              <Avatar
+                className={`flex items-center justify-center ${isMobile && isMinimizedOnMobile ? 'h-6 w-6' : 'h-8 w-8'}`}
+              >
                 <AvatarImage src={recipientAvatar} alt={recipientName} className='object-cover' />
-                <AvatarFallback className='bg-primary text-primary-foreground'>{recipientName.charAt(0)}</AvatarFallback>
+                <AvatarFallback className='bg-primary text-primary-foreground'>
+                  {recipientName.charAt(0)}
+                </AvatarFallback>
               </Avatar>
               {(!isMobile || !isMinimizedOnMobile) && (
                 <div>
@@ -829,7 +1007,9 @@ export function CallFrame({
               {isMobile && (
                 <button
                   onClick={toggleMinimizeOnMobile}
-                  className='rounded-full bg-black/40 p-1.5 text-white transition-colors hover:bg-black/60'
+                  className={`rounded-full bg-black/40 p-1.5 text-white transition-colors hover:bg-black/60 ${
+                    isMinimizedOnMobile ? 'ml-auto' : ''
+                  }`}
                 >
                   {isMinimizedOnMobile ? <Maximize className='h-4 w-4' /> : <Minimize className='h-4 w-4' />}
                 </button>
@@ -858,92 +1038,63 @@ export function CallFrame({
           <div
             className='bg-muted relative flex-grow'
             style={{
-              paddingBottom: isMobile && isMinimizedOnMobile ? '0' : '70px' // Tăng padding-bottom từ 50px lên 70px
+              paddingBottom: isMobile && isMinimizedOnMobile ? '0' : '70px'
             }}
           >
-            {/* Remote video - Ẩn khi ở chế độ thu nhỏ trên mobile */}
-            {!(isMobile && isMinimizedOnMobile) && (
-              <video
-                ref={remoteVideoRef}
-                autoPlay
-                playsInline
-                disablePictureInPicture
-                controlsList='nodownload nofullscreen noremoteplayback'
-                className={`absolute inset-0 h-full w-full object-cover ${
-                  callStatus !== CALL_STATUS.CONNECTED || isCameraOff ? 'hidden' : ''
-                }`}
-              />
-            )}
+            {/* Remote video - Đảm bảo hiển thị khi có kết nối và không bị ẩn */}
+            <video
+              ref={remoteVideoRef}
+              autoPlay={true}
+              playsInline={true}
+              muted={false}
+              disablePictureInPicture={true}
+              controlsList='nodownload nofullscreen noremoteplayback'
+              className={`absolute inset-0 h-full w-full object-cover ${
+                remoteVideoOff || callStatus !== CALL_STATUS.CONNECTED ? 'hidden' : ''
+              }`}
+              style={{ zIndex: 1 }}
+            />
 
-            {/* Hiển thị avatar khi không có video hoặc khi ở chế độ thu nhỏ trên mobile */}
-            {(callStatus !== CALL_STATUS.CONNECTED || isCameraOff || (isMobile && isMinimizedOnMobile)) && (
+            {/* Hiển thị avatar khi không có video hoặc khi ở chế độ thu nhỏ trên mobile hoặc khi đối phương tắt camera */}
+            {(remoteVideoOff || callStatus !== CALL_STATUS.CONNECTED || (isMobile && isMinimizedOnMobile)) && (
               <div className='bg-card absolute inset-0 flex items-center justify-center'>
                 <div className='flex flex-col items-center'>
                   <div className='relative mb-2'>
                     {callStatus === CALL_STATUS.CALLING || callStatus === CALL_STATUS.RINGING ? (
                       <div className='absolute inset-0 flex items-center justify-center'>
-                        <div className='bg-primary/30 absolute h-32 w-32 animate-ping rounded-full'></div>
                         <div
-                          className='bg-primary/20 absolute h-28 w-28 animate-ping rounded-full'
+                          className={`bg-primary/30 absolute animate-ping rounded-full ${
+                            isMobile && isMinimizedOnMobile ? 'h-16 w-16' : 'h-32 w-32'
+                          }`}
+                        ></div>
+                        <div
+                          className={`bg-primary/20 absolute animate-ping rounded-full ${
+                            isMobile && isMinimizedOnMobile ? 'h-14 w-14' : 'h-28 w-28'
+                          }`}
                           style={{ animationDelay: '0.2s' }}
                         ></div>
                       </div>
                     ) : null}
-                    <div className='bg-primary/10 relative z-10 rounded-full p-2'>
-                      <div
-                        className={`bg-primary text-primary-foreground flex items-center justify-center overflow-hidden rounded-full ${
-                          isMobile && isMinimizedOnMobile ? 'h-16 w-16' : 'h-24 w-24'
-                        }`}
-                      >
-                        <Avatar className={`${isMobile && isMinimizedOnMobile ? 'h-16 w-16' : 'h-24 w-24'} flex items-center justify-center`}>
-                          <AvatarImage src={recipientAvatar} alt={recipientName} className='object-cover' />
-                          <AvatarFallback className={`${isMobile && isMinimizedOnMobile ? 'text-xl' : 'text-3xl'} font-medium bg-primary text-primary-foreground`}>
-                            {recipientName.charAt(0)}
-                          </AvatarFallback>
-                        </Avatar>
-                      </div>
-                    </div>
+                    <Avatar className={`${isMobile && isMinimizedOnMobile ? 'h-12 w-12' : 'h-24 w-24'}`}>
+                      <AvatarImage src={recipientAvatar} alt={recipientName} className='object-cover' />
+                      <AvatarFallback className='bg-primary text-primary-foreground'>
+                        {recipientName.charAt(0)}
+                      </AvatarFallback>
+                    </Avatar>
                   </div>
-                  {/* Chỉ hiển thị tên và trạng thái khi không ở chế độ thu nhỏ */}
-                  {!(isMobile && isMinimizedOnMobile) && (
+                  {(!isMobile || !isMinimizedOnMobile) && (
                     <>
-                      <p className='text-card-foreground font-medium'>{recipientName}</p>
-                      {callStatus === CALL_STATUS.CALLING && (
-                        <p className='text-muted-foreground mt-1 text-sm'>Đang gọi...</p>
-                      )}
-                      {callStatus === CALL_STATUS.RINGING && (
-                        <p className='text-muted-foreground mt-1 text-sm'>Đang đổ chuông...</p>
-                      )}
-                      {callStatus === CALL_STATUS.CONNECTING && (
-                        <p className='text-muted-foreground mt-1 text-sm'>Đang kết nối...</p>
-                      )}
-                      {callStatus === CALL_STATUS.CONNECTED && (
-                        <p className='text-muted-foreground mt-1 text-sm'>Đang kết nối</p>
-                      )}
+                      <h3 className='text-foreground text-lg font-medium'>{recipientName}</h3>
+                      <p className='text-muted-foreground text-sm'>
+                        {callStatus === CALL_STATUS.CONNECTING && 'Đang kết nối...'}
+                        {callStatus === CALL_STATUS.CONNECTED && remoteVideoOff && 'Đã tắt camera'}
+                        {callStatus === CALL_STATUS.RINGING && 'Đang đổ chuông...'}
+                        {callStatus === CALL_STATUS.CALLING && 'Đang gọi...'}
+                        {callStatus === CALL_STATUS.ENDED && 'Cuộc gọi đã kết thúc'}
+                        {callStatus === CALL_STATUS.REJECTED && 'Cuộc gọi bị từ chối'}
+                        {callStatus === CALL_STATUS.FAILED && 'Kết nối thất bại'}
+                      </p>
                     </>
-                  )}
-
-                  {/* Nút chấp nhận/từ chối chỉ hiển thị khi đang đổ chuông và không ở chế độ thu nhỏ */}
-                  {callStatus === CALL_STATUS.RINGING && !(isMobile && isMinimizedOnMobile) && (
-                    <div className='mt-6 flex gap-4'>
-                      <Button
-                        onClick={handleRejectCall}
-                        size='lg'
-                        variant='destructive'
-                        className='h-12 w-12 rounded-full p-0 transition-transform duration-200 hover:scale-105'
-                      >
-                        <Phone className='h-6 w-6 rotate-135' />
-                      </Button>
-                      <Button
-                        data-accept-call
-                        onClick={handleAcceptCall}
-                        size='lg'
-                        variant='default'
-                        className='h-12 w-12 rounded-full bg-green-500 p-0 transition-transform duration-200 hover:scale-105 hover:bg-green-600'
-                      >
-                        <Phone className='h-6 w-6' />
-                      </Button>
-                    </div>
                   )}
                 </div>
               </div>
@@ -968,9 +1119,13 @@ export function CallFrame({
                 {isCameraOff && (
                   <div className='bg-card flex h-full w-full items-center justify-center'>
                     <div className='bg-primary text-primary-foreground flex h-12 w-12 items-center justify-center overflow-hidden rounded-full'>
-                      <Avatar className='h-12 w-12 flex items-center justify-center'>
-                        <AvatarImage src={session?.user?.avatar} alt={session?.user?.name || ''} className='object-cover' />
-                        <AvatarFallback className='text-sm font-medium bg-primary text-primary-foreground'>
+                      <Avatar className='flex h-12 w-12 items-center justify-center'>
+                        <AvatarImage
+                          src={session?.user?.avatar}
+                          alt={session?.user?.name || ''}
+                          className='object-cover'
+                        />
+                        <AvatarFallback className='bg-primary text-primary-foreground text-sm font-medium'>
                           {session?.user?.name?.[0] || '?'}
                         </AvatarFallback>
                       </Avatar>
@@ -985,65 +1140,295 @@ export function CallFrame({
             )}
           </div>
 
-          {/* Các nút điều khiển - Điều chỉnh kích thước và bố cục khi ở chế độ thu nhỏ */}
-          <div
-            className={`bg-card/80 absolute right-0 bottom-0 left-0 flex items-center justify-center backdrop-blur-md gap-${isMobile && isMinimizedOnMobile ? '1' : '3'} p-${isMobile && isMinimizedOnMobile ? '2' : '4'} ${isFullscreen ? 'mb-6' : ''} `}
-          >
-            <button
-              onClick={toggleMute}
-              className={`flex items-center justify-center rounded-full transition-colors duration-200 ${
-                isMobile && isMinimizedOnMobile ? 'h-8 w-8' : 'h-12 w-12'
-              } ${isMuted ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-muted text-foreground hover:bg-muted/80'}`}
-            >
-              {isMuted ? (
-                <MicOff className={`${isMobile && isMinimizedOnMobile ? 'h-3.5 w-3.5' : 'h-5 w-5'}`} />
-              ) : (
-                <Mic className={`${isMobile && isMinimizedOnMobile ? 'h-3.5 w-3.5' : 'h-5 w-5'}`} />
-              )}
-            </button>
-
-            {callType === CALL_TYPE.VIDEO && (
-              <button
-                onClick={toggleCamera}
-                className={`flex items-center justify-center rounded-full transition-colors duration-200 ${
-                  isMobile && isMinimizedOnMobile ? 'h-8 w-8' : 'h-12 w-12'
-                } ${
-                  isCameraOff ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-muted text-foreground hover:bg-muted/80'
-                }`}
-              >
-                {isCameraOff ? (
-                  <VideoOff className={`${isMobile && isMinimizedOnMobile ? 'h-3.5 w-3.5' : 'h-5 w-5'}`} />
-                ) : (
-                  <Video className={`${isMobile && isMinimizedOnMobile ? 'h-3.5 w-3.5' : 'h-5 w-5'}`} />
-                )}
-              </button>
-            )}
-
-            {callType === CALL_TYPE.VIDEO && !(isMobile && isMinimizedOnMobile) && (
-              <button
-                onClick={toggleScreenSharing}
-                className={`flex items-center justify-center rounded-full transition-colors duration-200 ${
-                  isScreenSharing
-                    ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-                    : 'bg-muted text-foreground hover:bg-muted/80'
-                } h-12 w-12`}
-              >
-                <Monitor className='h-5 w-5' />
-              </button>
-            )}
-
-            <button
-              onClick={handleEndCall}
-              className={`flex items-center justify-center rounded-full bg-red-500 text-white transition-colors duration-200 hover:bg-red-600 ${
-                isMobile && isMinimizedOnMobile ? 'h-8 w-8' : 'h-12 w-12'
+          {/* Các nút điều khiển - Hiển thị nút chấp nhận/từ chối khi đang ở trạng thái RINGING */}
+          {callStatus === CALL_STATUS.RINGING ? (
+            <div
+              className={`bg-card/80 absolute right-0 bottom-0 left-0 flex items-center justify-center backdrop-blur-md ${
+                isMobile && isMinimizedOnMobile ? 'p-1' : 'p-3'
               }`}
             >
-              <Phone className={`rotate-135 ${isMobile && isMinimizedOnMobile ? 'h-3.5 w-3.5' : 'h-5 w-5'}`} />
-            </button>
-          </div>
+              <div className='flex items-center justify-center gap-2'>
+                {/* Khi ở chế độ thu nhỏ, chỉ hiển thị nút từ chối và chấp nhận */}
+                {!(isMobile && isMinimizedOnMobile) && (
+                  <>
+                    {/* Nút tắt mic */}
+                    <button
+                      onClick={() => setPreAcceptMuted(!preAcceptMuted)}
+                      className={`flex items-center justify-center rounded-full transition-colors duration-200 ${
+                        isMobile ? 'h-10 w-10' : 'h-12 w-12'
+                      } ${
+                        preAcceptMuted
+                          ? 'bg-red-500 text-white hover:bg-red-600'
+                          : 'bg-muted text-foreground hover:bg-muted/80'
+                      }`}
+                    >
+                      {preAcceptMuted ? (
+                        <MicOff className={`${isMobile ? 'h-4 w-4' : 'h-5 w-5'}`} />
+                      ) : (
+                        <Mic className={`${isMobile ? 'h-4 w-4' : 'h-5 w-5'}`} />
+                      )}
+                    </button>
+
+                    {/* Nút tắt camera (chỉ hiển thị khi là cuộc gọi video) */}
+                    {callType === CALL_TYPE.VIDEO && (
+                      <button
+                        onClick={() => setPreAcceptCameraOff(!preAcceptCameraOff)}
+                        className={`flex items-center justify-center rounded-full transition-colors duration-200 ${
+                          isMobile ? 'h-10 w-10' : 'h-12 w-12'
+                        } ${
+                          preAcceptCameraOff
+                            ? 'bg-red-500 text-white hover:bg-red-600'
+                            : 'bg-muted text-foreground hover:bg-muted/80'
+                        }`}
+                      >
+                        {preAcceptCameraOff ? (
+                          <VideoOff className={`${isMobile ? 'h-4 w-4' : 'h-5 w-5'}`} />
+                        ) : (
+                          <Video className={`${isMobile ? 'h-4 w-4' : 'h-5 w-5'}`} />
+                        )}
+                      </button>
+                    )}
+                  </>
+                )}
+
+                {/* Nút từ chối cuộc gọi */}
+                <Button
+                  onClick={handleRejectCall}
+                  size='lg'
+                  variant='destructive'
+                  className={`${
+                    isMobile && isMinimizedOnMobile ? 'h-8 w-8' : isMobile ? 'h-10 w-10' : 'h-12 w-12'
+                  } rounded-full p-0 transition-transform duration-200 hover:scale-105`}
+                >
+                  <Phone
+                    className={`${
+                      isMobile && isMinimizedOnMobile ? 'h-4 w-4' : isMobile ? 'h-5 w-5' : 'h-6 w-6'
+                    } rotate-135`}
+                  />
+                </Button>
+
+                {/* Nút chấp nhận cuộc gọi */}
+                <Button
+                  data-accept-call
+                  onClick={handleAcceptCall}
+                  size='lg'
+                  variant='default'
+                  className={`${
+                    isMobile && isMinimizedOnMobile ? 'h-8 w-8' : isMobile ? 'h-10 w-10' : 'h-12 w-12'
+                  } rounded-full bg-green-500 p-0 text-white transition-transform duration-200 hover:scale-105 hover:bg-green-600`}
+                >
+                  <Phone
+                    className={`${isMobile && isMinimizedOnMobile ? 'h-4 w-4' : isMobile ? 'h-5 w-5' : 'h-6 w-6'}`}
+                  />
+                </Button>
+              </div>
+            </div>
+          ) : (
+            !isMinimizedOnMobile && (
+              <div
+                className={`bg-card/80 absolute right-0 bottom-0 left-0 backdrop-blur-md ${
+                  isMobile && isMinimizedOnMobile ? 'p-2' : 'p-3'
+                } ${isFullscreen ? 'mb-6' : ''}`}
+              >
+                <div className={`flex ${isMobile && !isMinimizedOnMobile ? 'justify-center' : 'justify-center'} gap-3`}>
+                  <button
+                    onClick={toggleMute}
+                    className={`flex items-center justify-center rounded-full transition-colors duration-200 ${
+                      isMobile && isMinimizedOnMobile
+                        ? 'h-8 w-8'
+                        : isMobile && !isMinimizedOnMobile
+                          ? 'h-10 w-10'
+                          : 'h-12 w-12'
+                    } ${isMuted ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-muted text-foreground hover:bg-muted/80'}`}
+                  >
+                    {isMuted ? (
+                      <MicOff
+                        className={`${
+                          isMobile && isMinimizedOnMobile
+                            ? 'h-3.5 w-3.5'
+                            : isMobile && !isMinimizedOnMobile
+                              ? 'h-4 w-4'
+                              : 'h-5 w-5'
+                        }`}
+                      />
+                    ) : (
+                      <Mic
+                        className={`${
+                          isMobile && isMinimizedOnMobile
+                            ? 'h-3.5 w-3.5'
+                            : isMobile && !isMinimizedOnMobile
+                              ? 'h-4 w-4'
+                              : 'h-5 w-5'
+                        }`}
+                      />
+                    )}
+                  </button>
+
+                  {callType === CALL_TYPE.VIDEO && (
+                    <button
+                      onClick={toggleCamera}
+                      className={`flex items-center justify-center rounded-full transition-colors duration-200 ${
+                        isMobile && isMinimizedOnMobile
+                          ? 'h-8 w-8'
+                          : isMobile && !isMinimizedOnMobile
+                            ? 'h-10 w-10'
+                            : 'h-12 w-12'
+                      } ${
+                        isCameraOff
+                          ? 'bg-red-500 text-white hover:bg-red-600'
+                          : 'bg-muted text-foreground hover:bg-muted/80'
+                      }`}
+                    >
+                      {isCameraOff ? (
+                        <VideoOff
+                          className={`${
+                            isMobile && isMinimizedOnMobile
+                              ? 'h-3.5 w-3.5'
+                              : isMobile && !isMinimizedOnMobile
+                                ? 'h-4 w-4'
+                                : 'h-5 w-5'
+                          }`}
+                        />
+                      ) : (
+                        <Video
+                          className={`${
+                            isMobile && isMinimizedOnMobile
+                              ? 'h-3.5 w-3.5'
+                              : isMobile && !isMinimizedOnMobile
+                                ? 'h-4 w-4'
+                                : 'h-5 w-5'
+                          }`}
+                        />
+                      )}
+                    </button>
+                  )}
+
+                  {callType === CALL_TYPE.VIDEO && !(isMobile && isMinimizedOnMobile) && (
+                    <button
+                      onClick={toggleScreenSharing}
+                      className={`flex items-center justify-center rounded-full transition-colors duration-200 ${
+                        isScreenSharing
+                          ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                          : 'bg-muted text-foreground hover:bg-muted/80'
+                      } ${isMobile && !isMinimizedOnMobile ? 'h-10 w-10' : 'h-12 w-12'}`}
+                    >
+                      <Monitor className={`${isMobile && !isMinimizedOnMobile ? 'h-4 w-4' : 'h-5 w-5'}`} />
+                    </button>
+                  )}
+
+                  <button
+                    onClick={handleEndCall}
+                    className={`flex items-center justify-center rounded-full bg-red-500 text-white transition-colors duration-200 hover:bg-red-600 ${
+                      isMobile && isMinimizedOnMobile
+                        ? 'h-8 w-8'
+                        : isMobile && !isMinimizedOnMobile
+                          ? 'h-10 w-10'
+                          : 'h-12 w-12'
+                    }`}
+                  >
+                    <Phone
+                      className={`rotate-135 ${
+                        isMobile && isMinimizedOnMobile
+                          ? 'h-3.5 w-3.5'
+                          : isMobile && !isMinimizedOnMobile
+                            ? 'h-4 w-4'
+                            : 'h-5 w-5'
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+            )
+          )}
+
+          {/* Thêm các nút điều khiển khi ở chế độ thu nhỏ và đã kết nối */}
+          {isMobile && isMinimizedOnMobile && (
+            <div className='absolute right-0 bottom-0 left-0 flex justify-center gap-2 border-t border-gray-700/50 bg-black/30 p-1 backdrop-blur-md'>
+              {callStatus === CALL_STATUS.RINGING ? (
+                // Nút chấp nhận/từ chối khi đang đổ chuông
+                <>
+                  <button
+                    onClick={handleRejectCall}
+                    className='flex h-7 w-7 items-center justify-center rounded-full bg-red-500/90 text-white shadow-sm'
+                  >
+                    <Phone className='h-3 w-3 rotate-135' />
+                  </button>
+                  <button
+                    onClick={handleAcceptCall}
+                    className='flex h-7 w-7 items-center justify-center rounded-full bg-green-500/90 text-white shadow-sm'
+                  >
+                    <Phone className='h-3 w-3' />
+                  </button>
+                </>
+              ) : callStatus === CALL_STATUS.CALLING ? (
+                // Nút điều khiển khi đang gọi (caller)
+                <>
+                  <button
+                    onClick={toggleMute}
+                    className={`flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-200 ${
+                      isMuted ? 'bg-red-500/90' : 'bg-muted'
+                    } text-white shadow-sm`}
+                  >
+                    {isMuted ? <MicOff className='h-3 w-3' /> : <Mic className='h-3 w-3' />}
+                  </button>
+
+                  {callType === CALL_TYPE.VIDEO && (
+                    <button
+                      onClick={toggleCamera}
+                      className={`flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-200 ${
+                        isCameraOff ? 'bg-red-500/90' : 'bg-muted'
+                      } text-white backdrop-blur-sm`}
+                    >
+                      {isCameraOff ? <VideoOff className='h-3 w-3' /> : <Video className='h-3 w-3' />}
+                    </button>
+                  )}
+
+                  <button
+                    onClick={handleEndCall}
+                    className='flex h-7 w-7 items-center justify-center rounded-full bg-red-500/90 text-white backdrop-blur-sm'
+                  >
+                    <Phone className='h-3 w-3 rotate-135' />
+                  </button>
+                </>
+              ) : (
+                callStatus === CALL_STATUS.CONNECTED && (
+                  // Nút điều khiển khi đã kết nối
+                  <>
+                    <button
+                      onClick={toggleMute}
+                      className={`flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-200 ${
+                        isMuted ? 'bg-red-500/90' : 'bg-black/50'
+                      } text-white backdrop-blur-sm`}
+                    >
+                      {isMuted ? <MicOff className='h-3 w-3' /> : <Mic className='h-3 w-3' />}
+                    </button>
+
+                    {callType === CALL_TYPE.VIDEO && (
+                      <button
+                        onClick={toggleCamera}
+                        className={`flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-200 ${
+                          isCameraOff ? 'bg-red-500/90' : 'bg-black/50'
+                        } text-white backdrop-blur-sm`}
+                      >
+                        {isCameraOff ? <VideoOff className='h-3 w-3' /> : <Video className='h-3 w-3' />}
+                      </button>
+                    )}
+
+                    <button
+                      onClick={handleEndCall}
+                      className='flex h-7 w-7 items-center justify-center rounded-full bg-red-500/90 text-white backdrop-blur-sm'
+                    >
+                      <Phone className='h-3 w-3 rotate-135' />
+                    </button>
+                  </>
+                )
+              )}
+            </div>
+          )}
         </motion.div>
       </div>
     </div>
   )
 }
+
 
