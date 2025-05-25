@@ -19,13 +19,11 @@ export const useFileUpload = (options?: UseFileUploadOptions) => {
     },
     onSuccess: (response) => {
       console.log('Upload response:', response)
-      
+
       // Trích xuất dữ liệu từ response theo cấu trúc đúng
       const files = response?.data?.data?.files || []
       const urls = response?.data?.data?.urls || []
-      
-      toast.success('Upload thành công!')
-      
+
       // Gọi callback onSuccess nếu được cung cấp
       if (onSuccess) {
         onSuccess({ urls, files })
@@ -34,7 +32,7 @@ export const useFileUpload = (options?: UseFileUploadOptions) => {
     onError: (error: any) => {
       console.error('Error uploading files:', error)
       toast.error(error?.response?.data?.message || 'Có lỗi xảy ra khi upload files')
-      
+
       // Gọi callback onError nếu được cung cấp
       if (onError) {
         onError(error)
@@ -42,5 +40,3 @@ export const useFileUpload = (options?: UseFileUploadOptions) => {
     }
   })
 }
-
-

@@ -46,7 +46,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '~/components/ui/tooltip
 import { useQueryClient } from '@tanstack/react-query'
 import { addDays, addHours, addMinutes, format, formatDistanceToNow } from 'date-fns'
 import { vi } from 'date-fns/locale'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Upload } from 'lucide-react'
 import { MAX_GROUP_MEMBERS } from '~/constants/app.constants'
 import { GROUP_TYPE, MEMBER_ROLE } from '~/constants/enums'
 import { useFriendsWithRolesQuery } from '~/hooks/data/friends.hook'
@@ -59,12 +59,14 @@ import {
   useUpdateMemberRoleMutation,
   useUpdateSendMessageRestrictionMutation
 } from '~/hooks/data/group-chat.hooks'
+import { useFileUpload } from '~/hooks/data/upload.hooks'
 import { TransferOwnershipDialog } from './transfer-ownership-dialog'
 import { Badge } from './ui/badge'
 
 // Zod schema cho form cài đặt nhóm
 const groupSettingsSchema = z.object({
   name: z.string().min(1, 'Tên nhóm không được để trống').max(50, 'Tên nhóm không quá 50 ký tự'),
+  avatar: z.string().optional(),
   groupType: z.enum([GROUP_TYPE.PUBLIC, GROUP_TYPE.PRIVATE], {
     required_error: 'Vui lòng chọn loại nhóm'
   }),
@@ -208,6 +210,7 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
     if (conversation) {
       groupSettingsForm.reset({
         name: conversation.name || '',
+        avatar: conversation.avatar || '',
         groupType: conversation.groupType || GROUP_TYPE.PUBLIC,
         requireApproval: conversation.requireApproval || false
       })
@@ -537,7 +540,7 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
       if (restrictUntil <= now) {
         // Tự động tắt toggle trong form
         setValue('onlyAdminsCanSend', false)
-        
+
         // Chỉ hiển thị thông báo cho admin/owner
         if (isAdmin) {
           toast.info('Chế độ "Chỉ quản trị viên được gửi tin nhắn" đã hết hiệu lực')
@@ -637,6 +640,29 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
     }
   }
 
+  const { mutate: uploadAvatar, isPending: isUploadingAvatar } = useFileUpload({
+    onSuccess: (data) => {
+      if (data?.urls && data.urls.length > 0) {
+        // Cập nhật giá trị avatar trong form
+        groupSettingsForm.setValue('avatar', data.urls[0], {
+          shouldDirty: true, // Đánh dấu field là dirty
+          shouldTouch: true // Đánh dấu field là touched
+        })
+        toast.success('Ảnh đại diện đã được tải lên')
+      }
+    },
+    onError: (error) => {
+      toast.error('Lỗi khi tải lên ảnh đại diện: ' + error.message)
+    }
+  })
+
+  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      uploadAvatar([file])
+    }
+  }
+
   return (
     <>
       <Sheet open={open} onOpenChange={setOpen}>
@@ -709,6 +735,65 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                             <FormControl>
                               <Input {...field} disabled={!canChangeGroupInfo} />
                             </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={groupSettingsForm.control}
+                        name='avatar'
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Ảnh đại diện nhóm</FormLabel>
+                            <div className='flex items-center gap-2'>
+                              <FormControl>
+                                <Input
+                                  placeholder='URL ảnh đại diện'
+                                  {...field}
+                                  value={field.value || ''}
+                                  disabled={isUploadingAvatar || !canChangeGroupInfo}
+                                />
+                              </FormControl>
+                              <div className='relative'>
+                                <Input
+                                  type='file'
+                                  id='avatar-upload'
+                                  className='absolute inset-0 h-full w-full cursor-pointer opacity-0'
+                                  accept='image/*'
+                                  onChange={handleAvatarUpload}
+                                  disabled={isUploadingAvatar || !canChangeGroupInfo}
+                                  multiple={false}
+                                  aria-label='Upload avatar'
+                                />
+                                <Button
+                                  type='button'
+                                  variant='outline'
+                                  size='icon'
+                                  disabled={isUploadingAvatar || !canChangeGroupInfo}
+                                  aria-hidden='true'
+                                  tabIndex={-1}
+                                  className='h-10 w-10 overflow-hidden p-0'
+                                >
+                                  {isUploadingAvatar ? (
+                                    <Loader2 className='h-4 w-4 animate-spin' />
+                                  ) : (
+                                    <Upload className='h-4 w-4' />
+                                  )}
+                                  <span className='sr-only'>Upload avatar</span>
+                                </Button>
+                              </div>
+                            </div>
+                            {field.value && (
+                              <div className='mt-2 flex justify-center'>
+                                <Avatar className='h-16 w-16'>
+                                  <AvatarImage src={field.value} alt='Group avatar preview' />
+                                  <AvatarFallback>
+                                    {groupSettingsForm.getValues('name')?.charAt(0) || 'G'}
+                                  </AvatarFallback>
+                                </Avatar>
+                              </div>
+                            )}
                             <FormMessage />
                           </FormItem>
                         )}
@@ -1203,8 +1288,8 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                         includeMargin={true}
                         imageSettings={{
                           src: conversation?.avatar || '/logo.png',
-                          height: 40,
-                          width: 40,
+                          height: 30,
+                          width: 30,
                           excavate: true
                         }}
                       />
