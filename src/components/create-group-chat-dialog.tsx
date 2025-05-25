@@ -27,6 +27,9 @@ import { RadioGroup, RadioGroupItem } from './ui/radio-group'
 import { Switch } from './ui/switch'
 import { CreateGroupChatData } from '~/types/chat.types'
 import { ScrollArea } from './ui/scroll-area'
+import { useFileUpload } from '~/hooks/data/upload.hooks'
+import { Upload } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 
 export function CreateGroupChatDialog() {
   const [open, setOpen] = useState(false)
@@ -35,6 +38,7 @@ export function CreateGroupChatDialog() {
   const [avatarUrl, setAvatarUrl] = useState('')
   const [groupType, setGroupType] = useState(GROUP_TYPE.PUBLIC)
   const [requireApproval, setRequireApproval] = useState(false)
+  const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const { data: friends } = useFriendsQuery()
   const queryClient = useQueryClient()
   const router = useRouter()
@@ -98,6 +102,26 @@ export function CreateGroupChatDialog() {
     }
   }, [groupType])
 
+  const { mutate: uploadAvatar, isPending: isUploading } = useFileUpload({
+    onSuccess: (data) => {
+      if (data?.urls && data.urls.length > 0) {
+        setAvatarUrl(data.urls[0])
+        toast.success('Ảnh đại diện đã được tải lên')
+      }
+    },
+    onError: (error) => {
+      toast.error('Lỗi khi tải lên ảnh đại diện')
+    }
+  })
+
+  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setAvatarFile(file)
+      uploadAvatar([file])
+    }
+  }
+
   return (
     <>
       <Tooltip>
@@ -131,15 +155,32 @@ export function CreateGroupChatDialog() {
 
             <div className='mt-4 grid grid-cols-4 items-center gap-4'>
               <Label htmlFor='avatar' className='text-right'>
-                Avatar URL
+                Avatar nhóm
               </Label>
-              <Input
-                id='avatar'
-                value={avatarUrl}
-                onChange={(e) => setAvatarUrl(e.target.value)}
-                placeholder='Nhập URL hình ảnh'
-                className='col-span-3'
-              />
+              <div className='col-span-3 flex gap-2'>
+                <Input
+                  id='avatar'
+                  value={avatarUrl}
+                  onChange={(e) => setAvatarUrl(e.target.value)}
+                  placeholder='URL hình ảnh'
+                  className='flex-1'
+                  disabled={isUploading}
+                />
+                <div className='relative'>
+                  <Input
+                    type='file'
+                    id='avatar-upload'
+                    className='absolute inset-0 cursor-pointer opacity-0'
+                    accept='image/*'
+                    onChange={handleAvatarUpload}
+                    disabled={isUploading}
+                    multiple={false} // Chỉ cho phép chọn 1 file
+                  />
+                  <Button type='button' variant='outline' size='icon' disabled={isUploading}>
+                    {isUploading ? <Loader2 className='h-4 w-4 animate-spin' /> : <Upload className='h-4 w-4' />}
+                  </Button>
+                </div>
+              </div>
             </div>
 
             {avatarUrl && (
@@ -239,3 +280,7 @@ export function CreateGroupChatDialog() {
 
 // Để hỗ trợ cả hai cách import
 export default CreateGroupChatDialog
+
+
+
+
