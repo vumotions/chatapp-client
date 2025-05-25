@@ -56,24 +56,25 @@ export function MessageActions({ message, chatId, isSentByMe, onEditStart }: Mes
   const hasPinPermission = currentMember?.permissions?.pinMessages === true
 
   // Kiểm tra quyền xóa và ghim tin nhắn
-  const isOwnMessage = isSentByMe && message.type === MESSAGE_TYPE.TEXT
+  const isOwnMessage = isSentByMe && (message.type === MESSAGE_TYPE.TEXT || message.type === MESSAGE_TYPE.MEDIA)
   const canEdit = isOwnMessage // Chỉ cho phép chỉnh sửa tin nhắn của chính mình
-  
+
   // Kiểm tra xem người gửi tin nhắn có phải là owner không
   // Cần kiểm tra từ conversation để xác định role của người gửi
   const isMessageFromOwner = conversation?.members?.some((member: any) => {
     const memberId = typeof member.userId === 'object' ? member.userId._id : member.userId
     return memberId === message.userId && member.role === MEMBER_ROLE.OWNER
   })
-  
+
   // Admin không thể xóa tin nhắn của owner
-  const canDelete = isOwnMessage || 
-                   (isOwner) || 
-                   (isAdmin && hasDeletePermission && !isMessageFromOwner)
-  
-  // Chỉ owner hoặc admin có quyền pinMessages mới có thể ghim/bỏ ghim tin nhắn
-  // Admin không thể ghim/bỏ ghim tin nhắn của owner
-  const canPin = isOwner || (isAdmin && hasPinPermission && !isMessageFromOwner)
+  const canDelete = isOwnMessage || isOwner || (isAdmin && hasDeletePermission && !isMessageFromOwner)
+
+  // Kiểm tra loại chat (private hay group)
+  const isPrivateChat = conversation?.type === 'PRIVATE'
+
+  // Trong private chat, cả hai người dùng đều có thể ghim tin nhắn
+  // Trong group chat, chỉ owner hoặc admin có quyền pinMessages mới có thể ghim
+  const canPin = isPrivateChat || isOwner || (isAdmin && hasPinPermission && !isMessageFromOwner)
 
   // Xử lý khi xóa tin nhắn
   const handleDelete = () => {
@@ -120,7 +121,7 @@ export function MessageActions({ message, chatId, isSentByMe, onEditStart }: Mes
 
   // Nếu không có quyền thực hiện bất kỳ hành động nào, không hiển thị menu
   if (!canEdit && !canDelete && !canPin) return null
-  
+
   // Nếu tin nhắn đang chờ xóa, không hiển thị menu
   if (isPendingDeletion) return null
 
@@ -242,12 +243,5 @@ const MenuIcon = () => {
     </svg>
   )
 }
-
-
-
-
-
-
-
 
 

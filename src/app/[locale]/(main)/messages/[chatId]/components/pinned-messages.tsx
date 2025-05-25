@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { ArrowLeft, Pin } from 'lucide-react'
+import { ArrowLeft, Pin, Play } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Button } from '~/components/ui/button'
 import { usePinMessage, usePinnedMessages } from '~/hooks/data/chat.hooks'
@@ -169,6 +169,44 @@ export function PinnedMessages({
     pinMessage(messageId)
   }
 
+  // Thêm hàm để hiển thị media trong tin nhắn đã ghim
+  const renderPinnedMessageMedia = (message: any) => {
+    if (!message.attachments || message.attachments.length === 0) return null
+
+    return (
+      <div className='mt-2 flex max-w-[200px] flex-wrap gap-2'>
+        {message.attachments.map((attachment: any, index: number) => {
+          const isImage = attachment.type === 'IMAGE'
+
+          return (
+            <div key={`${message._id}-attachment-${index}`} className='relative overflow-hidden rounded-lg'>
+              {isImage ? (
+                <img
+                  src={attachment.mediaUrl}
+                  alt='Image'
+                  className='max-h-[100px] max-w-[200px] cursor-pointer rounded-lg object-cover'
+                />
+              ) : (
+                <div className='relative'>
+                  <video 
+                    src={attachment.mediaUrl} 
+                    className='max-h-[100px] max-w-[200px] rounded-lg' 
+                    controls={false}
+                    muted
+                    preload="metadata"
+                  />
+                  <div className='absolute inset-0 flex items-center justify-center bg-black/30'>
+                    <Play className='h-8 w-8 text-white' />
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
   if (pinnedMessages.length === 0) return null
 
   return (
@@ -217,6 +255,7 @@ export function PinnedMessages({
                       </div>
                     </div>
                     <div className='text-sm'>{message.content ? formatMessageContent(message.content) : ''}</div>
+                    {renderPinnedMessageMedia(message)}
                     <div className='mt-2 flex justify-end'>
                       <Button
                         variant='outline'
@@ -237,3 +276,4 @@ export function PinnedMessages({
     </div>
   )
 }
+

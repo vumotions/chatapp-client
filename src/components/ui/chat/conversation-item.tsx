@@ -44,6 +44,17 @@ export default function ConversationItem({
   // Kiểm tra xem người dùng có đang ở trong cuộc trò chuyện này không
   const isUserInConversation = pathname?.includes(`/messages/${conversation._id}`)
 
+  // Xác định tên và avatar của cuộc trò chuyện
+  let name = conversation.name
+  let avatar = conversation.avatar
+  // Nếu là chat riêng tư, hiển thị thông tin của người dùng khác
+  if (conversation.type === 'PRIVATE' && conversation.participants) {
+    const otherUser = conversation.participants.find((p: any) => p._id !== session?.user?._id)
+    if (otherUser) {
+      name = otherUser.name
+      avatar = otherUser.avatar
+    }
+  }
   // Kiểm tra xem cuộc trò chuyện có đang chờ xóa không
   if (conversation.pendingDeletion) {
     return null // Ẩn cuộc trò chuyện đang chờ xóa
@@ -226,31 +237,6 @@ export default function ConversationItem({
     }
   }, [socket, conversation._id, queryClient])
 
-  // Xác định tên và avatar của cuộc trò chuyện
-  let name = conversation.name
-  let avatar = conversation.avatar
-
-  // Nếu là chat riêng tư, hiển thị thông tin của người dùng khác
-  if (conversation.type === 'PRIVATE' && conversation.participants) {
-    const otherUser = conversation.participants.find((p: any) => p._id !== session?.user?._id)
-    if (otherUser) {
-      name = otherUser.name
-      avatar = otherUser.avatar
-    }
-  }
-
-  // Đếm số người online trong nhóm (trừ bản thân)
-  const onlineParticipantsCount =
-    conversation.type === 'GROUP'
-      ? conversation.participants?.filter((p: any) => p.isOnline && p._id !== session?.user?._id).length || 0
-      : 0
-
-  // Tổng số thành viên trong nhóm (trừ bản thân)
-  const totalParticipantsCount =
-    conversation.type === 'GROUP'
-      ? conversation.participants?.filter((p: any) => p._id !== session?.user?._id).length || 0
-      : 0
-
   // Format thời gian của tin nhắn cuối cùng
   const formatTime = (dateString: string) => {
     if (!dateString) return ''
@@ -308,7 +294,13 @@ export default function ConversationItem({
     >
       <div className='relative'>
         <Avatar className='h-10 w-10'>
-          <AvatarImage src={avatar} alt={name} />
+          <AvatarImage
+            src={avatar}
+            alt={name}
+            onError={(e) => {
+              console.error('Avatar load error for URL:', avatar)
+            }}
+          />
           <AvatarFallback>{name?.charAt(0)}</AvatarFallback>
         </Avatar>
         <div
@@ -349,3 +341,4 @@ export default function ConversationItem({
     </div>
   )
 }
+

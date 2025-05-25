@@ -9,7 +9,9 @@ class HttpRequest {
   constructor() {
     this.instance = axios.create({
       baseURL: `${nextEnv.NEXT_PUBLIC_SERVER_URL}/api`,
-      timeout: 10000
+      timeout: 60000, // Tăng lên 60 giây
+      maxContentLength: 100 * 1024 * 1024, // Cho phép upload file lớn (100MB)
+      maxBodyLength: 100 * 1024 * 1024
     })
 
     this.instance.interceptors.request.use(

@@ -1,6 +1,6 @@
 'use client'
 import { format, formatDistanceToNow } from 'date-fns'
-import { Archive, ArrowDown, ArrowLeft, Check, CheckCheck, Copy, Heart, Phone, Send, Video } from 'lucide-react'
+import { Archive, ArrowDown, ArrowLeft, Check, CheckCheck, Copy, Heart, Phone, Video } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
@@ -19,11 +19,11 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from '~/components/ui/h
 import { Popover, PopoverContent, PopoverTrigger } from '~/components/ui/popover'
 import { Separator } from '~/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '~/components/ui/tooltip'
+import MediaLightbox from './components/media-lightbox'
 
 import { AnimatePresence, motion } from 'framer-motion'
 import dynamic from 'next/dynamic'
 import { use } from 'react'
-import { Input } from '~/components/ui/input'
 import { Skeleton } from '~/components/ui/skeleton'
 import { useArchiveChat, useMarkChatAsRead, useMessages, usePinMessage } from '~/hooks/data/chat.hooks'
 import { useSocket } from '~/hooks/use-socket'
@@ -36,6 +36,7 @@ import { toast } from 'sonner'
 import { AddGroupMembersDialog } from '~/components/add-group-members-dialog'
 import FriendHoverCard from '~/components/friend-hover-card'
 import { GroupSettingsDialog } from '~/components/group-settings-dialog'
+import { ChatInput } from '~/components/ui/chat/chat-input'
 import ChatSkeleton from '~/components/ui/chat/chat-skeleton'
 import { MessageActions } from '~/components/ui/chat/message-actions'
 import MessageLoading from '~/components/ui/chat/message-loading'
@@ -1508,6 +1509,72 @@ function ChatDetail({ params }: Props) {
     return participant || null
   }, [data?.pages, session?.user?._id, isGroupChat])
 
+  // Giữ lại các state và hàm liên quan đến lightbox
+  const [lightboxOpen, setLightboxOpen] = useState(false)
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
+
+  // Hàm mở lightbox
+  const openLightbox = (mediaUrl: string) => {
+    console.log('Opening lightbox with URL:', mediaUrl)
+    setLightboxUrl(mediaUrl)
+    setLightboxOpen(true)
+  }
+
+  // Hàm đóng lightbox
+  const closeLightbox = () => {
+    setLightboxOpen(false)
+    setLightboxUrl(null)
+  }
+
+  // Thêm hàm render media content cho tin nhắn với sự kiện click đúng
+  const renderMessageMedia = (msg: any) => {
+    if (!msg.attachments || msg.attachments.length === 0) return null
+
+    return (
+      <div className='mt-2 flex max-w-[300px] flex-wrap gap-2'>
+        {msg.attachments.map((attachment: any, index: number) => {
+          const isImage = attachment.type === 'IMAGE'
+          const mediaUrl = attachment.mediaUrl
+
+          return (
+            <div key={`${msg._id}-attachment-${index}`} className='relative overflow-hidden rounded-lg'>
+              {isImage ? (
+                <div onClick={() => openLightbox(mediaUrl)}>
+                  <img
+                    src={mediaUrl}
+                    alt='Image'
+                    className='max-h-[200px] max-w-[300px] cursor-pointer rounded-lg object-cover'
+                  />
+                </div>
+              ) : (
+                <div
+                  className='relative'
+                  onClick={() => {
+                    openLightbox(mediaUrl)
+                  }}
+                >
+                  <video
+                    src={mediaUrl}
+                    className='max-h-[200px] max-w-[300px] rounded-lg'
+                    controls
+                    preload='metadata'
+                    playsInline
+                    onError={(e) => {
+                      console.error('Video error:', e)
+                      // Thử tải lại video nếu có lỗi
+                      const video = e.currentTarget
+                      video.src = mediaUrl
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
   // Cập nhật useEffect lắng nghe sự kiện nhận tin nhắn mới
   useEffect(() => {
     if (!socket || !chatId) return
@@ -1785,6 +1852,47 @@ function ChatDetail({ params }: Props) {
     })
   }
 
+  // Thêm hàm xử lý khi files được upload thành công
+  const handleFilesUploaded = (urls: string[]) => {
+    console.log('Files uploaded successfully:', urls)
+
+    if (!urls || urls.length === 0) return
+
+    // Tạo tin nhắn tạm thời với ID duy nhất
+    const tempId = uuidv4()
+
+    // Thêm tempId vào danh sách đã gửi
+    setSentTempIds((prev) => new Set([...prev, tempId]))
+
+    // Chuẩn bị attachments từ URLs theo đúng cấu trúc model server
+    const attachments = urls.map((url) => {
+      // Xác định loại media dựa vào phần mở rộng của URL
+      const isImage = url.match(/\.(jpeg|jpg|gif|png)$/i)
+      return {
+        mediaUrl: url,
+        type: isImage ? 'IMAGE' : 'VIDEO' // Sử dụng string literals thay vì enum
+      }
+    })
+
+    console.log('Sending media message with attachments:', attachments)
+
+    // Gửi tin nhắn qua socket với tempId và attachments
+    socket?.emit(SOCKET_EVENTS.SEND_MESSAGE, {
+      chatId,
+      content: '',
+      attachments: attachments,
+      type: MESSAGE_TYPE.MEDIA,
+      tempId,
+      senderName: session?.user?.name,
+      senderAvatar: session?.user?.avatar,
+      status: MESSAGE_STATUS.DELIVERED
+    })
+
+    // Cập nhật danh sách chat
+    queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] })
+    queryClient.invalidateQueries({ queryKey: ['ARCHIVED_CHAT_LIST'] })
+  }
+
   // Nếu đang kiểm tra quyền truy cập hoặc không có quyền, hiển thị skeleton
   if (isCheckingAccess || !hasAccess) {
     return <ChatSkeleton />
@@ -2051,16 +2159,24 @@ function ChatDetail({ params }: Props) {
                           )}
 
                           <div
-                            className={`rounded-xl px-3 py-2 text-sm ${
+                            className={`relative rounded-xl px-3 py-2 text-sm ${
                               isSentByMe ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground'
-                            } ${isFirstMessageInGroup ? (isSentByMe ? 'rounded-tr-xl' : 'rounded-tl-xl') : isSentByMe ? 'rounded-r-xl' : 'rounded-l-xl'} relative`}
+                            }`}
                           >
+                            {/* Hiển thị nội dung tin nhắn */}
+                            {msg.content && (
+                              <div style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{msg.content}</div>
+                            )}
+
+                            {/* Hiển thị media nếu có */}
+                            {msg.type === 'MEDIA' && renderMessageMedia(msg)}
+
                             <HoverCard openDelay={100} closeDelay={100}>
                               <HoverCardTrigger asChild>
                                 <div className='absolute inset-0 cursor-pointer' />
                               </HoverCardTrigger>
                               <HoverCardContent
-                                className={`w-auto border-none bg-transparent p-0 shadow-none ${isSentByMe ? 'data-[side=top]:translate-x-1/2' : 'data-[side=top]:-translate-x-1/2'}`}
+                                className={`pointer-events-auto w-auto border-none bg-transparent p-0 shadow-none ${isSentByMe ? 'data-[side=top]:translate-x-1/2' : 'data-[side=top]:-translate-x-1/2'}`}
                                 side={isSentByMe ? 'left' : 'right'}
                               >
                                 <div className='flex gap-2'>
@@ -2120,7 +2236,6 @@ function ChatDetail({ params }: Props) {
                                 </div>
                               </HoverCardContent>
                             </HoverCard>
-                            <div style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{msg.content}</div>
                             {/* Hiển thị reactions kiểu Instagram */}
                             {msg.reactions && msg.reactions.length > 0 && (
                               <div className='absolute right-0 bottom-0 translate-x-1/3 translate-y-1/2 transform'>
@@ -2356,80 +2471,22 @@ function ChatDetail({ params }: Props) {
           </div>
           <Separator className='mt-auto' />
 
-          {/* Hiển thị thông báo khi không có quyền gửi tin nhắn */}
-          {/* {!canSendMessages && sendPermission && (
-            <div className='bg-muted/50 border-primary/20 mx-4 mt-2 rounded-md border-l-2 p-2 text-sm'>
-              {sendPermission.isMuted ? (
-                <p>
-                  Bạn đã bị cấm chat
-                  {sendPermission.mutedUntil && (
-                    <span className='block text-xs'>
-                      Đến: {format(new Date(sendPermission.mutedUntil), 'PPP HH:mm', { locale: vi })}
-                    </span>
-                  )}
-                </p>
-              ) : sendPermission.restrictedByGroupSettings ? (
-                <p>
-                  Chỉ quản trị viên mới có thể gửi tin nhắn
-                  {sendPermission.restrictUntil && (
-                    <span className='block text-xs'>
-                      Đến: {format(new Date(sendPermission.restrictUntil), 'PPP HH:mm', { locale: vi })}
-                    </span>
-                  )}
-                </p>
-              ) : (
-                <p>Bạn không có quyền gửi tin nhắn trong nhóm này</p>
-              )}
-            </div>
-          )} */}
-
-          <div className='p-4'>
-            <div className='flex items-end gap-4'>
-              <Input
-                className='flex-1 resize-none rounded-full p-4'
-                placeholder={
-                  isBlockedByUser
-                    ? 'Bạn không thể gửi tin nhắn cho người dùng này vì họ đã chặn bạn'
-                    : !canSendMessages
-                      ? sendPermission?.isMuted
-                        ? `Bị cấm chat${
-                            sendPermission.mutedUntil
-                              ? ` đến ${format(new Date(sendPermission.mutedUntil), 'dd/MM/yyyy')}`
-                              : ''
-                          }`
-                        : sendPermission?.restrictedByGroupSettings
-                          ? `Chỉ admin được gửi tin nhắn${
-                              sendPermission.restrictUntil
-                                ? ` đến ${format(new Date(sendPermission.restrictUntil), 'dd/MM/yyyy')}`
-                                : ''
-                            }`
-                          : 'Không có quyền gửi tin nhắn'
-                      : 'Nhập tin nhắn...'
-                }
-                value={message}
-                onChange={handleInputChange}
-                onKeyDown={handleKeyPress}
-                disabled={!canSendMessages || isBlockedByUser}
-              />
-              {message.trim() && canSendMessages ? (
-                <Button onClick={handleSendMessage} size='icon' className='rounded-full'>
-                  <Send className='h-5 w-5' />
-                </Button>
-              ) : (
-                <Button
-                  onClick={handleSendHeartEmoji}
-                  variant='outline'
-                  size='icon'
-                  className='rounded-full hover:bg-pink-100 dark:hover:bg-pink-900/30'
-                  disabled={!canSendMessages || isBlockedByUser}
-                >
-                  <Heart className='h-5 w-5 fill-pink-500 text-pink-500' />
-                </Button>
-              )}
-            </div>
-          </div>
+          <ChatInput
+            chatId={chatId}
+            message={message}
+            onMessageChange={handleInputChange}
+            onKeyDown={handleKeyPress}
+            onSendMessage={handleSendMessage}
+            onSendHeartEmoji={handleSendHeartEmoji}
+            canSendMessages={canSendMessages}
+            isBlockedByUser={isBlockedByUser}
+            sendPermission={sendPermission}
+            onFilesUploaded={handleFilesUploaded}
+          />
         </div>
       )}
+      {/* Lightbox cho ảnh */}
+      <MediaLightbox url={lightboxUrl || ''} isOpen={lightboxOpen} onClose={closeLightbox} />
     </div>
   )
 }
