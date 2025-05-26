@@ -132,7 +132,7 @@ function FormAccount() {
     startTransition(() => {
       setTheme(data.theme)
       // @ts-expect-error -- TypeScript will validate that only known `params`
-      router.replace({ pathname, params }, { locale: data.language })
+      router.replace({ pathname, params }, { locale: data.language, scroll: false })
 
       // Cập nhật settings vào database
       updateSettingsMutation.mutateAsync({
@@ -555,7 +555,7 @@ function FormAccount() {
                       <FormControl>
                         <RadioGroupItem value='light' className='sr-only' />
                       </FormControl>
-                      <div className='border-muted hover:border-accent items-center rounded-md border-2 p-1'>
+                      <div className='border-muted hover:border-accent hover:bg-accent/5 transition-all duration-200 transform hover:-translate-y-1 hover:shadow-md items-center rounded-md border-2 p-1'>
                         <div className='space-y-2 rounded-sm bg-[#ecedef] p-2'>
                           <div className='space-y-2 rounded-md bg-white p-2 shadow-sm'>
                             <div className='h-2 w-[80px] rounded-lg bg-[#ecedef]' />
@@ -579,7 +579,7 @@ function FormAccount() {
                       <FormControl>
                         <RadioGroupItem value='dark' className='sr-only' />
                       </FormControl>
-                      <div className='border-muted bg-popover hover:bg-accent hover:text-accent-foreground items-center rounded-md border-2 p-1'>
+                      <div className='border-muted hover:border-accent hover:bg-accent/5 transition-all duration-200 transform hover:-translate-y-1 hover:shadow-md items-center rounded-md border-2 p-1'>
                         <div className='space-y-2 rounded-sm bg-slate-950 p-2'>
                           <div className='space-y-2 rounded-md bg-slate-800 p-2 shadow-sm'>
                             <div className='h-2 w-[80px] rounded-lg bg-slate-400' />
@@ -603,21 +603,8 @@ function FormAccount() {
                       <FormControl>
                         <RadioGroupItem value='system' className='sr-only' />
                       </FormControl>
-                      <div className='border-muted hover:border-accent bg-popover items-center rounded-md border-2 p-1'>
-                        <div className='min-h-[132px] space-y-2 rounded-sm bg-[#ecedef] p-2 dark:bg-slate-950'>
-                          <div className='flex justify-between px-2'>
-                            <Sun className='h-4 w-4 text-amber-500 dark:text-inherit dark:opacity-30' />
-                            <Moon className='h-4 w-4 opacity-30 dark:text-indigo-400 dark:opacity-100' />
-                          </div>
-                          <div className='space-y-2 rounded-md bg-white p-2 shadow-sm dark:bg-slate-800'>
-                            <div className='h-2 w-[80px] rounded-lg bg-[#ecedef] dark:bg-slate-400' />
-                            <div className='h-2 w-[100px] rounded-lg bg-[#ecedef] dark:bg-slate-400' />
-                          </div>
-                          <div className='flex items-center space-x-2 rounded-md bg-white p-2 shadow-sm dark:bg-slate-800'>
-                            <div className='h-4 w-4 rounded-full bg-[#ecedef] dark:bg-slate-400' />
-                            <div className='h-2 w-[100px] rounded-lg bg-[#ecedef] dark:bg-slate-400' />
-                          </div>
-                        </div>
+                      <div className='border-muted hover:border-accent hover:bg-accent/5 transition-all duration-200 transform hover:-translate-y-1 hover:shadow-md items-center rounded-md border-2 p-1'>
+                        <SystemThemeCard />
                       </div>
                       <span className='block w-full p-2 text-center font-normal'>System</span>
                     </FormLabel>
@@ -640,3 +627,72 @@ function FormAccount() {
 }
 
 export default FormAccount
+
+function SystemThemeCard() {
+  const [systemTheme, setSystemTheme] = useState<'light' | 'dark'>('dark')
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+    setSystemTheme(mediaQuery.matches ? 'dark' : 'light')
+
+    const handler = (e: MediaQueryListEvent) => {
+      setSystemTheme(e.matches ? 'dark' : 'light')
+    }
+
+    mediaQuery.addEventListener('change', handler)
+    return () => mediaQuery.removeEventListener('change', handler)
+  }, [])
+
+  return (
+    <div
+      className='min-h-[135px] space-y-2 rounded-sm p-2'
+      style={{
+        backgroundColor: systemTheme === 'dark' ? '#0f172a' : '#f8fafc',
+        transition: 'background-color 0.3s ease'
+      }}
+    >
+      <div className='flex justify-between px-2 py-[0.5px]'>
+        <Sun className={`h-4 w-4 text-amber-500`} />
+        <Moon className={`h-4 w-4 text-indigo-400`} />
+      </div>
+      <div
+        className='space-y-2 rounded-md p-2 shadow-sm'
+        style={{
+          backgroundColor: systemTheme === 'dark' ? '#1e293b' : '#ffffff'
+        }}
+      >
+        <div
+          className='h-2 w-[80px] rounded-lg'
+          style={{
+            backgroundColor: systemTheme === 'dark' ? '#64748b' : '#e2e8f0'
+          }}
+        />
+        <div
+          className='h-2 w-[100px] rounded-lg'
+          style={{
+            backgroundColor: systemTheme === 'dark' ? '#64748b' : '#e2e8f0'
+          }}
+        />
+      </div>
+      <div
+        className='flex items-center space-x-2 rounded-md p-2 shadow-sm'
+        style={{
+          backgroundColor: systemTheme === 'dark' ? '#1e293b' : '#ffffff'
+        }}
+      >
+        <div
+          className='h-4 w-4 rounded-full'
+          style={{
+            backgroundColor: systemTheme === 'dark' ? '#64748b' : '#e2e8f0'
+          }}
+        />
+        <div
+          className='h-2 w-[100px] rounded-lg'
+          style={{
+            backgroundColor: systemTheme === 'dark' ? '#64748b' : '#e2e8f0'
+          }}
+        />
+      </div>
+    </div>
+  )
+}

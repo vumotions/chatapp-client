@@ -14,7 +14,6 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Icons } from '~/components/ui/icons'
 import { Input } from '~/components/ui/input'
 import { useSendEmailVerificationMutation } from '~/hooks/data/auth.hooks'
-import { useSyncUserPreferences } from '~/hooks/use-sync-user-preferences'
 import { Link } from '~/i18n/navigation'
 import {
   cn,
@@ -41,7 +40,6 @@ function FormLogin({ className }: Props) {
     },
     resolver: zodResolver(formLoginSchema)
   })
-  useSyncUserPreferences()
   const [loadingState, setLoadingState] = useState<{ credentials: boolean; google: boolean; github: boolean }>({
     credentials: false,
     github: false,

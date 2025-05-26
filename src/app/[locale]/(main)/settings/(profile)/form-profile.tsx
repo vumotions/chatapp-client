@@ -1,9 +1,12 @@
 'use client'
 
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useQueryClient } from '@tanstack/react-query'
+import { identity, pickBy } from 'lodash'
 import { Camera, ChevronDown, Loader2 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
-import { useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import * as z from 'zod'
@@ -17,12 +20,8 @@ import { useGetMyProfileQuery } from '~/hooks/data/auth.hooks'
 import { useFileUpload } from '~/hooks/data/upload.hooks'
 import { useUpdateProfileMutation } from '~/hooks/data/user.hooks'
 import { handleError } from '~/lib/handlers'
-import ProfileFormSkeleton from './profile-form-skeleton'
-import { useQueryClient } from '@tanstack/react-query'
 import { parseDateOfBirth } from '~/lib/utils'
-import { pickBy, identity } from 'lodash'
-import { useRouter } from 'next/navigation'
-import { useTransition } from 'react'
+import ProfileFormSkeleton from './profile-form-skeleton'
 
 const profileFormSchema = z
   .object({
@@ -87,7 +86,7 @@ function ProfileForm({
   const [isPending, startTransition] = useTransition()
   const queryClient = useQueryClient()
   const { data: session, update } = useSession()
-  const { data: profileData, isLoading: isLoadingProfile, refetch: refetchProfile } = useGetMyProfileQuery()
+  const { data: profileData, isLoading: isLoadingProfile } = useGetMyProfileQuery()
   const updateProfile = useUpdateProfileMutation()
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
   const [coverPreview, setCoverPreview] = useState<string | null>(null)
@@ -112,25 +111,6 @@ function ProfileForm({
     },
     mode: 'onChange'
   })
-
-  // Cập nhật form và state khi có dữ liệu từ API
-  useEffect(() => {
-    if (myProfile) {
-      const { day, month, year } = parseDateOfBirth(myProfile.dateOfBirth)
-
-      // Sử dụng setValue cho từng trường riêng biệt
-      form.setValue('name', myProfile.name || '')
-      form.setValue('username', myProfile.username || '')
-      form.setValue('bio', myProfile.bio || '')
-      form.setValue('avatar', myProfile.avatar || '')
-      form.setValue('coverPhoto', myProfile.coverPhoto || '')
-
-      // Đặt giá trị cho các trường ngày tháng năm
-      if (day) form.setValue('day', day)
-      if (month) form.setValue('month', month)
-      if (year) form.setValue('year', year)
-    }
-  }, [myProfile, form])
 
   // Hook upload avatar
   const { mutate: uploadAvatar, isPending: isUploadingAvatar } = useFileUpload({
@@ -167,6 +147,22 @@ function ProfileForm({
       toast.error('Lỗi khi tải lên ảnh bìa')
     }
   })
+
+  useEffect(() => {
+    if (myProfile) {
+      const { day, month, year } = parseDateOfBirth(myProfile.dateOfBirth)
+      form.reset({
+        name: myProfile.name || '',
+        username: myProfile.username || '',
+        bio: myProfile.bio || '',
+        avatar: myProfile.avatar || '',
+        coverPhoto: myProfile.coverPhoto || '',
+        day,
+        month,
+        year
+      })
+    }
+  }, [myProfile, form])
 
   // Xử lý khi thay đổi avatar
   const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -228,9 +224,10 @@ function ProfileForm({
             })
           }
 
-          const newUsername = response?.data?.data?.username || data.username
+          await queryClient.invalidateQueries({ queryKey: ['my-profile'] })
 
-          if (oldUsername && newUsername && oldUsername !== newUsername && redirectOnUsernameChange) {
+          const newUsername = response?.data?.data?.username || data.username
+          if (redirectOnUsernameChange) {
             startTransition(() => {
               router.push(`/profile/${newUsername}`)
             })
@@ -241,8 +238,6 @@ function ProfileForm({
               onProfileUpdated()
             }
           }
-
-          await queryClient.invalidateQueries({ queryKey: ['my-profile'] })
         }
       })
     } catch (error) {
