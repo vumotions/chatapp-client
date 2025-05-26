@@ -1,5 +1,5 @@
 import { useInfiniteQuery } from '@tanstack/react-query'
-import postService from '@/services/post.service'
+import postService from '~/services/post.service'
 
 export const usePosts = () => {
   return useInfiniteQuery({
@@ -32,7 +32,7 @@ export const useUserPosts = (userId: string, options = {}) => {
           hasMore: false
         }
       }
-      
+
       try {
         const response = await postService.getUserPosts(userId, pageParam, 5)
         // Đảm bảo dữ liệu trả về có cấu trúc đúng
@@ -60,5 +60,3 @@ export const useUserPosts = (userId: string, options = {}) => {
     ...options
   })
 }
-
-
