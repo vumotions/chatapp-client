@@ -4,7 +4,7 @@ import createMiddleware from 'next-intl/middleware'
 import { NextRequest, NextResponse } from 'next/server'
 import nextEnv from './config/next-env'
 import { routing } from './i18n/routing'
-import { checkAuthRoute, checkPrivateRoute, checkPublicRoute } from './lib/utils'
+import { checkAuthRoute, checkPrivateRoute, checkPublicRoute, checkUnderDevelopmentRoute } from './lib/utils'
 
 const intlMiddleware = createMiddleware(routing)
 
@@ -27,6 +27,14 @@ export async function middleware(req: NextRequest) {
   const token = await getToken({ req, secret: nextEnv.NEXTAUTH_SECRET })
   const isAuthenticated = !!token
   const { pathname } = req.nextUrl
+
+  // Kiểm tra nếu route đang trong quá trình phát triển
+  const isUnderDevelopment = checkUnderDevelopmentRoute(pathname)
+
+  if (isUnderDevelopment) {
+    // Chuyển hướng về trang settings
+    return NextResponse.redirect(new URL('/settings', req.url))
+  }
 
   const isPublicRoute = checkPublicRoute(pathname)
   const isAuthRoute = checkAuthRoute(pathname)

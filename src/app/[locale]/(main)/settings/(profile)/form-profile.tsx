@@ -1,40 +1,29 @@
 'use client'
 
 import { zodResolver } from '@hookform/resolvers/zod'
-import Link from 'next/link'
-import { useFieldArray, useForm } from 'react-hook-form'
-import { z } from 'zod'
-
-import { cn } from '~/lib/utils'
-
+import { useSession } from 'next-auth/react'
+import { useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { toast } from 'sonner'
+import * as z from 'zod'
+import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
 import { Button } from '~/components/ui/button'
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '~/components/ui/form'
-
-import { toast } from 'sonner'
-import DataPreview from '~/components/data-preview'
 import { Input } from '~/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '~/components/ui/select'
 import { Textarea } from '~/components/ui/textarea'
+import { useGetMyProfileQuery } from '~/hooks/data/auth.hooks'
+import { useUpdateProfileMutation } from '~/hooks/data/user.hooks'
+import { handleError } from '~/lib/handlers'
 
 const profileFormSchema = z.object({
-  username: z
-    .string()
-    .min(2, {
-      message: 'Username must be at least 2 characters.'
-    })
-    .max(30, {
-      message: 'Username must not be longer than 30 characters.'
-    }),
-  email: z
-    .string({
-      required_error: 'Please select an email to display.'
-    })
-    .email(),
-  bio: z.string().max(160).min(4),
+  name: z.string().min(1, 'Tên không được để trống').max(50, 'Tên không được vượt quá 50 ký tự'),
+  username: z.string().min(1, 'Username không được để trống').max(50, 'Username không được vượt quá 50 ký tự'),
+  bio: z.string().max(160, 'Giới thiệu không được vượt quá 160 ký tự').optional().or(z.literal('')),
+  avatar: z.string().url('URL không hợp lệ').optional().or(z.literal('')),
   urls: z
     .array(
       z.object({
-        value: z.string().url({ message: 'Please enter a valid URL.' })
+        value: z.string().url('URL không hợp lệ')
       })
     )
     .optional()
@@ -42,33 +31,92 @@ const profileFormSchema = z.object({
 
 type ProfileFormValues = z.infer<typeof profileFormSchema>
 
-// This can come from your database or API.
-const defaultValues: Partial<ProfileFormValues> = {
-  bio: 'I own a computer.',
-  urls: [{ value: 'https://shadcn.com' }, { value: 'http://twitter.com/shadcn' }]
-}
-
 function ProfileForm() {
+  const { data: session, update } = useSession()
+  const { data: profileData, refetch: refetchProfile } = useGetMyProfileQuery()
+  const updateProfile = useUpdateProfileMutation()
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
+
+  // Lấy dữ liệu profile từ response
+  const myProfile = profileData?.data?.data
+
+  // Khởi tạo form với giá trị mặc định từ profile
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
-    defaultValues,
+    defaultValues: {
+      name: myProfile?.name || '',
+      username: myProfile?.username || '',
+      bio: myProfile?.bio || '',
+      avatar: myProfile?.avatar || '',
+      urls: [{ value: '' }]
+    },
     mode: 'onChange'
   })
 
-  const { fields, append } = useFieldArray({
-    name: 'urls',
-    control: form.control
-  })
+  // Xử lý khi thay đổi avatar
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const url = e.target.value
+    setAvatarPreview(url)
+    form.setValue('avatar', url)
+  }
 
-  function onSubmit(data: ProfileFormValues) {
-    toast.info('You submitted the following values:', {
-      description: <DataPreview data={data} />
-    })
+  // Xử lý khi submit form
+  async function onSubmit(data: ProfileFormValues) {
+    try {
+      // Chuẩn bị dữ liệu để gửi lên server
+      const updateData: any = {
+        name: data.name.trim(),
+        username: data.username.trim()
+      }
+
+      // Chỉ thêm các trường không bắt buộc nếu chúng có giá trị
+      if (data.bio?.trim()) {
+        updateData.bio = data.bio.trim()
+      }
+
+      if (data.avatar?.trim()) {
+        updateData.avatar = data.avatar.trim()
+      }
+
+      // Gọi API cập nhật thông tin
+      await updateProfile.mutateAsync(updateData, {
+        onSuccess: async (response) => {
+          toast.success('Cập nhật thông tin thành công')
+
+          // Cập nhật session
+          if (session) {
+            await update({
+              ...session,
+              user: {
+                ...session.user,
+                ...(response as any)?.data.data
+              }
+            })
+          }
+
+          // Refresh dữ liệu
+          refetchProfile()
+        },
+        onError: (error: any) => {
+          // Xử lý lỗi validation từ server
+          handleError(error, form)
+        }
+      })
+    } catch (error) {
+      console.error('Error updating profile:', error)
+      // Xử lý lỗi validation từ server nếu có
+      if (error && typeof error === 'object') {
+        handleError(error, form)
+      } else {
+        toast.error('Có lỗi xảy ra khi cập nhật thông tin')
+      }
+    }
   }
 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-8'>
+        {/* Username */}
         <FormField
           control={form.control}
           name='username'
@@ -76,82 +124,99 @@ function ProfileForm() {
             <FormItem>
               <FormLabel>Username</FormLabel>
               <FormControl>
-                <Input placeholder='shadcn' {...field} />
+                <Input placeholder='username' {...field} />
               </FormControl>
               <FormDescription>
-                This is your public display name. It can be your real name or a pseudonym. You can only change this once
-                every 30 days.
+                Đây là tên hiển thị công khai của bạn. Có thể là tên thật hoặc bút danh. Bạn chỉ có thể thay đổi mỗi 30
+                ngày một lần.
               </FormDescription>
               <FormMessage />
             </FormItem>
           )}
         />
+
+        {/* Ảnh đại diện */}
         <FormField
           control={form.control}
-          name='email'
+          name='avatar'
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Email</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder='Select a verified email to display' />
-                  </SelectTrigger>
+              <FormLabel>Ảnh đại diện</FormLabel>
+              <div className='flex flex-col items-start gap-4 sm:flex-row sm:items-center'>
+                <Avatar className='h-16 w-16'>
+                  <AvatarImage src={avatarPreview || field.value || myProfile?.avatar} />
+                  <AvatarFallback>{myProfile?.name?.[0] || 'U'}</AvatarFallback>
+                </Avatar>
+                <FormControl className='w-full'>
+                  <Input placeholder='URL ảnh đại diện' {...field} onChange={handleAvatarChange} />
                 </FormControl>
-                <SelectContent>
-                  <SelectItem value='m@example.com'>m@example.com</SelectItem>
-                  <SelectItem value='m@google.com'>m@google.com</SelectItem>
-                  <SelectItem value='m@support.com'>m@support.com</SelectItem>
-                </SelectContent>
-              </Select>
-              <FormDescription>
-                You can manage verified email addresses in your <Link href='/examples/forms'>email settings</Link>.
-              </FormDescription>
+              </div>
+              <FormDescription>Nhập URL ảnh đại diện của bạn</FormDescription>
               <FormMessage />
             </FormItem>
           )}
         />
+
+        {/* Bio */}
         <FormField
           control={form.control}
           name='bio'
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Bio</FormLabel>
+              <FormLabel>Giới thiệu</FormLabel>
               <FormControl>
-                <Textarea placeholder='Tell us a little bit about yourself' className='resize-none' {...field} />
+                <Textarea
+                  placeholder='Giới thiệu về bản thân bạn'
+                  className='resize-none'
+                  {...field}
+                  value={field.value || ''}
+                />
               </FormControl>
-              <FormDescription>
-                You can <span>@mention</span> other users and organizations to link to them.
-              </FormDescription>
+              <FormDescription>Bạn có thể @mention người dùng và tổ chức khác để liên kết đến họ.</FormDescription>
               <FormMessage />
             </FormItem>
           )}
         />
-        <div className='space-y-3'>
-          {fields.map((field, index) => (
+
+        {/* URLs */}
+        <div>
+          <FormLabel>URLs</FormLabel>
+          <FormDescription className='mb-2'>
+            Thêm liên kết đến trang web, blog hoặc hồ sơ mạng xã hội của bạn.
+          </FormDescription>
+
+          <div className='space-y-3'>
             <FormField
               control={form.control}
-              key={field.id}
-              name={`urls.${index}.value`}
+              name='urls.0.value'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className={cn(index !== 0 && 'sr-only')}>URLs</FormLabel>
-                  <FormDescription className={cn(index !== 0 && 'sr-only')}>
-                    Add links to your website, blog, or social media profiles.
-                  </FormDescription>
                   <FormControl>
-                    <Input {...field} />
+                    <Input placeholder='https://example.com' {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-          ))}
-          <Button type='button' variant='outline' size='sm' className='mt-2' onClick={() => append({ value: '' })}>
-            Add URL
-          </Button>
+
+            <Button
+              type='button'
+              variant='outline'
+              size='sm'
+              className='mt-2'
+              onClick={() => {
+                // Thêm URL mới (có thể mở rộng thêm)
+                toast.info('Tính năng đang phát triển')
+              }}
+            >
+              Thêm URL
+            </Button>
+          </div>
         </div>
-        <Button type='submit'>Update profile</Button>
+
+        <Button type='submit' disabled={updateProfile.isPending}>
+          {updateProfile.isPending ? 'Đang cập nhật...' : 'Cập nhật thông tin'}
+        </Button>
       </form>
     </Form>
   )

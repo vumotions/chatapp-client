@@ -14,6 +14,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Icons } from '~/components/ui/icons'
 import { Input } from '~/components/ui/input'
 import { useSendEmailVerificationMutation } from '~/hooks/data/auth.hooks'
+import { useSyncUserPreferences } from '~/hooks/use-sync-user-preferences'
 import { Link } from '~/i18n/navigation'
 import {
   cn,
@@ -40,6 +41,7 @@ function FormLogin({ className }: Props) {
     },
     resolver: zodResolver(formLoginSchema)
   })
+  useSyncUserPreferences()
   const [loadingState, setLoadingState] = useState<{ credentials: boolean; google: boolean; github: boolean }>({
     credentials: false,
     github: false,
@@ -67,14 +69,14 @@ function FormLogin({ className }: Props) {
     })
 
     if (response?.error) {
-      let errorData;
-      
+      let errorData
+
       try {
-        errorData = JSON.parse(response.error);
+        errorData = JSON.parse(response.error)
       } catch (error) {
-        toast.error('Đã xảy ra lỗi khi đăng nhập');
-        setLoadingState((prev) => ({ ...prev, credentials: false }));
-        return;
+        toast.error('Đã xảy ra lỗi khi đăng nhập')
+        setLoadingState((prev) => ({ ...prev, credentials: false }))
+        return
       }
 
       // UNPROCESSABLE_ENTITY_ERROR
@@ -118,9 +120,10 @@ function FormLogin({ className }: Props) {
       } else {
         removeRememberedAccountFromCookie()
       }
-      
+
       toast.success('Đăng nhập thành công!')
-      
+
+      // Chuyển hướng đến trang chủ - hook sẽ tự động xử lý locale và theme
       startTransition(() => {
         router.replace('/')
       })

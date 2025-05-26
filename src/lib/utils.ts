@@ -45,6 +45,17 @@ export const checkPrivateRoute = (pathname: string) => {
   return privateMatchers.some((m) => m(cleanPath))
 }
 
+export function checkUnderDevelopmentRoute(pathname: string) {
+  const pathWithoutLocale = pathname.replace(/^\/[a-z]{2}(-[A-Z]{2})?/, '')
+  return routes.underDevelopmentRoutes.some((route) => {
+    if (route.includes(':')) {
+      const routeRegex = new RegExp(`^${route.replace(/:[^/]+/g, '[^/]+')}$`)
+      return routeRegex.test(pathWithoutLocale) || routeRegex.test(pathname)
+    }
+    return pathWithoutLocale === route || pathname === route
+  })
+}
+
 export const isAxiosError = <T>(error: unknown): error is AxiosError<T> => {
   return axios.isAxiosError(error)
 }
@@ -92,10 +103,9 @@ export const refreshToken = async (token: any) => {
       throw new Error('No refresh token available')
     }
 
-    const response = await axios.post(
-      `${nextEnv.NEXT_PUBLIC_SERVER_URL}/api/auth/refresh-token`,
-      { refreshToken: token.refreshToken }
-    )
+    const response = await axios.post(`${nextEnv.NEXT_PUBLIC_SERVER_URL}/api/auth/refresh-token`, {
+      refreshToken: token.refreshToken
+    })
 
     const { tokens } = response.data.data
 
@@ -120,3 +130,29 @@ export const formatMessageContent = (content: string) => {
   return content || 'Empty message'
 }
 
+/**
+ * Lấy locale ưa thích từ trình duyệt và ánh xạ sang locale được hỗ trợ
+ */
+export const getBrowserLocale = (): string | null => {
+  if (!isBrowser) return null;
+  
+  // Lấy ngôn ngữ từ navigator
+  const browserLocales = navigator.languages || [navigator.language];
+  
+  // Danh sách các locale được hỗ trợ từ constants
+  const supportedLocales = LOCALES;
+  
+  // Tìm locale phù hợp đầu tiên
+  for (const browserLocale of browserLocales) {
+    // Lấy mã ngôn ngữ chính (vd: 'en-US' -> 'en')
+    const languageCode = browserLocale.split('-')[0];
+    
+    // Kiểm tra xem có hỗ trợ locale này không
+    if (supportedLocales.includes(languageCode)) {
+      return languageCode;
+    }
+  }
+  
+  // Trả về null nếu không tìm thấy locale phù hợp
+  return null;
+}

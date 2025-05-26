@@ -36,13 +36,12 @@ function FormCode({ className }: Props) {
   const searchParams = useSearchParams()
   const email = searchParams.get('email')
 
-  // Validate email (weak now)
   if (!email) {
     return redirect('/auth/register')
   }
 
   useEffect(() => {
-    const otpExpiresAt = localStorage.getItem('otpExpiresAt')
+    const otpExpiresAt = localStorage.getItem('registerOtpExpiresAt')
     if (otpExpiresAt) {
       const expiresAt = new Date(otpExpiresAt).getTime()
       setCountdown(expiresAt)
@@ -72,7 +71,7 @@ function FormCode({ className }: Props) {
       } = response.data
 
       toast.success(message)
-      localStorage.setItem('otpExpiresAt', otpExpiresAt)
+      localStorage.setItem('registerOtpExpiresAt', otpExpiresAt)
       const expiresAt = new Date(otpExpiresAt).getTime()
       setCountdown(expiresAt)
     } catch (error) {

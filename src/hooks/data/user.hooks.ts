@@ -170,4 +170,33 @@ export const useIsBlockedByUser = (userId: string | undefined) => {
   })
 }
 
+// Hook để cập nhật cài đặt
+export const useUpdateSettingsMutation = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (data: { language?: string; theme?: string }) => userService.updateSettings(data),
+    onSuccess: () => {
+      // Invalidate các query liên quan đến user settings
+      queryClient.invalidateQueries({ queryKey: ['user-settings'] })
+    },
+    onError: (error: any) => {
+      console.error('Error updating settings:', error)
+      toast.error(error?.response?.data?.message || 'Có lỗi xảy ra khi cập nhật cài đặt')
+    }
+  })
+}
+
+// Hook để lấy cài đặt người dùng
+export const useUserSettings = () => {
+  return useQuery({
+    queryKey: ['user-settings'],
+    queryFn: () => userService.getSettings(),
+    select: (data) => data.data,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    retry: 1
+  })
+}
+
+
 

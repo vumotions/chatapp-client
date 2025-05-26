@@ -8,7 +8,6 @@ import { Toaster } from 'sonner'
 import { CallManager } from '~/components/call/call-manager'
 import { NetworkStatus } from '~/components/network-status'
 import NotificationListener from '~/components/notification-listener'
-import TokenRefresher from '~/components/token-refresher'
 import { routing } from '~/i18n/routing'
 import BProgressProvider from '~/providers/bprogress-provider'
 import NextAuthProvider from '~/providers/nextauth-provider'
@@ -45,6 +44,7 @@ export function generateStaticParams() {
 
 function Layout({ params, children }: Props) {
   const { locale } = use(params)
+
   if (!hasLocale(routing.locales, locale)) {
     notFound()
   }

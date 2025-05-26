@@ -19,7 +19,7 @@ function UserPopover() {
     signOut()
   }
   const handleRedirectToMyProfile = () => {
-    router.push(`/profile/${session?.user?.username}`)
+    router.push(`/profile/${(session?.user as any)?.username}`)
     setOpen(false)
   }
   return (
@@ -36,7 +36,7 @@ function UserPopover() {
         </Button>
       </PopoverTrigger>
       <PopoverContent align='end' className='w-64 min-w-56 rounded-lg p-0 shadow-md' sideOffset={8}>
-        <div onClick={handleRedirectToMyProfile} role='button'>
+        <div onClick={handleRedirectToMyProfile} role='button' className='cursor-pointer'>
           <div className='hover:bg-accent rounded-t-md p-3'>
             <div className='flex items-center gap-3'>
               <Avatar className='h-8 w-8 rounded-full'>

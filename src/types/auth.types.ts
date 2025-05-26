@@ -27,6 +27,7 @@ export type GetMyProfileResponse = SuccessResponse<{
   email: string
   avatar?: string
   coverPhoto?: string
+  bio?: string
   name: string
   verify: string
   provider?: string

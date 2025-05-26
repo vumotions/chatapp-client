@@ -7,7 +7,7 @@ export default function SettingsAccountPage() {
       <div>
         <h3 className='text-lg font-medium'>Account</h3>
         <p className='text-muted-foreground text-sm'>
-          Update your account settings. Set your preferred language and timezone.
+          Update your account settings and appearance preferences.
         </p>
       </div>
       <Separator />

@@ -3,12 +3,14 @@ import { Metadata } from 'next'
 import { SidebarNav } from '~/components/sidebar-nav'
 import { Separator } from '~/components/ui/separator'
 import { LayoutProps } from '~/types/props.types'
+import { Badge } from '~/components/ui/badge'
 
 export const metadata: Metadata = {
-  title: 'Forms',
-  description: 'Advanced form example using react-hook-form and Zod.'
+  title: 'Settings',
+  description: 'Manage your account settings and preferences.'
 }
 
+// Cập nhật danh sách tab, gộp Appearance vào Account và thêm badge cho Notifications
 const sidebarNavItems = [
   {
     title: 'Profile',
@@ -16,15 +18,14 @@ const sidebarNavItems = [
   },
   {
     title: 'Account',
-    href: '/settings/account'
-  },
-  {
-    title: 'Appearance',
-    href: '/settings/appearance'
+    href: '/settings/account',
+    description: 'Update account settings and appearance preferences'
   },
   {
     title: 'Notifications',
-    href: '/settings/notifications'
+    href: '/settings/notifications',
+    disabled: true,
+    badge: 'Coming soon'
   }
 ]
 
@@ -33,7 +34,7 @@ function SettingsLayout({ children }: LayoutProps) {
     <div className='space-y-6 p-10 pb-16'>
       <div className='space-y-0.5'>
         <h2 className='text-2xl font-bold tracking-tight'>Settings</h2>
-        <p className='text-muted-foreground'>Manage your account settings and set e-mail preferences.</p>
+        <p className='text-muted-foreground'>Manage your account settings and preferences.</p>
       </div>
       <Separator className='my-6' />
       <div className='flex flex-col space-y-8 lg:flex-row lg:space-y-0 lg:space-x-12'>

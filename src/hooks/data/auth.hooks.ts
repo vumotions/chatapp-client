@@ -2,18 +2,14 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import httpRequest from '~/config/http-request'
 import { FormCodeValues, FormForgotPasswordValues, FormRegisterValues } from '~/schemas/form.schemas'
 import authService from '~/services/auth.service'
-import {
-  ConfirmResetPasswordResponse,
-  RequestResetPasswordResponse,
-  ResetPasswordResponse
-} from '~/types/auth.types'
+import { ConfirmResetPasswordResponse, RequestResetPasswordResponse, ResetPasswordResponse } from '~/types/auth.types'
 
 export const useRegisterMutation = () => {
   return useMutation({
     mutationFn: (body: FormRegisterValues) => authService.register(body),
     onSuccess: (response) => {
       const { otpExpiresAt } = response.data.data
-      localStorage.setItem('otpExpiresAt', otpExpiresAt)
+      localStorage.setItem('registerOtpExpiresAt', otpExpiresAt)
     }
   })
 }
@@ -43,7 +39,7 @@ export const useRequestResetPasswordMutation = () => {
       httpRequest.post<RequestResetPasswordResponse>('/auth/request-reset-password', body),
     onSuccess: (response) => {
       const { otpExpiresAt } = response.data.data
-      localStorage.setItem('otpExpiresAt', otpExpiresAt)
+      localStorage.setItem('forgotPasswordOtpExpiresAt', otpExpiresAt)
     }
   })
 }
