@@ -5,6 +5,7 @@ import friendService from '~/services/friend.service'
 import userService from '~/services/user.service'
 import httpRequest from '~/config/http-request'
 import { toast } from 'sonner'
+import { useSession } from 'next-auth/react'
 
 // Hook để tìm kiếm người dùng
 export const useSearchUsers = (initialQuery = '') => {
@@ -104,7 +105,7 @@ export const useUpdateProfileMutation = () => {
 // Hook để block người dùng
 export const useBlockUserMutation = () => {
   const queryClient = useQueryClient()
-  
+
   return useMutation({
     mutationFn: (userId: string) => userService.blockUser(userId),
     onSuccess: () => {
@@ -121,7 +122,7 @@ export const useBlockUserMutation = () => {
 // Hook để unblock người dùng
 export const useUnblockUserMutation = () => {
   const queryClient = useQueryClient()
-  
+
   return useMutation({
     mutationFn: (userId: string) => userService.unblockUser(userId),
     onSuccess: () => {
@@ -157,7 +158,7 @@ export const useIsBlockedByUser = (userId: string | undefined) => {
     queryKey: ['IS_BLOCKED_BY_USER', userId],
     queryFn: async () => {
       if (!userId) return false
-      
+
       try {
         const response = await httpRequest.get(`/user/is-blocked-by/${userId}`)
         return response.data.data.isBlocked
@@ -189,14 +190,13 @@ export const useUpdateSettingsMutation = () => {
 
 // Hook để lấy cài đặt người dùng
 export const useUserSettings = () => {
+  const { data: session } = useSession()
   return useQuery({
     queryKey: ['user-settings'],
     queryFn: () => userService.getSettings(),
     select: (data) => data.data,
     staleTime: 1000 * 60 * 5, // 5 minutes
-    retry: 1
+    retry: 1,
+    enabled: !!session
   })
 }
-
-
-

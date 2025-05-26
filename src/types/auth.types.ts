@@ -38,6 +38,7 @@ export type GetMyProfileResponse = SuccessResponse<{
   createdAt: string
   updatedAt: string
   __v: number
+  dateOfBirth?: string
 }>
 
 export type RequestResetPasswordResponse = SuccessResponse<{

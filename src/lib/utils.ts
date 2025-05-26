@@ -134,25 +134,47 @@ export const formatMessageContent = (content: string) => {
  * Lấy locale ưa thích từ trình duyệt và ánh xạ sang locale được hỗ trợ
  */
 export const getBrowserLocale = (): string | null => {
-  if (!isBrowser) return null;
-  
+  if (!isBrowser) return null
+
   // Lấy ngôn ngữ từ navigator
-  const browserLocales = navigator.languages || [navigator.language];
-  
+  const browserLocales = navigator.languages || [navigator.language]
+
   // Danh sách các locale được hỗ trợ từ constants
-  const supportedLocales = LOCALES;
-  
+  const supportedLocales = LOCALES
+
   // Tìm locale phù hợp đầu tiên
   for (const browserLocale of browserLocales) {
     // Lấy mã ngôn ngữ chính (vd: 'en-US' -> 'en')
-    const languageCode = browserLocale.split('-')[0];
-    
+    const languageCode = browserLocale.split('-')[0]
+
     // Kiểm tra xem có hỗ trợ locale này không
     if (supportedLocales.includes(languageCode)) {
-      return languageCode;
+      return languageCode
     }
   }
-  
+
   // Trả về null nếu không tìm thấy locale phù hợp
-  return null;
+  return null
+}
+
+// Hàm xử lý ngày sinh từ chuỗi ISO date
+export const parseDateOfBirth = (dateString?: string) => {
+  let day = ''
+  let month = ''
+  let year = ''
+
+  if (dateString) {
+    try {
+      const date = new Date(dateString)
+      if (!isNaN(date.getTime())) {
+        day = String(date.getDate())
+        month = String(date.getMonth() + 1)
+        year = String(date.getFullYear())
+      }
+    } catch (error) {
+      console.error('Error parsing date:', error, dateString)
+    }
+  }
+
+  return { day, month, year }
 }

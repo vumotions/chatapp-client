@@ -8,7 +8,7 @@ import InfiniteScroll from 'react-infinite-scroll-component'
 import FriendHoverCard from '~/components/friend-hover-card'
 import PostSkeleton from '~/components/post-skeleton'
 import { Post } from '~/components/posts/post'
-import { ProfileEditDialog } from '~/components/profile-edit-dialog'
+import ProfileForm from '~/app/[locale]/(main)/settings/(profile)/form-profile'
 import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
 import { Button } from '~/components/ui/button'
 import { Card, CardContent } from '~/components/ui/card'
@@ -78,7 +78,7 @@ function Profile({ params }: Props) {
   const cancelFriendRequest = useCancelFriendRequestMutation()
   const removeFriend = useRemoveFriendMutation()
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
-  const [showEditDialog, setShowEditDialog] = useState(false)
+  const [showProfileFormDialog, setShowProfileFormDialog] = useState(false)
 
   const handleFriendAction = () => {
     // Nếu đang là bạn bè, hiển thị dialog xác nhận hủy kết bạn
@@ -131,6 +131,7 @@ function Profile({ params }: Props) {
   // Hàm xử lý khi cập nhật thông tin thành công
   const handleProfileUpdated = () => {
     refetch() // Tải lại thông tin profile
+    setShowProfileFormDialog(false) // Đóng dialog
   }
 
   // Hiển thị skeleton khi đang tải
@@ -177,7 +178,9 @@ function Profile({ params }: Props) {
             {isMyProfile ? (
               <>
                 <Button size='sm'>+ Thêm vào tin</Button>
-                <ProfileEditDialog userData={profileData} onProfileUpdated={handleProfileUpdated} />
+                <Button size='sm' variant='outline' onClick={() => setShowProfileFormDialog(true)}>
+                  Chỉnh sửa trang cá nhân
+                </Button>
               </>
             ) : (
               <>
@@ -413,7 +416,21 @@ function Profile({ params }: Props) {
       )}
 
       {/* Dialog chỉnh sửa thông tin */}
-      {isMyProfile && <ProfileEditDialog userData={profileData} onProfileUpdated={handleProfileUpdated} />}
+      {isMyProfile && (
+        <Dialog open={showProfileFormDialog} onOpenChange={setShowProfileFormDialog}>
+          <DialogContent className='flex max-h-[90vh] flex-col overflow-y-auto sm:max-w-[600px] md:max-w-[700px] lg:max-w-[800px]'>
+            <DialogHeader className='flex-shrink-0'>
+              <DialogTitle>Chỉnh sửa trang cá nhân</DialogTitle>
+              <DialogDescription>
+                Cập nhật thông tin cá nhân của bạn. Thông tin này sẽ được hiển thị công khai.
+              </DialogDescription>
+            </DialogHeader>
+            <div className='-mr-2 flex-grow overflow-y-auto py-4 pr-3'>
+              <ProfileForm onProfileUpdated={handleProfileUpdated} redirectOnUsernameChange={true} />
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   )
 }

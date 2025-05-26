@@ -19,7 +19,7 @@ function UserPopover() {
     signOut()
   }
   const handleRedirectToMyProfile = () => {
-    router.push(`/profile/${(session?.user as any)?.username}`)
+    router.push(`/profile/${session?.user?.username}`)
     setOpen(false)
   }
   return (
