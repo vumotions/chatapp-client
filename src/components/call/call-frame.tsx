@@ -330,6 +330,9 @@ export function CallFrame({
   const callDurationRef = useRef<number>(0)
   const callStartTimeRef = useRef<number | null>(null)
 
+  // Thêm state để theo dõi thời gian chờ
+  const [callTimeout, setCallTimeout] = useState<NodeJS.Timeout | null>(null)
+
   // Add this effect to track call duration
   useEffect(() => {
     let intervalId: NodeJS.Timeout | null = null
@@ -1113,6 +1116,89 @@ export function CallFrame({
       }
     }
   }, [isInitiator, callStatus, callType])
+
+  // Thêm useEffect riêng biệt để xử lý timeout cuộc gọi
+  useEffect(() => {
+    // Chỉ thiết lập timeout cho người gọi (isInitiator = true)
+    if (!isInitiator) {
+      console.log('Not setting timeout for call recipient')
+      return
+    }
+
+    // Chỉ thiết lập timeout khi ở trạng thái CALLING hoặc RINGING
+    const isCallingState = callStatus === CALL_STATUS.CALLING || callStatus === CALL_STATUS.RINGING
+    if (!isCallingState) {
+      console.log('Not in calling/ringing state, not setting timeout. Current state:', callStatus)
+      return
+    }
+
+    console.log('Setting up missed call timeout (10 seconds) for state:', callStatus)
+
+    // Đặt timeout 10 giây cho cuộc gọi (để test)
+    const timeout = setTimeout(() => {
+      console.log('Timeout triggered after 10 seconds')
+
+      // Kiểm tra lại trạng thái hiện tại
+      const isStillCalling = callStatus === CALL_STATUS.CALLING || callStatus === CALL_STATUS.RINGING
+      if (isStillCalling) {
+        console.log('Call still in calling/ringing state after 10 seconds, marking as missed')
+
+        // Gửi sự kiện cuộc gọi nhỡ
+        socket?.emit(SOCKET_EVENTS.CALL_MISSED, {
+          chatId,
+          recipientId,
+          callType
+        })
+
+        // Đóng cuộc gọi
+        setCallStatus(CALL_STATUS.MISSED)
+        setTimeout(() => {
+          onClose()
+          // Cập nhật store để xóa thông tin cuộc gọi
+          useCallStore.getState().endCall()
+        }, 1000)
+      } else {
+        console.log('Call status changed, not marking as missed:', callStatus)
+      }
+    }, 10000) // 10 giây để test
+
+    // Cleanup function
+    return () => {
+      console.log('Cleaning up missed call timeout')
+      clearTimeout(timeout)
+    }
+  }, [isInitiator, callStatus, socket, chatId, recipientId, callType, onClose])
+
+  // Thêm vào useEffect để lắng nghe các sự kiện socket
+  useEffect(() => {
+    if (!socket) return;
+
+    // Xử lý sự kiện CALL_MISSED
+    const handleCallMissed = (data: { chatId: string; recipientId: string }) => {
+      console.log('Received CALL_MISSED event:', data);
+      
+      // Kiểm tra xem cuộc gọi nhỡ có phải cho cuộc gọi hiện tại không
+      if (data.chatId === chatId) {
+        console.log('This call was marked as missed, closing call frame');
+        
+        // Đóng cuộc gọi
+        setCallStatus(CALL_STATUS.MISSED);
+        setTimeout(() => {
+          onClose();
+          // Cập nhật store để xóa thông tin cuộc gọi
+          useCallStore.getState().endCall();
+        }, 1000);
+      }
+    };
+
+    // Đăng ký lắng nghe sự kiện
+    socket.on(SOCKET_EVENTS.CALL_MISSED, handleCallMissed);
+
+    return () => {
+      // Hủy đăng ký khi component unmount
+      socket.off(SOCKET_EVENTS.CALL_MISSED, handleCallMissed);
+    };
+  }, [socket, chatId, onClose]);
 
   return (
     <div className='pointer-events-none fixed inset-0 z-50 flex items-center justify-center'>
