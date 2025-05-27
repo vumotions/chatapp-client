@@ -1532,7 +1532,7 @@ function ChatDetail({ params }: Props) {
     if (!msg.attachments || msg.attachments.length === 0) return null
 
     return (
-      <div className='mt-2 flex max-w-[300px] flex-wrap gap-2'>
+      <div className='mt-2 flex max-w-[300px] flex-col gap-2'>
         {msg.attachments.map((attachment: any, index: number) => {
           const isImage = attachment.type === 'IMAGE'
           const mediaUrl = attachment.mediaUrl
@@ -2166,17 +2166,17 @@ function ChatDetail({ params }: Props) {
                               isSentByMe ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground'
                             }`}
                           >
-                            {/* Hiển thị nội dung tin nhắn */}
-                            {msg.content && (
-                              <div style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{msg.content}</div>
-                            )}
-
-                            {/* Hiển thị media nếu có */}
-                            {msg.type === 'MEDIA' && renderMessageMedia(msg)}
-
                             <HoverCard openDelay={100} closeDelay={100}>
                               <HoverCardTrigger asChild>
-                                <div className='absolute inset-0 cursor-pointer' />
+                                <div>
+                                  {/* Nội dung tin nhắn */}
+                                  {msg.content && (
+                                    <div style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{msg.content}</div>
+                                  )}
+
+                                  {/* Media nếu có */}
+                                  {msg.type === 'MEDIA' && renderMessageMedia(msg)}
+                                </div>
                               </HoverCardTrigger>
                               <HoverCardContent
                                 className={`pointer-events-auto w-auto border-none bg-transparent p-0 shadow-none ${isSentByMe ? 'data-[side=top]:translate-x-1/2' : 'data-[side=top]:-translate-x-1/2'}`}
@@ -2188,10 +2188,21 @@ function ChatDetail({ params }: Props) {
                                     size='icon'
                                     className='h-8 w-8 rounded-full bg-transparent hover:bg-black/10 dark:hover:bg-white/10'
                                     onClick={() => {
-                                      navigator.clipboard.writeText(msg.content)
-                                      toast.success('Đã sao chép tin nhắn', {
-                                        duration: 2000
-                                      })
+                                      // Kiểm tra nếu là tin nhắn media
+                                      if (msg.type === 'MEDIA' && msg.attachments && msg.attachments.length > 0) {
+                                        // Copy URL của media đầu tiên
+                                        const mediaUrl = msg.attachments[0].mediaUrl
+                                        navigator.clipboard.writeText(mediaUrl)
+                                        toast.success('Đã sao chép đường dẫn media', {
+                                          duration: 2000
+                                        })
+                                      } else {
+                                        // Copy nội dung tin nhắn văn bản như bình thường
+                                        navigator.clipboard.writeText(msg.content || '')
+                                        toast.success('Đã sao chép tin nhắn', {
+                                          duration: 2000
+                                        })
+                                      }
                                     }}
                                   >
                                     <Copy className='h-4 w-4' />
@@ -2220,19 +2231,6 @@ function ChatDetail({ params }: Props) {
                                       <span className='sr-only'>Like</span>
                                     </Button>
                                   )}
-
-                                  {/* Xóa nút ghim trực tiếp ở đây vì đã có trong MessageActions */}
-                                  {/* 
-                                  <Button
-                                    variant='ghost'
-                                    size='icon'
-                                    className='h-8 w-8 rounded-full bg-transparent hover:bg-black/10 dark:hover:bg-white/10'
-                                    onClick={() => pinMessage(msg._id)}
-                                  >
-                                    {msg.isPinned ? <PinOff className='h-4 w-4' /> : <Pin className='h-4 w-4' />}
-                                    <span className='sr-only'>{msg.isPinned ? 'Bỏ ghim' : 'Ghim'}</span>
-                                  </Button>
-                                  */}
 
                                   {/* Thêm MessageActions component */}
                                   <MessageActions message={msg} chatId={chatId} isSentByMe={isSentByMe} />

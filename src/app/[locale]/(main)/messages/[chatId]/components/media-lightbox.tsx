@@ -1,6 +1,7 @@
 import { X } from 'lucide-react'
-import React, { useEffect, useRef } from 'react'
 import Image from 'next/image'
+import React, { useEffect, useRef } from 'react'
+import { Button } from '~/components/ui/button'
 
 interface MediaLightboxProps {
   url: string
@@ -11,22 +12,17 @@ interface MediaLightboxProps {
 const MediaLightbox: React.FC<MediaLightboxProps> = ({ url, isOpen, onClose }) => {
   const videoRef = useRef<HTMLVideoElement>(null)
 
-  // Kiểm tra xem URL có phải là video không
   const isVideo = url.match(/\.(mp4|webm|ogg|mov)$/i)
 
-  // Xử lý khi component mount hoặc url thay đổi
   useEffect(() => {
     if (isOpen && isVideo && videoRef.current) {
-      // Đảm bảo video được load lại khi URL thay đổi
       videoRef.current.load()
 
-      // Thử phát video sau khi load
       const playPromise = videoRef.current.play()
 
       if (playPromise !== undefined) {
         playPromise.catch((error) => {
           console.error('Auto-play was prevented:', error)
-          // Hiển thị nút play cho người dùng click
         })
       }
     }
@@ -35,8 +31,8 @@ const MediaLightbox: React.FC<MediaLightboxProps> = ({ url, isOpen, onClose }) =
   if (!isOpen || !url) return null
 
   return (
-    <div className='fixed inset-0 z-[100] flex items-center justify-center bg-black/80' onClick={onClose}>
-      <div className='max-h-[90vh] max-w-[90vw]'>
+    <div className='fixed inset-0 z-[9999] flex items-center justify-center bg-black/80' onClick={onClose}>
+      <div className='relative max-h-[90vh] max-w-[90vw]'>
         {isVideo ? (
           <video
             ref={videoRef}
@@ -63,19 +59,23 @@ const MediaLightbox: React.FC<MediaLightboxProps> = ({ url, isOpen, onClose }) =
             onClick={(e) => e.stopPropagation()}
           />
         )}
-        <button
-          className='absolute top-4 right-4 rounded-full bg-black/50 p-2 text-white hover:bg-black/70'
+
+        {/* Nút đóng với màu thích ứng với theme */}
+        <Button
+          size={'icon'}
+          variant={'secondary'}
+          className='bg-secondary/80 text-secondary-foreground hover:bg-secondary/100 border-border absolute top-4 right-4 rounded-full border shadow-lg backdrop-blur-sm'
           onClick={(e) => {
             e.stopPropagation()
             onClose()
           }}
         >
           <X className='h-6 w-6' />
-        </button>
+          <span className='sr-only'>Đóng</span>
+        </Button>
       </div>
     </div>
   )
 }
 
 export default MediaLightbox
-

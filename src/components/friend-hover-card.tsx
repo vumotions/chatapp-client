@@ -20,7 +20,7 @@ type FriendHoverCardProps = {
   children: React.ReactNode
 }
 
-export default function FriendHoverCard({ friend, isOnline, lastActive, children }: FriendHoverCardProps) {
+export default function FriendHoverCard({ friend, children }: FriendHoverCardProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [processingFriendId, setProcessingFriendId] = useState<string | null>(null)
@@ -29,63 +29,32 @@ export default function FriendHoverCard({ friend, isOnline, lastActive, children
   // Khởi tạo mutation để bắt đầu cuộc trò chuyện
   const startConversation = useStartConversationMutation()
 
-  // Xử lý khi click vào bạn bè để bắt đầu chat
+  // Xử lý khi người dùng muốn bắt đầu cuộc trò chuyện
   const handleStartChat = async (friendId: string) => {
-    // Nếu đang xử lý cho bạn bè này, không làm gì cả
-    if (processingFriendId === friendId || isPending) return
-
-    // Đánh dấu đang xử lý cho bạn bè này
+    if (isPending) return
     setProcessingFriendId(friendId)
 
     try {
-      const response = await startConversation.mutateAsync(friendId)
-
-      // Sử dụng startTransition để đánh dấu chuyển trang
+      const result = await startConversation.mutateAsync(friendId)
+      
       startTransition(() => {
-        router.push(`/messages/${response.data.data._id}`)
+        router.push(`/messages/${result.conversationId}`)
       })
     } catch (error) {
       console.error('Failed to start conversation:', error)
-      // Reset trạng thái xử lý nếu có lỗi
+    } finally {
       setProcessingFriendId(null)
     }
   }
 
-  // Xử lý khi click vào nút Profile
-  const handleViewProfile = (friendId: string, username: string) => {
-    // Nếu đang trong quá trình chuyển trang, không làm gì cả
-    if (isPending || processingProfileId === friendId) return
+  // Xử lý khi người dùng muốn xem trang cá nhân
+  const handleViewProfile = (userId: string, username: string) => {
+    if (isPending) return
+    setProcessingProfileId(userId)
 
-    // Đánh dấu đang xử lý cho bạn bè này
-    setProcessingProfileId(friendId)
-
-    // Sử dụng startTransition để đánh dấu chuyển trang
     startTransition(() => {
       router.push(`/profile/${username}`)
     })
-  }
-
-  // Format thời gian hoạt động gần nhất
-  const formatLastActive = (lastActiveTime: string) => {
-    if (!lastActiveTime) return 'Đang ngoại tuyến'
-
-    try {
-      const lastActiveDate = new Date(lastActiveTime)
-      const now = new Date()
-      const diffMs = now.getTime() - lastActiveDate.getTime()
-      const diffMins = Math.floor(diffMs / 60000)
-
-      if (diffMins < 1) return 'Vừa mới truy cập'
-      if (diffMins < 60) return `Hoạt động ${diffMins} phút trước`
-
-      const diffHours = Math.floor(diffMins / 60)
-      if (diffHours < 24) return `Hoạt động ${diffHours} giờ trước`
-
-      const diffDays = Math.floor(diffHours / 24)
-      return `Hoạt động ${diffDays} ngày trước`
-    } catch (error) {
-      return 'Đang ngoại tuyến'
-    }
   }
 
   return (
@@ -99,9 +68,7 @@ export default function FriendHoverCard({ friend, isOnline, lastActive, children
           </Avatar>
           <div className='text-center'>
             <h4 className='text-lg font-medium'>{friend.name}</h4>
-            <p className='text-muted-foreground text-sm'>
-              {isOnline ? 'Đang hoạt động' : lastActive ? formatLastActive(lastActive) : 'Đang ngoại tuyến'}
-            </p>
+            {/* Đã loại bỏ phần hiển thị trạng thái online/offline */}
           </div>
           <div className='mt-2 flex w-full gap-2'>
             <Button
@@ -138,3 +105,5 @@ export default function FriendHoverCard({ friend, isOnline, lastActive, children
     </HoverCard>
   )
 }
+
+
