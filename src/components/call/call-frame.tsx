@@ -326,6 +326,32 @@ export function CallFrame({
   // Thêm ref để lưu trữ ICE candidates
   const iceCandidatesBuffer = useRef<RTCIceCandidateInit[]>([])
 
+  // Add this with the other refs
+  const callDurationRef = useRef<number>(0);
+  const callStartTimeRef = useRef<number | null>(null);
+
+  // Add this effect to track call duration
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout | null = null;
+    
+    // Start tracking duration when call is connected
+    if (callStatus === CALL_STATUS.CONNECTED) {
+      callStartTimeRef.current = Date.now();
+      
+      // Update duration every second
+      intervalId = setInterval(() => {
+        if (callStartTimeRef.current) {
+          const durationInSeconds = Math.floor((Date.now() - callStartTimeRef.current) / 1000);
+          callDurationRef.current = durationInSeconds;
+        }
+      }, 1000);
+    }
+    
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [callStatus]);
+
   // Tạo và gửi offer
   const createAndSendOffer = async () => {
     if (!peerConnectionRef.current) return
@@ -763,20 +789,24 @@ export function CallFrame({
 
   const handleEndCall = () => {
     // Dừng tất cả media tracks trước khi gửi sự kiện kết thúc cuộc gọi
-    stopAllMediaTracks()
+    stopAllMediaTracks();
 
+    // Emit event to end call and create system message
     socket?.emit(SOCKET_EVENTS.CALL_ENDED, {
       chatId,
-      recipientId
-    })
+      recipientId,
+      callType,
+      duration: callDurationRef.current, // Send call duration if tracking it
+      createSystemMessage: true // Flag to indicate server should create a system message
+    });
 
     // Đặt trạng thái ENDED và đóng sau 1 giây
-    setCallStatus(CALL_STATUS.ENDED)
+    setCallStatus(CALL_STATUS.ENDED);
     setTimeout(() => {
-      onClose()
+      onClose();
       // Cập nhật store để xóa thông tin cuộc gọi
-      useCallStore.getState().endCall()
-    }, 1000)
+      useCallStore.getState().endCall();
+    }, 1000);
   }
 
   const toggleMute = (e: React.MouseEvent) => {
