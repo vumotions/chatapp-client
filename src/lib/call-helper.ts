@@ -15,3 +15,9 @@ export function startCall(params: {
 
   console.log('Call started via Zustand store')
 }
+
+export function endCurrentCall() {
+  console.log('Ending current call')
+  useCallStore.getState().endCall()
+}
+

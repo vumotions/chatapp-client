@@ -13,7 +13,6 @@ import { useSocket } from '~/hooks/use-socket'
 import { Avatar, AvatarImage, AvatarFallback } from '~/components/ui/avatar'
 import { useCallStore } from '~/stores/call.store'
 
-// Định nghĩa interface cho CallFrameProps
 interface CallFrameProps {
   chatId: string
   recipientId: string
@@ -318,23 +317,175 @@ export function CallFrame({
       document.removeEventListener('MSFullscreenChange', handleFullscreenChange)
     }
   }, [isFullscreen, isMobile, isMinimizedOnMobile])
-
+  // Thêm state để theo dõi trạng thái kết nối WebRTC
+  const [isWebRTCInitialized, setIsWebRTCInitialized] = useState(false)
   // Thêm state để theo dõi remote stream
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null)
+
+  // Thêm ref để lưu trữ ICE candidates
+  const iceCandidatesBuffer = useRef<RTCIceCandidateInit[]>([])
+
+  // Tạo và gửi offer
+  const createAndSendOffer = async () => {
+    if (!peerConnectionRef.current) return
+
+    try {
+      console.log('Creating offer...')
+
+      const offerOptions = {
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: callType === CALL_TYPE.VIDEO
+      }
+
+      const offer = await peerConnectionRef.current.createOffer(offerOptions)
+      console.log('Created offer:', offer.type)
+
+      await peerConnectionRef.current.setLocalDescription(offer)
+      console.log('Set local description (offer)')
+
+      // Đợi một chút để đảm bảo ICE gathering hoàn tất
+      await new Promise((resolve) => setTimeout(resolve, 500))
+
+      // Kiểm tra xem local description có sẵn không
+      const localDescription = peerConnectionRef.current.localDescription || offer
+
+      console.log('Sending SDP offer to recipient')
+      socket?.emit(SOCKET_EVENTS.SDP_OFFER, {
+        sdp: localDescription,
+        recipientId,
+        chatId
+      })
+    } catch (error) {
+      console.error('Error creating and sending offer:', error)
+    }
+  }
+
+  // Hàm tiện ích để xử lý các ICE candidates đã buffer
+  const processBufferedIceCandidates = async () => {
+    if (!peerConnectionRef.current || !peerConnectionRef.current.remoteDescription) return
+
+    if (iceCandidatesBuffer.current && iceCandidatesBuffer.current.length > 0) {
+      console.log(`Processing ${iceCandidatesBuffer.current.length} buffered ICE candidates`)
+
+      for (const candidate of iceCandidatesBuffer.current) {
+        try {
+          await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate))
+          console.log('Added buffered ICE candidate successfully')
+        } catch (error) {
+          console.error('Error adding buffered ICE candidate:', error)
+        }
+      }
+
+      // Xóa buffer sau khi đã xử lý
+      iceCandidatesBuffer.current = []
+    }
+  }
+
+  // Restart ICE
+  const restartIce = async () => {
+    if (!peerConnectionRef.current || !isInitiator) return
+
+    try {
+      console.log('Restarting ICE connection')
+
+      const offerOptions = {
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: callType === CALL_TYPE.VIDEO,
+        iceRestart: true
+      }
+
+      const offer = await peerConnectionRef.current.createOffer(offerOptions)
+      await peerConnectionRef.current.setLocalDescription(offer)
+
+      socket?.emit(SOCKET_EVENTS.SDP_OFFER, {
+        sdp: peerConnectionRef.current.localDescription,
+        recipientId,
+        chatId
+      })
+    } catch (error) {
+      console.error('Error restarting ICE:', error)
+    }
+  }
 
   // Hàm khởi tạo WebRTC được định nghĩa bên ngoài useEffect
   const initializeWebRTC = async () => {
     try {
-      // Cấu hình ICE servers
+      console.log('Initializing WebRTC...')
+
+      // Tạo peer connection với nhiều STUN servers
       const configuration = {
-        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }]
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' },
+          { urls: 'stun:stun3.l.google.com:19302' },
+          { urls: 'stun:stun4.l.google.com:19302' }
+        ],
+        iceCandidatePoolSize: 10
       }
 
       // Tạo peer connection
       peerConnectionRef.current = new RTCPeerConnection(configuration)
-
-      // Log để debug
       console.log('Created peer connection:', peerConnectionRef.current)
+
+      // Lấy media stream
+      const constraints = {
+        audio: true,
+        video: callType === CALL_TYPE.VIDEO
+      }
+
+      console.log('Getting user media with constraints:', constraints)
+      const stream = await navigator.mediaDevices.getUserMedia(constraints)
+      localStreamRef.current = stream
+
+      // Hiển thị local video
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = stream
+        console.log('Set local video source')
+      }
+
+      // Thêm tracks vào peer connection
+      stream.getTracks().forEach((track) => {
+        console.log('Adding track to peer connection:', track.kind)
+        if (peerConnectionRef.current) {
+          peerConnectionRef.current.addTrack(track, stream)
+        }
+      })
+
+      // Xử lý ICE candidates
+      peerConnectionRef.current.onicecandidate = (event) => {
+        if (event.candidate) {
+          console.log('Generated ICE candidate for', event.candidate.sdpMid)
+          socket?.emit(SOCKET_EVENTS.ICE_CANDIDATE, {
+            candidate: event.candidate,
+            recipientId,
+            chatId
+          })
+        }
+      }
+
+      // Xử lý ICE connection state
+      peerConnectionRef.current.oniceconnectionstatechange = () => {
+        console.log('ICE connection state:', peerConnectionRef.current?.iceConnectionState)
+
+        if (peerConnectionRef.current?.iceConnectionState === 'failed') {
+          console.log('ICE connection failed, attempting restart...')
+          restartIce()
+        }
+      }
+
+      // Xử lý kết nối thay đổi
+      peerConnectionRef.current.onconnectionstatechange = () => {
+        console.log('Connection state:', peerConnectionRef.current?.connectionState)
+
+        if (peerConnectionRef.current?.connectionState === 'connected') {
+          console.log('WebRTC connection established!')
+          setCallStatus(CALL_STATUS.CONNECTED)
+        } else if (peerConnectionRef.current?.connectionState === 'failed') {
+          console.log('WebRTC connection failed')
+          toast.error('Kết nối cuộc gọi bị gián đoạn')
+        }
+      }
 
       // Xử lý sự kiện ontrack - quan trọng để hiển thị video của đối phương
       peerConnectionRef.current.ontrack = (event) => {
@@ -362,77 +513,19 @@ export function CallFrame({
         }
       }
 
-      // Lấy stream từ camera và microphone
-      const constraints = {
-        audio: true,
-        video: callType === CALL_TYPE.VIDEO
+      // Đánh dấu WebRTC đã được khởi tạo
+      setIsWebRTCInitialized(true)
+
+      // Nếu là người gọi, tạo và gửi offer
+      if (isInitiator) {
+        await createAndSendOffer()
       }
 
-      console.log('Getting user media with constraints:', constraints)
-
-      const stream = await navigator.mediaDevices.getUserMedia(constraints)
-      localStreamRef.current = stream
-
-      // Hiển thị video local
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = stream
-        console.log('Set local video source')
-      }
-
-      // Thêm tracks vào peer connection
-      stream.getTracks().forEach((track) => {
-        console.log('Adding track to peer connection:', track.kind)
-        peerConnectionRef.current?.addTrack(track, stream)
-      })
-
-      // Xử lý ICE candidates
-      peerConnectionRef.current.onicecandidate = (event) => {
-        if (event.candidate) {
-          console.log('Sending ICE candidate')
-          socket?.emit(SOCKET_EVENTS.ICE_CANDIDATE, {
-            candidate: event.candidate,
-            recipientId
-          })
-        }
-      }
-
-      // Xử lý thay đổi trạng thái kết nối
-      peerConnectionRef.current.onconnectionstatechange = () => {
-        console.log('Connection state changed:', peerConnectionRef.current?.connectionState)
-
-        if (peerConnectionRef.current?.connectionState === 'connected') {
-          console.log('WebRTC connection established')
-          setCallStatus(CALL_STATUS.CONNECTED)
-        } else if (
-          peerConnectionRef.current?.connectionState === 'failed' ||
-          peerConnectionRef.current?.connectionState === 'closed'
-        ) {
-          console.error('WebRTC connection failed or closed')
-          setCallStatus(CALL_STATUS.FAILED)
-        }
-      }
-
-      // Nếu là người nhận cuộc gọi, tạo answer
-      if (!isInitiator) {
-        // Đợi cho đến khi nhận được offer từ người gọi
-        console.log('Waiting for offer as call recipient')
-      }
-      // Nếu là người gọi, tạo offer
-      else {
-        console.log('Creating offer as call initiator')
-        const offer = await peerConnectionRef.current.createOffer()
-        await peerConnectionRef.current.setLocalDescription(offer)
-
-        socket?.emit(SOCKET_EVENTS.SDP_OFFER, {
-          sdp: offer,
-          recipientId,
-          chatId
-        })
-      }
+      return peerConnectionRef.current
     } catch (error) {
       console.error('Error initializing WebRTC:', error)
-      toast.error('Không thể khởi tạo cuộc gọi. Vui lòng thử lại.')
-      setCallStatus(CALL_STATUS.FAILED)
+      toast.error('Không thể khởi tạo kết nối')
+      throw error
     }
   }
 
@@ -456,7 +549,12 @@ export function CallFrame({
           return
         }
 
+        console.log('Setting remote description (offer)')
         await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(data.sdp))
+
+        // Xử lý các ICE candidates đã được buffer
+        await processBufferedIceCandidates()
+
         const answer = await peerConnectionRef.current.createAnswer()
         await peerConnectionRef.current.setLocalDescription(answer)
 
@@ -469,41 +567,64 @@ export function CallFrame({
       }
     }
 
-    const handleAnswer = async (data: { sdp: RTCSessionDescriptionInit }) => {
+    const handleAnswer = async (data: { sdp: RTCSessionDescriptionInit; callerId: string }) => {
       if (!peerConnectionRef.current) return
 
       try {
-        // Kiểm tra trạng thái của kết nối trước khi đặt remote description
-        if (peerConnectionRef.current.signalingState === 'closed') {
-          console.log('Cannot set remote description: connection is closed')
-          return
-        }
-
+        console.log('Received SDP answer')
+        console.log('Setting remote description (answer)')
         await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(data.sdp))
-        setCallStatus(CALL_STATUS.CONNECTING)
+        console.log('Remote description set successfully')
+
+        // Xử lý các ICE candidates đã được buffer
+        await processBufferedIceCandidates()
       } catch (error) {
         console.error('Error handling answer:', error)
       }
     }
 
-    const handleIceCandidate = async (data: { candidate: RTCIceCandidateInit }) => {
-      if (!peerConnectionRef.current) return
+    const handleIceCandidate = async (data: { candidate: RTCIceCandidateInit; callerId: string }) => {
+      if (data.callerId !== recipientId || !peerConnectionRef.current) return
 
       try {
-        // Kiểm tra trạng thái của kết nối trước khi thêm ICE candidate
-        if (peerConnectionRef.current.signalingState === 'closed') {
-          console.log('Cannot add ICE candidate: connection is closed')
+        // Kiểm tra xem remote description đã được thiết lập chưa
+        if (!peerConnectionRef.current.remoteDescription) {
+          console.log('Remote description not set yet, buffering ICE candidate')
+
+          // Lưu ICE candidate vào buffer để xử lý sau
+          if (!iceCandidatesBuffer.current) {
+            iceCandidatesBuffer.current = []
+          }
+
+          iceCandidatesBuffer.current.push(data.candidate)
           return
         }
 
+        console.log('Adding ICE candidate directly')
         await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(data.candidate))
+        console.log('Added ICE candidate successfully')
       } catch (error) {
-        console.error('Error handling ICE candidate:', error)
+        console.error('Error adding ICE candidate:', error)
       }
     }
 
-    const handleCallAccepted = () => {
-      setCallStatus(CALL_STATUS.CONNECTING)
+    const handleCallAccepted = async () => {
+      if (isInitiator) {
+        console.log('Call accepted by recipient')
+        setCallStatus(CALL_STATUS.CONNECTING)
+
+        try {
+          // Khởi tạo WebRTC nếu chưa có
+          if (!peerConnectionRef.current) {
+            await initializeWebRTC()
+          } else {
+            // Nếu đã có peer connection, tạo và gửi offer
+            await createAndSendOffer()
+          }
+        } catch (error) {
+          console.error('Error handling call accepted:', error)
+        }
+      }
     }
 
     const handleCallRejected = () => {
@@ -582,8 +703,11 @@ export function CallFrame({
     }
   }, [socket, chatId, recipientId, callType, isInitiator, onClose])
 
+  // Chấp nhận cuộc gọi
   const handleAcceptCall = async () => {
     try {
+      console.log('Accepting call...')
+
       // Thông báo cho người gọi rằng cuộc gọi đã được chấp nhận
       socket?.emit(SOCKET_EVENTS.CALL_ACCEPTED, {
         chatId,
@@ -620,6 +744,8 @@ export function CallFrame({
           })
         }
       }
+
+      console.log('Call accepted and WebRTC initialized')
     } catch (error) {
       console.error('Error accepting call:', error)
       toast.error('Không thể kết nối cuộc gọi. Vui lòng thử lại.')
@@ -1167,7 +1293,7 @@ export function CallFrame({
               <div
                 className={`border-border bg-card absolute ${
                   isMobile ? 'right-3 bottom-[80px] h-1/4 w-1/4' : 'right-3 bottom-[80px] h-1/3 w-1/3'
-                } overflow-hidden rounded-lg border shadow-md`}
+                } z-10 overflow-hidden rounded-lg border shadow-md`}
               >
                 <video
                   ref={localVideoRef}
@@ -1176,30 +1302,14 @@ export function CallFrame({
                   muted
                   disablePictureInPicture
                   controlsList='nodownload nofullscreen noremoteplayback'
-                  className={`h-full w-full object-cover ${
-                    (isCameraOff && callStatus === CALL_STATUS.CONNECTED) ||
-                    (preAcceptCameraOff && callStatus === CALL_STATUS.RINGING) ||
-                    (isInitiator && isCameraOff && callStatus === CALL_STATUS.CALLING)
-                      ? 'hidden'
-                      : ''
-                  }`}
+                  className={`h-full w-full object-cover ${isCameraOff ? 'hidden' : ''}`}
                 />
-                {((isCameraOff && callStatus === CALL_STATUS.CONNECTED) ||
-                  (preAcceptCameraOff && callStatus === CALL_STATUS.RINGING) ||
-                  (isInitiator && isCameraOff && callStatus === CALL_STATUS.CALLING)) && (
-                  <div className='bg-card flex h-full w-full items-center justify-center'>
-                    <div className='bg-primary text-primary-foreground flex h-12 w-12 items-center justify-center overflow-hidden rounded-full'>
-                      <Avatar className='flex h-12 w-12 items-center justify-center'>
-                        <AvatarImage
-                          src={session?.user?.avatar}
-                          alt={session?.user?.name || ''}
-                          className='object-cover'
-                        />
-                        <AvatarFallback className='bg-primary text-primary-foreground text-sm font-medium'>
-                          {session?.user?.name?.[0] || '?'}
-                        </AvatarFallback>
-                      </Avatar>
-                    </div>
+                {isCameraOff && (
+                  <div className='flex h-full w-full items-center justify-center'>
+                    <Avatar className='h-16 w-16'>
+                      <AvatarImage src={session?.user?.image || ''} alt={session?.user?.name || ''} />
+                      <AvatarFallback>{session?.user?.name?.charAt(0) || 'U'}</AvatarFallback>
+                    </Avatar>
                   </div>
                 )}
               </div>
@@ -1211,12 +1321,12 @@ export function CallFrame({
           </div>
 
           {/* Các nút điều khiển - Hiển thị nút chấp nhận/từ chối khi đang ở trạng thái RINGING */}
-          {callStatus === CALL_STATUS.RINGING ? (
-            <div
-              className={`bg-card/80 absolute right-0 bottom-0 left-0 flex items-center justify-center backdrop-blur-md ${
-                isMobile && isMinimizedOnMobile ? 'p-1' : 'p-3'
-              }`}
-            >
+          <div
+            className={`bg-card/80 absolute right-0 bottom-0 left-0 z-20 flex items-center justify-center backdrop-blur-md ${
+              isMobile && isMinimizedOnMobile ? 'p-1' : 'p-3'
+            }`}
+          >
+            {callStatus === CALL_STATUS.RINGING && !isInitiator ? (
               <div className='flex items-center justify-center gap-2'>
                 {/* Khi ở chế độ thu nhỏ, chỉ hiển thị nút từ chối và chấp nhận */}
                 {!(isMobile && isMinimizedOnMobile) && (
@@ -1292,124 +1402,90 @@ export function CallFrame({
                   />
                 </Button>
               </div>
-            </div>
-          ) : (
-            !isMinimizedOnMobile && (
-              <div
-                className={`bg-card/80 absolute right-0 bottom-0 left-0 backdrop-blur-md ${
-                  isMobile && isMinimizedOnMobile ? 'p-2' : 'p-3'
-                } ${isFullscreen ? 'mb-6' : ''}`}
-              >
-                <div className={`flex ${isMobile && !isMinimizedOnMobile ? 'justify-center' : 'justify-center'} gap-3`}>
+            ) : (
+              <div className={`flex ${isMobile ? 'justify-center' : 'justify-center'} gap-3`}>
+                {/* Nút tắt/bật mic */}
+                <button
+                  onClick={toggleMute}
+                  className={`flex items-center justify-center rounded-full transition-colors duration-200 ${
+                    isMobile ? 'h-10 w-10' : 'h-12 w-12'
+                  } ${
+                    isMuted ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-muted text-foreground hover:bg-muted/80'
+                  }`}
+                >
+                  {isMuted ? (
+                    <MicOff className={`${isMobile ? 'h-4 w-4' : 'h-5 w-5'}`} />
+                  ) : (
+                    <Mic className={`${isMobile ? 'h-4 w-4' : 'h-5 w-5'}`} />
+                  )}
+                </button>
+
+                {/* Nút tắt/bật camera (chỉ hiển thị khi là cuộc gọi video) */}
+                {callType === CALL_TYPE.VIDEO && (
                   <button
-                    onClick={toggleMute}
+                    onClick={toggleCamera}
                     className={`flex items-center justify-center rounded-full transition-colors duration-200 ${
-                      isMobile && isMinimizedOnMobile
-                        ? 'h-8 w-8'
-                        : isMobile && !isMinimizedOnMobile
-                          ? 'h-10 w-10'
-                          : 'h-12 w-12'
-                    } ${isMuted ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-muted text-foreground hover:bg-muted/80'}`}
-                  >
-                    {isMuted ? (
-                      <MicOff
-                        className={`${
-                          isMobile && isMinimizedOnMobile
-                            ? 'h-3.5 w-3.5'
-                            : isMobile && !isMinimizedOnMobile
-                              ? 'h-4 w-4'
-                              : 'h-5 w-5'
-                        }`}
-                      />
-                    ) : (
-                      <Mic
-                        className={`${
-                          isMobile && isMinimizedOnMobile
-                            ? 'h-3.5 w-3.5'
-                            : isMobile && !isMinimizedOnMobile
-                              ? 'h-4 w-4'
-                              : 'h-5 w-5'
-                        }`}
-                      />
-                    )}
-                  </button>
-
-                  {callType === CALL_TYPE.VIDEO && (
-                    <button
-                      onClick={toggleCamera}
-                      className={`flex items-center justify-center rounded-full transition-colors duration-200 ${
-                        isMobile && isMinimizedOnMobile
-                          ? 'h-8 w-8'
-                          : isMobile && !isMinimizedOnMobile
-                            ? 'h-10 w-10'
-                            : 'h-12 w-12'
-                      } ${
-                        isCameraOff
-                          ? 'bg-red-500 text-white hover:bg-red-600'
-                          : 'bg-muted text-foreground hover:bg-muted/80'
-                      }`}
-                    >
-                      {isCameraOff ? (
-                        <VideoOff
-                          className={`${
-                            isMobile && isMinimizedOnMobile
-                              ? 'h-3.5 w-3.5'
-                              : isMobile && !isMinimizedOnMobile
-                                ? 'h-4 w-4'
-                                : 'h-5 w-5'
-                          }`}
-                        />
-                      ) : (
-                        <Video
-                          className={`${
-                            isMobile && isMinimizedOnMobile
-                              ? 'h-3.5 w-3.5'
-                              : isMobile && !isMinimizedOnMobile
-                                ? 'h-4 w-4'
-                                : 'h-5 w-5'
-                          }`}
-                        />
-                      )}
-                    </button>
-                  )}
-
-                  {callType === CALL_TYPE.VIDEO && !(isMobile && isMinimizedOnMobile) && (
-                    <button
-                      onClick={toggleScreenSharing}
-                      className={`flex items-center justify-center rounded-full transition-colors duration-200 ${
-                        isScreenSharing
-                          ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-                          : 'bg-muted text-foreground hover:bg-muted/80'
-                      } ${isMobile && !isMinimizedOnMobile ? 'h-10 w-10' : 'h-12 w-12'}`}
-                    >
-                      <Monitor className={`${isMobile && !isMinimizedOnMobile ? 'h-4 w-4' : 'h-5 w-5'}`} />
-                    </button>
-                  )}
-
-                  <button
-                    onClick={handleEndCall}
-                    className={`flex items-center justify-center rounded-full bg-red-500 text-white transition-colors duration-200 hover:bg-red-600 ${
-                      isMobile && isMinimizedOnMobile
-                        ? 'h-8 w-8'
-                        : isMobile && !isMinimizedOnMobile
-                          ? 'h-10 w-10'
-                          : 'h-12 w-12'
+                      isMobile ? 'h-10 w-10' : 'h-12 w-12'
+                    } ${
+                      isCameraOff
+                        ? 'bg-red-500 text-white hover:bg-red-600'
+                        : 'bg-muted text-foreground hover:bg-muted/80'
                     }`}
                   >
-                    <Phone
-                      className={`rotate-135 ${
-                        isMobile && isMinimizedOnMobile
-                          ? 'h-3.5 w-3.5'
-                          : isMobile && !isMinimizedOnMobile
-                            ? 'h-4 w-4'
-                            : 'h-5 w-5'
-                      }`}
-                    />
+                    {isCameraOff ? (
+                      <VideoOff className={`${isMobile ? 'h-4 w-4' : 'h-5 w-5'}`} />
+                    ) : (
+                      <Video className={`${isMobile ? 'h-4 w-4' : 'h-5 w-5'}`} />
+                    )}
                   </button>
-                </div>
+                )}
+
+                {/* Nút chia sẻ màn hình (chỉ hiển thị khi là cuộc gọi video và đã kết nối) */}
+                {callType === CALL_TYPE.VIDEO && callStatus === CALL_STATUS.CONNECTED && (
+                  <button
+                    onClick={toggleScreenSharing}
+                    className={`flex items-center justify-center rounded-full transition-colors duration-200 ${
+                      isMobile ? 'h-10 w-10' : 'h-12 w-12'
+                    } ${
+                      isScreenSharing
+                        ? 'bg-red-500 text-white hover:bg-red-600'
+                        : 'bg-muted text-foreground hover:bg-muted/80'
+                    }`}
+                  >
+                    <Monitor className={`${isMobile ? 'h-4 w-4' : 'h-5 w-5'}`} />
+                  </button>
+                )}
+
+                {/* Nút kết thúc cuộc gọi */}
+                <Button
+                  onClick={handleEndCall}
+                  size='lg'
+                  variant='destructive'
+                  className={`${
+                    isMobile ? 'h-10 w-10' : 'h-12 w-12'
+                  } rounded-full p-0 transition-transform duration-200 hover:scale-105`}
+                >
+                  <Phone className={`${isMobile ? 'h-4 w-4' : 'h-5 w-5'} rotate-135`} />
+                </Button>
+
+                {/* Nút toàn màn hình (chỉ hiển thị trên desktop) */}
+                {!isMobile && (
+                  <button
+                    onClick={toggleFullscreen}
+                    className={`bg-muted text-foreground hover:bg-muted/80 flex items-center justify-center rounded-full transition-colors duration-200 ${
+                      isMobile ? 'h-10 w-10' : 'h-12 w-12'
+                    }`}
+                  >
+                    {isFullscreen ? (
+                      <Minimize className={`${isMobile ? 'h-4 w-4' : 'h-5 w-5'}`} />
+                    ) : (
+                      <Maximize className={`${isMobile ? 'h-4 w-4' : 'h-5 w-5'}`} />
+                    )}
+                  </button>
+                )}
               </div>
-            )
-          )}
+            )}
+          </div>
 
           {/* Thêm các nút điều khiển khi ở chế độ thu nhỏ và đã kết nối */}
           {isMobile && isMinimizedOnMobile && (
