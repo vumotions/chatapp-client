@@ -5,12 +5,13 @@ import { Maximize, Mic, MicOff, Minimize, Monitor, Phone, Video, VideoOff } from
 import { useSession } from 'next-auth/react'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
+import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
 import { Button } from '~/components/ui/button'
 import { CALL_STATUS, CALL_TYPE } from '~/constants/enums'
 import SOCKET_EVENTS from '~/constants/socket-events'
 import { useIsMobile } from '~/hooks/use-mobile'
 import { useSocket } from '~/hooks/use-socket'
-import { Avatar, AvatarImage, AvatarFallback } from '~/components/ui/avatar'
+import { cn } from '~/lib/utils'
 import { useCallStore } from '~/stores/call.store'
 
 interface CallFrameProps {
@@ -1199,7 +1200,7 @@ export function CallFrame({
                     isMinimizedOnMobile ? 'ml-auto' : ''
                   }`}
                 >
-                  {isMinimizedOnMobile ? <Maximize className='h-4 w-4' /> : <Minimize className='h-4 w-4' />}
+                  {isMinimizedOnMobile ? <Maximize className='size-4' /> : <Minimize className='size-4' />}
                 </button>
               )}
               {/* Chỉ hiển thị nút fullscreen khi KHÔNG phải là mobile */}
@@ -1208,7 +1209,7 @@ export function CallFrame({
                   onClick={toggleFullscreen}
                   className='rounded-full bg-black/40 p-1.5 text-white transition-colors hover:bg-black/60'
                 >
-                  <Maximize className='h-4 w-4' />
+                  <Maximize className='size-4' />
                 </button>
               )}
               {!isMobile && isFullscreen && (
@@ -1216,7 +1217,7 @@ export function CallFrame({
                   onClick={toggleFullscreen}
                   className='rounded-full bg-black/40 p-1.5 text-white transition-colors hover:bg-black/60'
                 >
-                  <Minimize className='h-4 w-4' />
+                  <Minimize className='size-4' />
                 </button>
               )}
             </div>
@@ -1275,12 +1276,14 @@ export function CallFrame({
                       <h3 className='text-foreground text-lg font-medium'>{recipientName}</h3>
                       <p className='text-muted-foreground text-sm'>
                         {callStatus === CALL_STATUS.CONNECTING && 'Đang kết nối...'}
-                        {callStatus === CALL_STATUS.CONNECTED && remoteVideoOff && 'Đã tắt camera'}
-                        {callStatus === CALL_STATUS.RINGING && 'Đang đổ chuông...'}
+                        {callStatus === CALL_STATUS.CONNECTED &&
+                          remoteVideoOff &&
+                          callType === CALL_TYPE.VIDEO &&
+                          'Đã tắt camera'}
                         {callStatus === CALL_STATUS.CALLING && 'Đang gọi...'}
-                        {callStatus === CALL_STATUS.ENDED && 'Cuộc gọi đã kết thúc'}
+                        {callStatus === CALL_STATUS.RINGING && 'Đang đổ chuông...'}
                         {callStatus === CALL_STATUS.REJECTED && 'Cuộc gọi bị từ chối'}
-                        {callStatus === CALL_STATUS.FAILED && 'Kết nối thất bại'}
+                        {callStatus === CALL_STATUS.ENDED && 'Cuộc gọi đã kết thúc'}
                       </p>
                     </>
                   )}
@@ -1307,7 +1310,7 @@ export function CallFrame({
                 {isCameraOff && (
                   <div className='flex h-full w-full items-center justify-center'>
                     <Avatar className='h-16 w-16'>
-                      <AvatarImage src={session?.user?.image || ''} alt={session?.user?.name || ''} />
+                      <AvatarImage src={session?.user?.avatar || ''} alt={session?.user?.name || ''} />
                       <AvatarFallback>{session?.user?.name?.charAt(0) || 'U'}</AvatarFallback>
                     </Avatar>
                   </div>
@@ -1323,7 +1326,7 @@ export function CallFrame({
           {/* Các nút điều khiển - Hiển thị nút chấp nhận/từ chối khi đang ở trạng thái RINGING */}
           <div
             className={`bg-card/80 absolute right-0 bottom-0 left-0 z-20 flex items-center justify-center backdrop-blur-md ${
-              isMobile && isMinimizedOnMobile ? 'p-1' : 'p-3'
+              isMobile && isMinimizedOnMobile ? 'px-1 pt-1 pb-2' : 'p-3'
             }`}
           >
             {callStatus === CALL_STATUS.RINGING && !isInitiator ? (
@@ -1332,7 +1335,7 @@ export function CallFrame({
                 {!(isMobile && isMinimizedOnMobile) && (
                   <>
                     {/* Nút tắt mic */}
-                    <button
+                    <Button
                       onClick={() => setPreAcceptMuted(!preAcceptMuted)}
                       className={`flex items-center justify-center rounded-full transition-colors duration-200 ${
                         isMobile ? 'h-10 w-10' : 'h-12 w-12'
@@ -1343,15 +1346,15 @@ export function CallFrame({
                       }`}
                     >
                       {preAcceptMuted ? (
-                        <MicOff className={`${isMobile ? 'h-4 w-4' : 'h-5 w-5'}`} />
+                        <MicOff className={`${isMobile ? 'size-4' : 'size-5'}`} />
                       ) : (
-                        <Mic className={`${isMobile ? 'h-4 w-4' : 'h-5 w-5'}`} />
+                        <Mic className={`${isMobile ? 'size-4' : 'size-5'}`} />
                       )}
-                    </button>
+                    </Button>
 
                     {/* Nút tắt camera (chỉ hiển thị khi là cuộc gọi video) */}
                     {callType === CALL_TYPE.VIDEO && (
-                      <button
+                      <Button
                         onClick={togglePreAcceptCamera}
                         className={`flex items-center justify-center rounded-full transition-colors duration-200 ${
                           isMobile ? 'h-10 w-10' : 'h-12 w-12'
@@ -1362,11 +1365,11 @@ export function CallFrame({
                         }`}
                       >
                         {preAcceptCameraOff ? (
-                          <VideoOff className={`${isMobile ? 'h-4 w-4' : 'h-5 w-5'}`} />
+                          <VideoOff className={`${isMobile ? 'size-4' : 'size-5'}`} />
                         ) : (
-                          <Video className={`${isMobile ? 'h-4 w-4' : 'h-5 w-5'}`} />
+                          <Video className={`${isMobile ? 'size-4' : 'size-5'}`} />
                         )}
-                      </button>
+                      </Button>
                     )}
                   </>
                 )}
@@ -1374,7 +1377,7 @@ export function CallFrame({
                 {/* Nút từ chối cuộc gọi */}
                 <Button
                   onClick={handleRejectCall}
-                  size='lg'
+                  size='icon'
                   variant='destructive'
                   className={`${
                     isMobile && isMinimizedOnMobile ? 'h-8 w-8' : isMobile ? 'h-10 w-10' : 'h-12 w-12'
@@ -1382,7 +1385,7 @@ export function CallFrame({
                 >
                   <Phone
                     className={`${
-                      isMobile && isMinimizedOnMobile ? 'h-4 w-4' : isMobile ? 'h-5 w-5' : 'h-6 w-6'
+                      isMobile && isMinimizedOnMobile ? 'size-4' : isMobile ? 'size-5' : 'h-6 w-6'
                     } rotate-135`}
                   />
                 </Button>
@@ -1398,34 +1401,38 @@ export function CallFrame({
                   } rounded-full bg-green-500 p-0 text-white transition-transform duration-200 hover:scale-105 hover:bg-green-600`}
                 >
                   <Phone
-                    className={`${isMobile && isMinimizedOnMobile ? 'h-4 w-4' : isMobile ? 'h-5 w-5' : 'h-6 w-6'}`}
+                    className={`${isMobile && isMinimizedOnMobile ? 'size-4' : isMobile ? 'size-5' : 'h-6 w-6'}`}
                   />
                 </Button>
               </div>
             ) : (
-              <div className={`flex ${isMobile ? 'justify-center' : 'justify-center'} gap-3`}>
+              <div
+                className={cn(`flex justify-center gap-3`, {
+                  'gap-2': isMobile
+                })}
+              >
                 {/* Nút tắt/bật mic */}
-                <button
+                <Button
                   onClick={toggleMute}
                   className={`flex items-center justify-center rounded-full transition-colors duration-200 ${
-                    isMobile ? 'h-10 w-10' : 'h-12 w-12'
+                    isMobile ? 'h-9 w-9' : 'h-12 w-12'
                   } ${
                     isMuted ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-muted text-foreground hover:bg-muted/80'
                   }`}
                 >
                   {isMuted ? (
-                    <MicOff className={`${isMobile ? 'h-4 w-4' : 'h-5 w-5'}`} />
+                    <MicOff className={`${isMobile ? 'size-4' : 'size-5'}`} />
                   ) : (
-                    <Mic className={`${isMobile ? 'h-4 w-4' : 'h-5 w-5'}`} />
+                    <Mic className={`${isMobile ? 'size-4' : 'size-5'}`} />
                   )}
-                </button>
+                </Button>
 
                 {/* Nút tắt/bật camera (chỉ hiển thị khi là cuộc gọi video) */}
                 {callType === CALL_TYPE.VIDEO && (
                   <button
                     onClick={toggleCamera}
                     className={`flex items-center justify-center rounded-full transition-colors duration-200 ${
-                      isMobile ? 'h-10 w-10' : 'h-12 w-12'
+                      isMobile ? 'h-9 w-9' : 'h-12 w-12'
                     } ${
                       isCameraOff
                         ? 'bg-red-500 text-white hover:bg-red-600'
@@ -1433,9 +1440,9 @@ export function CallFrame({
                     }`}
                   >
                     {isCameraOff ? (
-                      <VideoOff className={`${isMobile ? 'h-4 w-4' : 'h-5 w-5'}`} />
+                      <VideoOff className={`${isMobile ? 'size-4' : 'size-5'}`} />
                     ) : (
-                      <Video className={`${isMobile ? 'h-4 w-4' : 'h-5 w-5'}`} />
+                      <Video className={`${isMobile ? 'size-4' : 'size-5'}`} />
                     )}
                   </button>
                 )}
@@ -1445,14 +1452,14 @@ export function CallFrame({
                   <button
                     onClick={toggleScreenSharing}
                     className={`flex items-center justify-center rounded-full transition-colors duration-200 ${
-                      isMobile ? 'h-10 w-10' : 'h-12 w-12'
+                      isMobile ? 'h-9 w-9' : 'h-12 w-12'
                     } ${
                       isScreenSharing
                         ? 'bg-red-500 text-white hover:bg-red-600'
                         : 'bg-muted text-foreground hover:bg-muted/80'
                     }`}
                   >
-                    <Monitor className={`${isMobile ? 'h-4 w-4' : 'h-5 w-5'}`} />
+                    <Monitor className={`${isMobile ? 'size-4' : 'size-5'}`} />
                   </button>
                 )}
 
@@ -1462,58 +1469,44 @@ export function CallFrame({
                   size='lg'
                   variant='destructive'
                   className={`${
-                    isMobile ? 'h-10 w-10' : 'h-12 w-12'
+                    isMobile ? 'h-9 w-9' : 'h-12 w-12'
                   } rounded-full p-0 transition-transform duration-200 hover:scale-105`}
                 >
-                  <Phone className={`${isMobile ? 'h-4 w-4' : 'h-5 w-5'} rotate-135`} />
+                  <Phone className={`${isMobile ? 'size-4' : 'size-5'} rotate-135`} />
                 </Button>
 
-                {/* Nút toàn màn hình (chỉ hiển thị trên desktop) */}
-                {!isMobile && (
-                  <button
-                    onClick={toggleFullscreen}
-                    className={`bg-muted text-foreground hover:bg-muted/80 flex items-center justify-center rounded-full transition-colors duration-200 ${
-                      isMobile ? 'h-10 w-10' : 'h-12 w-12'
-                    }`}
-                  >
-                    {isFullscreen ? (
-                      <Minimize className={`${isMobile ? 'h-4 w-4' : 'h-5 w-5'}`} />
-                    ) : (
-                      <Maximize className={`${isMobile ? 'h-4 w-4' : 'h-5 w-5'}`} />
-                    )}
-                  </button>
-                )}
+                {/* Removed fullscreen button from here */}
               </div>
             )}
           </div>
 
           {/* Thêm các nút điều khiển khi ở chế độ thu nhỏ và đã kết nối */}
           {isMobile && isMinimizedOnMobile && (
-            <div className='absolute right-0 bottom-0 left-0 flex justify-center gap-2 border-t border-gray-700/50 bg-black/30 p-1 backdrop-blur-md'>
+            <div className='absolute right-0 bottom-0 left-0 flex justify-center gap-0.5 border-t border-gray-700/50 bg-black/30 p-0.5 backdrop-blur-md'>
               {callStatus === CALL_STATUS.RINGING ? (
                 // Nút chấp nhận/từ chối khi đang đổ chuông
                 <>
                   {callType === CALL_TYPE.VIDEO && (
                     <button
                       onClick={togglePreAcceptCamera}
-                      className={`flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-200 ${
+                      className={`flex size-4 items-center justify-center rounded-full transition-colors duration-200 ${
                         preAcceptCameraOff ? 'bg-red-500/90' : 'bg-black/50'
-                      } text-white backdrop-blur-sm`}
+                      } text-white`}
                     >
-                      {preAcceptCameraOff ? <VideoOff className='h-3 w-3' /> : <Video className='h-3 w-3' />}
+                      {preAcceptCameraOff ? <VideoOff className='h-1.5 w-1.5' /> : <Video className='h-1.5 w-1.5' />}
                     </button>
                   )}
                   <button
                     onClick={handleRejectCall}
-                    className='flex h-7 w-7 items-center justify-center rounded-full bg-red-500/90 text-white shadow-sm'
+                    className='flex size-4 items-center justify-center rounded-full bg-red-500/90 text-white'
                   >
-                    <Phone className='h-3 w-3 rotate-135' />
+                    <Phone className='h-1.5 w-1.5 rotate-135' />
                   </button>
                   <button
                     onClick={handleAcceptCall}
-                    className='flex h-7 w-7 items-center justify-center rounded-full bg-green-500/90 text-white shadow-sm'
+                    className='flex size-4 items-center justify-center rounded-full bg-green-500/90 text-white'
                   >
-                    <Phone className='h-3 w-3' />
+                    <Phone className='h-1.5 w-1.5' />
                   </button>
                 </>
               ) : callStatus === CALL_STATUS.CALLING ? (
@@ -1521,29 +1514,18 @@ export function CallFrame({
                 <>
                   <button
                     onClick={toggleMute}
-                    className={`flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-200 ${
-                      isMuted ? 'bg-red-500/90' : 'bg-muted'
-                    } text-white shadow-sm`}
+                    className={`flex size-4 items-center justify-center rounded-full ${
+                      isMuted ? 'bg-red-500/90' : 'bg-black/50'
+                    } text-white`}
                   >
-                    {isMuted ? <MicOff className='h-3 w-3' /> : <Mic className='h-3 w-3' />}
+                    {isMuted ? <MicOff className='h-1.5 w-1.5' /> : <Mic className='h-1.5 w-1.5' />}
                   </button>
-
-                  {callType === CALL_TYPE.VIDEO && (
-                    <button
-                      onClick={toggleCamera}
-                      className={`flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-200 ${
-                        isCameraOff ? 'bg-red-500/90' : 'bg-muted'
-                      } text-white backdrop-blur-sm`}
-                    >
-                      {isCameraOff ? <VideoOff className='h-3 w-3' /> : <Video className='h-3 w-3' />}
-                    </button>
-                  )}
 
                   <button
                     onClick={handleEndCall}
-                    className='flex h-7 w-7 items-center justify-center rounded-full bg-red-500/90 text-white backdrop-blur-sm'
+                    className='flex size-4 items-center justify-center rounded-full bg-red-500/90 text-white'
                   >
-                    <Phone className='h-3 w-3 rotate-135' />
+                    <Phone className='h-1.5 w-1.5 rotate-135' />
                   </button>
                 </>
               ) : (
@@ -1552,29 +1534,29 @@ export function CallFrame({
                   <>
                     <button
                       onClick={toggleMute}
-                      className={`flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-200 ${
+                      className={`flex size-4 items-center justify-center rounded-full ${
                         isMuted ? 'bg-red-500/90' : 'bg-black/50'
-                      } text-white backdrop-blur-sm`}
+                      } text-white`}
                     >
-                      {isMuted ? <MicOff className='h-3 w-3' /> : <Mic className='h-3 w-3' />}
+                      {isMuted ? <MicOff className='h-1.5 w-1.5' /> : <Mic className='h-1.5 w-1.5' />}
                     </button>
 
                     {callType === CALL_TYPE.VIDEO && (
                       <button
                         onClick={toggleCamera}
-                        className={`flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-200 ${
+                        className={`flex size-4 items-center justify-center rounded-full ${
                           isCameraOff ? 'bg-red-500/90' : 'bg-black/50'
-                        } text-white backdrop-blur-sm`}
+                        } text-white`}
                       >
-                        {isCameraOff ? <VideoOff className='h-3 w-3' /> : <Video className='h-3 w-3' />}
+                        {isCameraOff ? <VideoOff className='h-1.5 w-1.5' /> : <Video className='h-1.5 w-1.5' />}
                       </button>
                     )}
 
                     <button
                       onClick={handleEndCall}
-                      className='flex h-7 w-7 items-center justify-center rounded-full bg-red-500/90 text-white backdrop-blur-sm'
+                      className='flex size-4 items-center justify-center rounded-full bg-red-500/90 text-white'
                     >
-                      <Phone className='h-3 w-3 rotate-135' />
+                      <Phone className='h-1.5 w-1.5 rotate-135' />
                     </button>
                   </>
                 )
