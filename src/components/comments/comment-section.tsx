@@ -1,234 +1,240 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client'
 
+import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
-import { useEffect, useState } from 'react'
-import { toast } from 'sonner'
-import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
+import { useTranslations } from 'next-intl'
+import { useRouter } from 'next/navigation'
+import { JSX, useCallback, useEffect, useRef, useState } from 'react'
+import { CommentForm } from '~/components/comments/comment-form'
 import { Button } from '~/components/ui/button'
-import { Textarea } from '~/components/ui/textarea'
-
-import { useSocket } from '~/hooks/use-socket'
+import {
+  useCreateCommentMutation,
+  useDeleteCommentMutation,
+  useUpdateCommentMutation,
+  useLikeCommentMutation
+} from '~/hooks/data/comment.hooks'
 import commentService from '~/services/comment.service'
-import { Comment } from '~/types/comment'
 import CommentItem from './comment-item'
 
 interface CommentSectionProps {
   postId: string
-  onCommentCountChange?: React.Dispatch<React.SetStateAction<number>>
+  focusCommentId?: string
 }
 
-export default function CommentSection({ postId, onCommentCountChange }: CommentSectionProps) {
+export default function CommentSection({ postId, focusCommentId }: CommentSectionProps) {
   const { data: session } = useSession()
-  const [commentText, setCommentText] = useState('')
-  const [localComments, setLocalComments] = useState<Comment[]>([]) // Khởi tạo là mảng rỗng
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const [pagination, setPagination] = useState({
-    page: 1,
-    limit: 10,
-    total: 0,
-    hasMore: false
+  const user = session?.user
+  const queryClient = useQueryClient()
+  const t = useTranslations()
+  const focusedCommentRef = useRef<HTMLDivElement>(null)
+  const [expandedComments, setExpandedComments] = useState<Record<string, boolean>>({})
+  const router = useRouter()
+  const {
+    data: commentsData,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    refetch
+  } = useInfiniteQuery({
+    queryKey: ['comments', postId],
+    queryFn: ({ pageParam }) => commentService.getComments(postId, pageParam, 10).then((res) => res.data),
+    getNextPageParam: (lastPage: any) => {
+      const { currentPage, totalPages } = lastPage.pagination
+      return currentPage < totalPages ? currentPage + 1 : undefined
+    },
+    initialPageParam: 1
   })
-  const { socket } = useSocket()
-
-  // Thêm state để theo dõi việc tạm thời tắt socket
-  const [disableSocket, setDisableSocket] = useState(false)
-
-  // Cập nhật số lượng comment khi pagination.total thay đổi
+  const createComment = useCreateCommentMutation()
+  const deleteComment = useDeleteCommentMutation(postId)
+  const updateComment = useUpdateCommentMutation(postId)
+  const likeComment = useLikeCommentMutation(postId)
   useEffect(() => {
-    if (onCommentCountChange) {
-      onCommentCountChange(pagination.total)
+    if (focusCommentId && focusedCommentRef.current) {
+      focusedCommentRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      focusedCommentRef.current.style.backgroundColor = '#f0f2ff'
+      setTimeout(() => (focusedCommentRef.current!.style.backgroundColor = ''), 2000)
     }
-  }, [pagination.total, onCommentCountChange])
-
-  // Fetch comments khi component mount
-  useEffect(() => {
-    if (!postId) return
-    fetchComments()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [postId])
-
-  // Xử lý socket events
-  useEffect(() => {
-    if (!socket || !postId || disableSocket) return
-
-    // Kiểm tra socket có phải là đối tượng hợp lệ không
-    if (socket && typeof socket.emit === 'function') {
-      // Tham gia vào room của bài viết
-      commentService.joinPostRoom(socket, postId)
-      console.log(`Joined post room: ${postId}`)
-
-      // Lắng nghe sự kiện NEW_COMMENT
-      const handleNewComment = (data: any) => {
-        console.log('Received NEW_COMMENT event:', data)
-        // Nếu là reply thì không xử lý ở đây
-        if (data.isReply) return
-
-        // Thêm comment mới vào đầu mảng
-        setLocalComments((prev) => {
-          // Kiểm tra trùng lặp
-          const isDuplicate = prev.some(
-            (comment) => comment._id === data.comment._id || (comment.tempId && comment.tempId === data.comment.tempId)
-          )
-
-          if (isDuplicate) {
-            console.log('Duplicate comment detected, not adding to state')
-            return prev
-          }
-
-          console.log('Adding new comment to state:', data.comment)
-          return [data.comment, ...prev]
-        })
-
-        // Cập nhật tổng số comment
-        setPagination((prev) => ({
-          ...prev,
-          total: prev.total + 1
-        }))
-      }
-
-      if (typeof socket.on === 'function') {
-        socket.on('NEW_COMMENT', handleNewComment)
-
-        return () => {
-          // Hủy đăng ký sự kiện khi component unmount
-          if (socket && typeof socket.off === 'function') {
-            socket.off('NEW_COMMENT', handleNewComment)
-            commentService.leavePostRoom(socket, postId)
+  }, [focusCommentId])
+  const canEditDelete = useCallback((commentAuthor: any) => user?._id === commentAuthor._id, [user])
+  const handleCreateComment = async (content: string, parentId: string | null = null) => {
+    try {
+      const mentions = extractMentions(content)
+      await createComment.mutateAsync(
+        {
+          postId,
+          content,
+          parentId,
+          mentions: mentions.map((mention) => mention.userId)
+        },
+        {
+          onSuccess: async () => {
+            await refetch()
           }
         }
-      }
-    }
-
-    return undefined
-  }, [socket, postId, disableSocket])
-
-  const fetchComments = async () => {
-    if (isLoading) return
-
-    try {
-      setIsLoading(true)
-      const response = await commentService.getComments(postId, pagination.page, pagination.limit)
-
-      // Kiểm tra cấu trúc dữ liệu trả về
-      console.log('API Response:', response)
-
-      // Xử lý dữ liệu trả về
-      const data = response.data.data || []
-      const paginationData = response.data.pagination || {
-        page: pagination.page,
-        limit: pagination.limit,
-        total: 0,
-        hasMore: false
-      }
-
-      // Nếu là trang đầu tiên, thay thế toàn bộ comments
-      // Nếu không, thêm vào danh sách hiện tại
-      if (pagination.page === 1) {
-        setLocalComments(Array.isArray(data) ? data : [])
-      } else {
-        setLocalComments((prev) => [...prev, ...(Array.isArray(data) ? data : [])])
-      }
-
-      setPagination(paginationData)
+      )
     } catch (error) {
-      console.error('Failed to fetch comments:', error)
-      toast.error('Không thể tải bình luận')
-    } finally {
-      setIsLoading(false)
+      console.error('Error creating comment:', error)
     }
   }
 
-  const loadMoreComments = () => {
-    if (pagination.hasMore && !isLoading) {
-      setPagination((prev) => ({
-        ...prev,
-        page: prev.page + 1
-      }))
-      fetchComments()
-    }
-  }
-
-  const handleSubmitComment = async () => {
-    if (!commentText.trim() || isSubmitting) return
-
+  const handleUpdateComment = async (commentId: string, content: string) => {
     try {
-      setIsSubmitting(true)
-
-      // Tạm thời tắt socket để tránh nhận sự kiện của chính mình
-      setDisableSocket(true)
-
-      // Tạo tempId để theo dõi comment
-      const tempId = `temp-${Date.now()}`
-
-      // Lưu nội dung comment trước khi xóa
-      const commentContent = commentText
-
-      // Xóa nội dung trong textarea
-      setCommentText('')
-
-      // Tạo comment tạm thời để hiển thị ngay lập tức
-      const tempComment: Comment = {
-        _id: tempId, // Sử dụng tempId làm _id tạm thời
-        tempId,
-        userId: {
-          _id: session?.user?._id as string,
-          name: session?.user?.name as string,
-          avatar: session?.user?.avatar as string
-        },
-        postId,
-        content: commentContent,
-        createdAt: new Date().toISOString(),
-        isLocal: true
-      }
-
-      // Thêm comment tạm thời vào state
-      setLocalComments((prev) => [tempComment, ...prev])
-
-      // Gọi API để lưu comment
-      const response = await commentService.createComment(postId, {
-        content: commentContent,
-        tempId
-      })
-
-      // Cập nhật comment tạm thời bằng dữ liệu từ server
-      setLocalComments((prev) => {
-        return prev.map((comment) => {
-          if (comment.tempId === tempId) {
-            // Thay thế hoàn toàn comment tạm thời bằng comment từ server
-            return response.data.data
+      await updateComment.mutateAsync(
+        { commentId, data: { content } },
+        {
+          onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['comments', postId] })
           }
-          return comment
-        })
-      })
-
-      // Đợi một chút trước khi bật lại socket
-      setTimeout(() => {
-        setDisableSocket(false)
-      }, 2000)
+        }
+      )
     } catch (error) {
-      console.error('Failed to submit comment:', error)
-      toast.error('Không thể gửi bình luận')
-
-      // Xóa comment tạm thời khỏi state
-      setLocalComments((prev) => prev.filter((comment) => !comment.isLocal))
-
-      // Bật lại socket
-      setDisableSocket(false)
-    } finally {
-      setIsSubmitting(false)
+      console.error('Error updating comment:', error)
     }
   }
 
+  const handleDeleteComment = async (commentId: string) => {
+    try {
+      await deleteComment.mutateAsync(commentId, {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: ['comments', postId] })
+        }
+      })
+    } catch (error) {
+      console.error('Error deleting comment:', error)
+    }
+  }
+
+  const handleLikeComment = async (commentId: string) => {
+    try {
+      await likeComment.mutateAsync(commentId, {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: ['comments', postId] })
+        }
+      })
+    } catch (error) {
+      console.error('Error liking comment:', error)
+    }
+  }
+
+  const extractMentions = (content: string) => {
+    const mentionRegex = /@\[([^\]]+)\]\(([^)]+)\)/g
+    const mentions: { name: string; userId: string }[] = []
+    let match
+    while ((match = mentionRegex.exec(content)) !== null) {
+      mentions.push({ name: match[1], userId: match[2] })
+    }
+    return mentions
+  }
+  const renderCommentContent = (content: string): JSX.Element | JSX.Element[] => {
+    if (!content) {
+      return <span>No content</span>
+    }
+    const parts = content.split(/(@\[.*?\]\(.*?\))/g)
+    return parts.map((part, index) => {
+      const match = part.match(/@\[(.*?)\]\((.*?)\)/)
+      if (match) {
+        return (
+          <span
+            key={index}
+            className='cursor-pointer text-blue-600 hover:underline'
+            onClick={() => router.push(`/profile/${match[2]}`)}
+          >
+            @{match[1]}
+          </span>
+        )
+      }
+      return <span key={index}>{part}</span>
+    })
+  }
+  const toggleReplies = (commentId: string) => {
+    setExpandedComments((prev) => ({
+      ...prev,
+      [commentId]: !prev[commentId]
+    }))
+  }
+  const renderComments = (comments: any[], level = 0, isRoot = true) => {
+    return comments.map((comment) => {
+      if (isRoot && comment.parentId) return null
+      return (
+        <div key={comment._id}>
+          <CommentItem
+            comment={comment}
+            level={level}
+            handleUpdateComment={handleUpdateComment}
+            handleDeleteComment={handleDeleteComment}
+            handleCreateComment={handleCreateComment}
+            handleLikeComment={handleLikeComment}
+            postId={postId}
+            renderCommentContent={renderCommentContent}
+            canEditDelete={canEditDelete}
+            ref={comment._id === focusCommentId ? focusedCommentRef : null}
+          />
+          {comment.comments?.length > 0 && (
+            <>
+              <div onClick={() => toggleReplies(comment._id)} className='ml-[50px] cursor-pointer'>
+                {expandedComments[comment._id]
+                  ? t('comments.hideReplies')
+                  : t('comments.viewAllReplies', { count: comment.comments.length })}
+              </div>
+              {expandedComments[comment._id] && <div>{renderComments(comment.comments, level + 1, false)}</div>}
+            </>
+          )}
+        </div>
+      )
+    })
+  }
+  const findParentIds = (pages: any[], targetId: string): string[] => {
+    let path: string[] = []
+
+    const search = (comments: any[], targetId: string, currentPath: string[]): boolean => {
+      for (const comment of comments) {
+        const newPath = [...currentPath, comment._id]
+        if (comment._id === targetId) {
+          path = newPath
+          return true
+        }
+        if (comment.comments?.length > 0) {
+          const found = search(comment.comments, targetId, newPath)
+          if (found) return true
+        }
+      }
+      return false
+    }
+
+    for (const page of pages) {
+      if (search(page.comments, targetId, [])) break
+    }
+    return path.slice(0, -1) // Loại bỏ ID của chính comment đích
+  }
+  useEffect(() => {
+    if (focusCommentId && commentsData?.pages) {
+      const parentIds = findParentIds(commentsData.pages, focusCommentId)
+      setExpandedComments((prev) => ({
+        ...prev,
+        ...parentIds.reduce((acc, id) => ({ ...acc, [id]: true }), {})
+      }))
+    }
+  }, [focusCommentId, commentsData])
+  useEffect(() => {
+    if (focusCommentId && !isFetchingNextPage) {
+      const element = document.getElementById(`comment-${focusCommentId}`)
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        element.style.backgroundColor = '#f0f2ff'
+        setTimeout(() => (element.style.backgroundColor = ''), 2000)
+      }
+    }
+  }, [focusCommentId, isFetchingNextPage, commentsData])
   return (
     <div className='space-y-4'>
       {/* Comment input */}
-      <div className='flex items-start gap-2'>
+      {/* <div className='flex items-start gap-2'>
         <Avatar className='h-8 w-8'>
           <AvatarImage src={session?.user?.avatar || ''} alt={session?.user?.name || ''} />
           <AvatarFallback>{session?.user?.name?.[0] || 'U'}</AvatarFallback>
-        </Avatar>
-        <div className='flex-1'>
+        </Avatar> */}
+      {/* <div className='flex-1'>
           <Textarea
             placeholder='Viết bình luận...'
             value={commentText}
@@ -240,26 +246,28 @@ export default function CommentSection({ postId, onCommentCountChange }: Comment
               {isSubmitting ? 'Đang gửi...' : 'Gửi'}
             </Button>
           </div>
-        </div>
-      </div>
+        </div> */}
+      {/* </div> */}
 
       {/* Comments list */}
       <div className='space-y-4'>
-        {localComments.map((comment) => {
-          // Tạo key duy nhất cho mỗi comment
-          const uniqueKey = comment.isLocal ? `local-${comment.tempId}` : comment._id
-
-          return <CommentItem key={uniqueKey} comment={comment} postId={postId} />
-        })}
-        {isLoading && <p className='text-muted-foreground text-center'>Đang tải bình luận...</p>}
-        {!isLoading && localComments.length === 0 && (
+        {commentsData?.pages?.map((page, i) => <div key={i}>{renderComments(page.data, 0, true)}</div>)}
+        {isFetchingNextPage && <p className='text-muted-foreground text-center'>Đang tải bình luận...</p>}
+        {!isFetchingNextPage && commentsData?.pages.length === 0 && (
           <p className='text-muted-foreground text-center'>Chưa có bình luận nào</p>
         )}
-        {!isLoading && pagination.hasMore && (
-          <Button variant='ghost' className='w-full' onClick={loadMoreComments}>
+        {hasNextPage && (
+          <Button variant='ghost' className='w-full' onClick={() => fetchNextPage()}>
             Xem thêm bình luận
           </Button>
         )}
+        <div className='mt-4 rounded-lg bg-white p-4 shadow'>
+          <CommentForm
+            onSubmit={(content) => {
+              handleCreateComment(content)
+            }}
+          />
+        </div>
       </div>
     </div>
   )

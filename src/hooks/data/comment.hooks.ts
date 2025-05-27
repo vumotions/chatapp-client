@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import commentService from '~/services/comment.service'
@@ -8,7 +9,7 @@ export const useCommentReplies = (postId: string, commentId: string, enabled = t
   return useQuery({
     queryKey: ['COMMENT_REPLIES', commentId],
     queryFn: async () => {
-      const response = await commentService.getComments(postId, 1, 10, commentId)
+      const response = await commentService.getComments(postId, 1, 10)
 
       // Đảm bảo dữ liệu trả về có cấu trúc đúng
       const repliesData = Array.isArray(response.data.data) ? response.data.data : []
@@ -81,60 +82,105 @@ export const useLikeComment = () => {
 }
 
 // Hook để tạo reply cho một comment
-export const useCreateReply = (postId: string) => {
-  const queryClient = useQueryClient()
+// export const useCreateReply = (postId: string) => {
+//   const queryClient = useQueryClient()
 
+//   return useMutation({
+//     mutationFn: ({ content, parentId, tempId }: { content: string; parentId: string; tempId?: string }) =>
+//       commentService.createComment(postId, { content, parentId, tempId }),
+//     onMutate: async ({ content, parentId, tempId }) => {
+//       // Lưu trữ context trước khi update
+//       const previousData = queryClient.getQueryData(['COMMENT_REPLIES', parentId])
+
+//       // Tạo reply tạm thời
+//       const tempReply: Comment = {
+//         _id: tempId || `temp-${Date.now()}`,
+//         tempId,
+//         userId: {
+//           _id: '', // Sẽ được cập nhật từ session
+//           name: '', // Sẽ được cập nhật từ session
+//           avatar: '' // Sẽ được cập nhật từ session
+//         },
+//         postId,
+//         content,
+//         parentId,
+//         createdAt: new Date().toISOString(),
+//         isLocal: true,
+//         userLiked: false,
+//         likesCount: 0
+//       }
+
+//       // Optimistically update replies
+//       queryClient.setQueryData(['COMMENT_REPLIES', parentId], (old: any) => {
+//         if (!old) return { replies: [tempReply], pagination: { total: 1 } }
+
+//         return {
+//           ...old,
+//           replies: [tempReply, ...old.replies],
+//           pagination: {
+//             ...old.pagination,
+//             total: old.pagination.total + 1
+//           }
+//         }
+//       })
+
+//       return { previousData, tempReply }
+//     },
+//     onError: (err, variables, context) => {
+//       // Khôi phục lại dữ liệu nếu có lỗi
+//       if (context?.previousData) {
+//         queryClient.setQueryData(['COMMENT_REPLIES', variables.parentId], context.previousData)
+//       }
+//       toast.error('Không thể gửi phản hồi')
+//     },
+//     onSuccess: (response, variables) => {
+//       // Cập nhật cache với dữ liệu mới từ server
+//       queryClient.invalidateQueries({ queryKey: ['COMMENT_REPLIES', variables.parentId] })
+//     }
+//   })
+// }
+export const useCreateCommentMutation = () => {
   return useMutation({
-    mutationFn: ({ content, parentId, tempId }: { content: string; parentId: string; tempId?: string }) =>
-      commentService.createComment(postId, { content, parentId, tempId }),
-    onMutate: async ({ content, parentId, tempId }) => {
-      // Lưu trữ context trước khi update
-      const previousData = queryClient.getQueryData(['COMMENT_REPLIES', parentId])
+    mutationFn: (data: any) => commentService.createComment(data)
+  })
+}
 
-      // Tạo reply tạm thời
-      const tempReply: Comment = {
-        _id: tempId || `temp-${Date.now()}`,
-        tempId,
-        userId: {
-          _id: '', // Sẽ được cập nhật từ session
-          name: '', // Sẽ được cập nhật từ session
-          avatar: '' // Sẽ được cập nhật từ session
-        },
-        postId,
-        content,
-        parentId,
-        createdAt: new Date().toISOString(),
-        isLocal: true,
-        userLiked: false,
-        likesCount: 0
-      }
-
-      // Optimistically update replies
-      queryClient.setQueryData(['COMMENT_REPLIES', parentId], (old: any) => {
-        if (!old) return { replies: [tempReply], pagination: { total: 1 } }
-
-        return {
-          ...old,
-          replies: [tempReply, ...old.replies],
-          pagination: {
-            ...old.pagination,
-            total: old.pagination.total + 1
-          }
-        }
+// Hook để cập nhật bình luận
+export const useUpdateCommentMutation = (postId: string) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ commentId, data }: { commentId: string; data: { content: string } }) =>
+      commentService.updateComment(commentId, data),
+    onSuccess: async () => {
+      queryClient.invalidateQueries({
+        queryKey: ['COMMENTS', postId]
       })
+    }
+  })
+}
 
-      return { previousData, tempReply }
-    },
-    onError: (err, variables, context) => {
-      // Khôi phục lại dữ liệu nếu có lỗi
-      if (context?.previousData) {
-        queryClient.setQueryData(['COMMENT_REPLIES', variables.parentId], context.previousData)
-      }
-      toast.error('Không thể gửi phản hồi')
-    },
-    onSuccess: (response, variables) => {
-      // Cập nhật cache với dữ liệu mới từ server
-      queryClient.invalidateQueries({ queryKey: ['COMMENT_REPLIES', variables.parentId] })
+// Hook để xóa bình luận
+export const useDeleteCommentMutation = (postId: string) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (commentId: string) => commentService.deleteComment(commentId),
+    onSuccess: async () => {
+      queryClient.invalidateQueries({
+        queryKey: ['COMMENTS', postId]
+      })
+    }
+  })
+}
+
+// Hook để like/unlike comment
+export const useLikeCommentMutation = (postId: string) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (commentId: string) => commentService.likeComment(commentId),
+    onSuccess: async () => {
+      queryClient.invalidateQueries({
+        queryKey: ['comments', postId]
+      })
     }
   })
 }
