@@ -327,30 +327,30 @@ export function CallFrame({
   const iceCandidatesBuffer = useRef<RTCIceCandidateInit[]>([])
 
   // Add this with the other refs
-  const callDurationRef = useRef<number>(0);
-  const callStartTimeRef = useRef<number | null>(null);
+  const callDurationRef = useRef<number>(0)
+  const callStartTimeRef = useRef<number | null>(null)
 
   // Add this effect to track call duration
   useEffect(() => {
-    let intervalId: NodeJS.Timeout | null = null;
-    
+    let intervalId: NodeJS.Timeout | null = null
+
     // Start tracking duration when call is connected
     if (callStatus === CALL_STATUS.CONNECTED) {
-      callStartTimeRef.current = Date.now();
-      
+      callStartTimeRef.current = Date.now()
+
       // Update duration every second
       intervalId = setInterval(() => {
         if (callStartTimeRef.current) {
-          const durationInSeconds = Math.floor((Date.now() - callStartTimeRef.current) / 1000);
-          callDurationRef.current = durationInSeconds;
+          const durationInSeconds = Math.floor((Date.now() - callStartTimeRef.current) / 1000)
+          callDurationRef.current = durationInSeconds
         }
-      }, 1000);
+      }, 1000)
     }
-    
+
     return () => {
-      if (intervalId) clearInterval(intervalId);
-    };
-  }, [callStatus]);
+      if (intervalId) clearInterval(intervalId)
+    }
+  }, [callStatus])
 
   // Tạo và gửi offer
   const createAndSendOffer = async () => {
@@ -367,11 +367,23 @@ export function CallFrame({
       const offer = await peerConnectionRef.current.createOffer(offerOptions)
       console.log('Created offer:', offer.type)
 
+      // Check if peerConnection is still valid before setting local description
+      if (!peerConnectionRef.current) {
+        console.log('Cannot set local description: peer connection became null')
+        return
+      }
+
       await peerConnectionRef.current.setLocalDescription(offer)
       console.log('Set local description (offer)')
 
       // Đợi một chút để đảm bảo ICE gathering hoàn tất
       await new Promise((resolve) => setTimeout(resolve, 500))
+
+      // Check again if peerConnection is still valid
+      if (!peerConnectionRef.current) {
+        console.log('Cannot send offer: peer connection became null')
+        return
+      }
 
       // Kiểm tra xem local description có sẵn không
       const localDescription = peerConnectionRef.current.localDescription || offer
@@ -397,7 +409,6 @@ export function CallFrame({
       for (const candidate of iceCandidatesBuffer.current) {
         try {
           await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate))
-          console.log('Added buffered ICE candidate successfully')
         } catch (error) {
           console.error('Error adding buffered ICE candidate:', error)
         }
@@ -503,24 +514,17 @@ export function CallFrame({
 
       // Xử lý kết nối thay đổi
       peerConnectionRef.current.onconnectionstatechange = () => {
-        console.log('Connection state:', peerConnectionRef.current?.connectionState)
-
         if (peerConnectionRef.current?.connectionState === 'connected') {
-          console.log('WebRTC connection established!')
           setCallStatus(CALL_STATUS.CONNECTED)
         } else if (peerConnectionRef.current?.connectionState === 'failed') {
-          console.log('WebRTC connection failed')
           toast.error('Kết nối cuộc gọi bị gián đoạn')
         }
       }
 
       // Xử lý sự kiện ontrack - quan trọng để hiển thị video của đối phương
       peerConnectionRef.current.ontrack = (event) => {
-        console.log('Received remote track:', event.track.kind, 'enabled:', event.track.enabled)
-
         if (event.streams && event.streams[0]) {
           const stream = event.streams[0]
-          console.log('Received remote stream with ID:', stream.id)
 
           // Lưu stream vào state để React re-render
           setRemoteStream(stream)
@@ -528,14 +532,12 @@ export function CallFrame({
           // Cập nhật video element trực tiếp
           if (remoteVideoRef.current) {
             remoteVideoRef.current.srcObject = stream
-            console.log('Set remote video source directly')
           }
 
           // Cập nhật trạng thái UI
           if (event.track.kind === 'video') {
             setRemoteVideoOff(false)
             setCallStatus(CALL_STATUS.CONNECTED)
-            console.log('Video track received, updating UI')
           }
         }
       }
@@ -550,7 +552,6 @@ export function CallFrame({
 
       return peerConnectionRef.current
     } catch (error) {
-      console.error('Error initializing WebRTC:', error)
       toast.error('Không thể khởi tạo kết nối')
       throw error
     }
@@ -576,7 +577,6 @@ export function CallFrame({
           return
         }
 
-        console.log('Setting remote description (offer)')
         await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(data.sdp))
 
         // Xử lý các ICE candidates đã được buffer
@@ -599,9 +599,14 @@ export function CallFrame({
 
       try {
         console.log('Received SDP answer')
-        console.log('Setting remote description (answer)')
+
+        // Check if the connection is in a state where it can accept an answer
+        if (peerConnectionRef.current.signalingState === 'stable') {
+          console.log('Connection already in stable state, ignoring answer')
+          return
+        }
+
         await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(data.sdp))
-        console.log('Remote description set successfully')
 
         // Xử lý các ICE candidates đã được buffer
         await processBufferedIceCandidates()
@@ -616,8 +621,6 @@ export function CallFrame({
       try {
         // Kiểm tra xem remote description đã được thiết lập chưa
         if (!peerConnectionRef.current.remoteDescription) {
-          console.log('Remote description not set yet, buffering ICE candidate')
-
           // Lưu ICE candidate vào buffer để xử lý sau
           if (!iceCandidatesBuffer.current) {
             iceCandidatesBuffer.current = []
@@ -627,9 +630,7 @@ export function CallFrame({
           return
         }
 
-        console.log('Adding ICE candidate directly')
         await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(data.candidate))
-        console.log('Added ICE candidate successfully')
       } catch (error) {
         console.error('Error adding ICE candidate:', error)
       }
@@ -771,10 +772,7 @@ export function CallFrame({
           })
         }
       }
-
-      console.log('Call accepted and WebRTC initialized')
     } catch (error) {
-      console.error('Error accepting call:', error)
       toast.error('Không thể kết nối cuộc gọi. Vui lòng thử lại.')
     }
   }
@@ -789,24 +787,39 @@ export function CallFrame({
 
   const handleEndCall = () => {
     // Dừng tất cả media tracks trước khi gửi sự kiện kết thúc cuộc gọi
-    stopAllMediaTracks();
+    stopAllMediaTracks()
+
+    // Close and clean up peer connection
+    if (peerConnectionRef.current) {
+      peerConnectionRef.current.close()
+      peerConnectionRef.current = null
+    }
+
+    // Reset WebRTC state
+    setIsWebRTCInitialized(false)
+    setRemoteStream(null)
+
+    // Clear ICE candidates buffer
+    if (iceCandidatesBuffer.current) {
+      iceCandidatesBuffer.current = []
+    }
 
     // Emit event to end call and create system message
     socket?.emit(SOCKET_EVENTS.CALL_ENDED, {
       chatId,
       recipientId,
       callType,
-      duration: callDurationRef.current, // Send call duration if tracking it
-      createSystemMessage: true // Flag to indicate server should create a system message
-    });
+      duration: callDurationRef.current,
+      createSystemMessage: true
+    })
 
     // Đặt trạng thái ENDED và đóng sau 1 giây
-    setCallStatus(CALL_STATUS.ENDED);
+    setCallStatus(CALL_STATUS.ENDED)
     setTimeout(() => {
-      onClose();
+      onClose()
       // Cập nhật store để xóa thông tin cuộc gọi
-      useCallStore.getState().endCall();
-    }, 1000);
+      useCallStore.getState().endCall()
+    }, 1000)
   }
 
   const toggleMute = (e: React.MouseEvent) => {
