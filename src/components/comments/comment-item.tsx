@@ -159,7 +159,7 @@ export default function CommentItem({ comment, postId }: CommentItemProps) {
           {showReplyInput && (
             <div className='mt-2 flex items-start gap-2'>
               <Avatar className='h-6 w-6'>
-                <AvatarImage src={session?.user?.image || ''} alt={session?.user?.name || ''} />
+                <AvatarImage src={session?.user?.avatar || ''} alt={session?.user?.name || ''} />
                 <AvatarFallback>{session?.user?.name?.[0] || 'U'}</AvatarFallback>
               </Avatar>
               <div className='flex-1'>

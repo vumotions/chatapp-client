@@ -20,11 +20,7 @@ const TokenRefresher = () => {
 
       if (expiresAt - currentTime <= threshold) {
         try {
-          const {
-            accessToken,
-            refreshToken: newRefreshToken,
-            accessTokenExpiresAt
-          } = await refreshToken(session)
+          const { accessToken, refreshToken: newRefreshToken, accessTokenExpiresAt } = await refreshToken(session)
 
           if (accessToken) {
             await update({

@@ -21,8 +21,8 @@ export function useSyncUserPreferences() {
 
   useEffect(() => {
     // Chỉ thực hiện khi có session và đã load xong userSettings
-    if (!session || isLoading || !userSettings) return;
-    
+    if (!session || isLoading || !userSettings) return
+
     const userTheme = userSettings.preferences?.theme
     if (userTheme && theme !== userTheme) {
       setTheme(userTheme)
@@ -57,5 +57,3 @@ export function useSyncUserPreferences() {
 
   return null
 }
-
-

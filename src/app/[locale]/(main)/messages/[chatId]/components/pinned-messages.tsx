@@ -188,12 +188,12 @@ export function PinnedMessages({
                 />
               ) : (
                 <div className='relative'>
-                  <video 
-                    src={attachment.mediaUrl} 
-                    className='max-h-[100px] max-w-[200px] rounded-lg' 
+                  <video
+                    src={attachment.mediaUrl}
+                    className='max-h-[100px] max-w-[200px] rounded-lg'
                     controls={false}
                     muted
-                    preload="metadata"
+                    preload='metadata'
                   />
                   <div className='absolute inset-0 flex items-center justify-center bg-black/30'>
                     <Play className='h-8 w-8 text-white' />
@@ -276,4 +276,3 @@ export function PinnedMessages({
     </div>
   )
 }
-

@@ -20,7 +20,7 @@ import Image from 'next/image'
 import postService from '~/services/post.service'
 import { toast } from 'sonner'
 
-export default function PostEditorV2({getPosts}) {
+export default function PostEditorV2({ getPosts }) {
   const { data: session } = useSession()
   const [isOpen, setIsOpen] = useState(false)
   const [content, setContent] = useState('')
@@ -33,8 +33,8 @@ export default function PostEditorV2({getPosts}) {
     if (e.target.files) {
       // Cộng dồn files mới vào mảng files hiện tại thay vì ghi đè
       const newFiles = Array.from(e.target.files)
-      setFiles(prevFiles => [...prevFiles, ...newFiles])
-      
+      setFiles((prevFiles) => [...prevFiles, ...newFiles])
+
       // Reset input để có thể chọn lại file đã chọn trước đó
       if (fileInputRef.current) {
         fileInputRef.current.value = ''
@@ -46,7 +46,7 @@ export default function PostEditorV2({getPosts}) {
     e.preventDefault()
     e.stopPropagation()
     const droppedFiles = Array.from(e.dataTransfer.files)
-    setFiles(prevFiles => [...prevFiles, ...droppedFiles])
+    setFiles((prevFiles) => [...prevFiles, ...droppedFiles])
   }
 
   const resetForm = () => {
@@ -96,7 +96,7 @@ export default function PostEditorV2({getPosts}) {
     return (
       <div key={index} className='relative aspect-square'>
         {isVideo ? (
-          <div className='h-full w-full rounded-lg overflow-hidden'>
+          <div className='h-full w-full overflow-hidden rounded-lg'>
             <video
               src={objectUrl}
               className='h-full w-full object-cover'
@@ -227,7 +227,7 @@ export default function PostEditorV2({getPosts}) {
                 </div>
 
                 {files.length > 0 && (
-                  <div className='grid grid-cols-2 sm:grid-cols-4 gap-2'>
+                  <div className='grid grid-cols-2 gap-2 sm:grid-cols-4'>
                     {files.map((file, index) => renderFilePreview(file, index))}
                   </div>
                 )}
@@ -239,10 +239,7 @@ export default function PostEditorV2({getPosts}) {
               <Button variant='outline'>
                 <SmilePlus className='h-4 w-4' />
               </Button>
-              <Button 
-                onClick={handleSubmit} 
-                disabled={isSubmitting}
-              >
+              <Button onClick={handleSubmit} disabled={isSubmitting}>
                 {isSubmitting ? 'Đang đăng...' : 'Post'}
               </Button>
             </div>

@@ -40,10 +40,10 @@ export function TransferOwnershipDialog({
 
   // Lấy danh sách thành viên
   const { data, isLoading } = useFriendsWithRolesQuery(open ? conversation?._id : undefined)
-  
+
   // Trích xuất members từ data
   const membersWithRoles = data?.members || []
-  
+
   // Lọc danh sách thành viên theo tìm kiếm và loại trừ người dùng hiện tại
   const filteredMembers = Array.isArray(membersWithRoles)
     ? membersWithRoles
@@ -54,7 +54,7 @@ export function TransferOwnershipDialog({
 
   // Mutation để chuyển quyền chủ nhóm
   const transferOwnershipMutation = useTransferOwnershipMutation(conversation?._id)
-  
+
   // Mutation để rời nhóm sau khi chuyển quyền
   const leaveGroupMutation = useLeaveGroupMutation(conversation?._id)
 
@@ -66,11 +66,11 @@ export function TransferOwnershipDialog({
 
     try {
       await transferOwnershipMutation.mutateAsync(selectedMember)
-      
+
       if (isLeaveAfterTransfer) {
         await leaveGroupMutation.mutateAsync()
       }
-      
+
       onOpenChange(false)
       if (onComplete) onComplete()
     } catch (error) {
@@ -80,84 +80,79 @@ export function TransferOwnershipDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className='sm:max-w-md'>
         <DialogHeader>
           <DialogTitle>Chuyển quyền chủ nhóm</DialogTitle>
           <DialogDescription>
             Chọn một thành viên để chuyển quyền chủ nhóm. Người này sẽ có toàn quyền quản lý nhóm.
           </DialogDescription>
         </DialogHeader>
-        
-        <div className="space-y-4 py-4">
-          <div className="flex items-center space-x-2">
-            <Search className="h-4 w-4 text-muted-foreground" />
+
+        <div className='space-y-4 py-4'>
+          <div className='flex items-center space-x-2'>
+            <Search className='text-muted-foreground h-4 w-4' />
             <Input
-              placeholder="Tìm kiếm thành viên..."
+              placeholder='Tìm kiếm thành viên...'
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="flex-1"
+              className='flex-1'
             />
           </div>
-          
-          <ScrollArea className="h-72">
+
+          <ScrollArea className='h-72'>
             {isLoading ? (
-              <div className="flex items-center justify-center h-full">
-                <p className="text-sm text-muted-foreground">Đang tải...</p>
+              <div className='flex h-full items-center justify-center'>
+                <p className='text-muted-foreground text-sm'>Đang tải...</p>
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className='space-y-2'>
                 {filteredMembers.map((member: any) => (
                   <div
                     key={member._id}
-                    className={`flex items-center justify-between p-2 rounded-md cursor-pointer ${
+                    className={`flex cursor-pointer items-center justify-between rounded-md p-2 ${
                       selectedMember === member._id ? 'bg-primary/10' : 'hover:bg-muted'
                     }`}
                     onClick={() => setSelectedMember(member._id)}
                   >
-                    <div className="flex items-center space-x-3">
-                      <Avatar className="h-8 w-8">
+                    <div className='flex items-center space-x-3'>
+                      <Avatar className='h-8 w-8'>
                         <AvatarImage src={member.avatar} alt={member.name} />
                         <AvatarFallback>{member.name?.charAt(0) || 'U'}</AvatarFallback>
                       </Avatar>
                       <div>
-                        <p className="text-sm font-medium">{member.name}</p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className='text-sm font-medium'>{member.name}</p>
+                        <p className='text-muted-foreground text-xs'>
                           {member.role === MEMBER_ROLE.ADMIN ? 'Quản trị viên' : 'Thành viên'}
                         </p>
                       </div>
                     </div>
-                    
-                    {selectedMember === member._id && (
-                      <Shield className="h-4 w-4 text-primary" />
-                    )}
+
+                    {selectedMember === member._id && <Shield className='text-primary h-4 w-4' />}
                   </div>
                 ))}
               </div>
             )}
           </ScrollArea>
-          
-          <div className="flex items-center space-x-2">
+
+          <div className='flex items-center space-x-2'>
             <input
-              type="checkbox"
-              id="leave-after-transfer"
+              type='checkbox'
+              id='leave-after-transfer'
               checked={isLeaveAfterTransfer}
               onChange={(e) => setIsLeaveAfterTransfer(e.target.checked)}
-              className="rounded border-gray-300 text-primary focus:ring-primary"
+              className='text-primary focus:ring-primary rounded border-gray-300'
             />
-            <label htmlFor="leave-after-transfer" className="text-sm">
+            <label htmlFor='leave-after-transfer' className='text-sm'>
               Rời nhóm sau khi chuyển quyền
             </label>
           </div>
         </div>
-        
+
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant='outline' onClick={() => onOpenChange(false)}>
             Hủy
           </Button>
-          <Button 
-            onClick={handleTransferOwnership} 
-            disabled={!selectedMember || transferOwnershipMutation.isPending}
-          >
+          <Button onClick={handleTransferOwnership} disabled={!selectedMember || transferOwnershipMutation.isPending}>
             {transferOwnershipMutation.isPending ? 'Đang xử lý...' : 'Chuyển quyền'}
           </Button>
         </DialogFooter>
@@ -165,5 +160,3 @@ export function TransferOwnershipDialog({
     </Dialog>
   )
 }
-
-

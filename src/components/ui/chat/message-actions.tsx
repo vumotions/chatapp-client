@@ -243,5 +243,3 @@ const MenuIcon = () => {
     </svg>
   )
 }
-
-

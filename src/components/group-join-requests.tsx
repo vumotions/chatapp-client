@@ -281,14 +281,14 @@ export default function GroupJoinRequests({
                 </ScrollArea>
               </>
             ) : joinRequestsData?.length === 0 ? (
-              <div className="min-h-[340px]">
+              <div className='min-h-[340px]'>
                 <ScrollArea className='-mr-4 h-[300px] pr-4'>
-                  <div className='flex items-center justify-center h-full'>
+                  <div className='flex h-full items-center justify-center'>
                     <p className='text-muted-foreground text-sm italic'>
-                      {activeTab === 'PENDING' 
-                        ? 'Không có yêu cầu tham gia nào đang chờ xử lý' 
-                        : activeTab === 'APPROVED' 
-                          ? 'Không có yêu cầu tham gia nào đã được chấp nhận' 
+                      {activeTab === 'PENDING'
+                        ? 'Không có yêu cầu tham gia nào đang chờ xử lý'
+                        : activeTab === 'APPROVED'
+                          ? 'Không có yêu cầu tham gia nào đã được chấp nhận'
                           : 'Không có yêu cầu tham gia nào đã bị từ chối'}
                     </p>
                   </div>
@@ -392,14 +392,14 @@ export default function GroupJoinRequests({
                 </ScrollArea>
               </>
             ) : joinRequestsData?.length === 0 ? (
-              <div className="min-h-[340px]">
+              <div className='min-h-[340px]'>
                 <ScrollArea className='-mr-4 h-[300px] pr-4'>
-                  <div className='flex items-center justify-center h-full'>
+                  <div className='flex h-full items-center justify-center'>
                     <p className='text-muted-foreground text-sm italic'>
-                      {activeTab === 'PENDING' 
-                        ? 'Không có yêu cầu tham gia nào đang chờ xử lý' 
-                        : activeTab === 'APPROVED' 
-                          ? 'Không có yêu cầu tham gia nào đã được chấp nhận' 
+                      {activeTab === 'PENDING'
+                        ? 'Không có yêu cầu tham gia nào đang chờ xử lý'
+                        : activeTab === 'APPROVED'
+                          ? 'Không có yêu cầu tham gia nào đã được chấp nhận'
                           : 'Không có yêu cầu tham gia nào đã bị từ chối'}
                     </p>
                   </div>
@@ -501,14 +501,14 @@ export default function GroupJoinRequests({
                 </ScrollArea>
               </>
             ) : joinRequestsData?.length === 0 ? (
-              <div className="min-h-[340px]">
+              <div className='min-h-[340px]'>
                 <ScrollArea className='-mr-4 h-[300px] pr-4'>
-                  <div className='flex items-center justify-center h-full'>
+                  <div className='flex h-full items-center justify-center'>
                     <p className='text-muted-foreground text-sm italic'>
-                      {activeTab === 'PENDING' 
-                        ? 'Không có yêu cầu tham gia nào đang chờ xử lý' 
-                        : activeTab === 'APPROVED' 
-                          ? 'Không có yêu cầu tham gia nào đã được chấp nhận' 
+                      {activeTab === 'PENDING'
+                        ? 'Không có yêu cầu tham gia nào đang chờ xử lý'
+                        : activeTab === 'APPROVED'
+                          ? 'Không có yêu cầu tham gia nào đã được chấp nhận'
                           : 'Không có yêu cầu tham gia nào đã bị từ chối'}
                     </p>
                   </div>

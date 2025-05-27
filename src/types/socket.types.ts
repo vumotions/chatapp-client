@@ -1,5 +1,5 @@
 export interface SocketError {
-  code?: string;
-  message: string;
-  data?: any;
+  code?: string
+  message: string
+  data?: any
 }

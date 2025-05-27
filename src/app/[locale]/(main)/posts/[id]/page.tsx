@@ -42,9 +42,9 @@ export default function PostDetailPage() {
 
   if (loading) {
     return (
-      <Container className="py-8">
-        <div className="flex justify-center items-center min-h-[50vh]">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <Container className='py-8'>
+        <div className='flex min-h-[50vh] items-center justify-center'>
+          <Loader2 className='text-primary h-8 w-8 animate-spin' />
         </div>
       </Container>
     )
@@ -52,13 +52,13 @@ export default function PostDetailPage() {
 
   if (error || !post) {
     return (
-      <Container className="py-8">
+      <Container className='py-8'>
         <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-            <h1 className="text-2xl font-bold mb-4">Bài viết không tồn tại</h1>
-            <p className="text-muted-foreground mb-6">{error || 'Bài viết có thể đã bị xóa hoặc không tồn tại.'}</p>
+          <CardContent className='flex flex-col items-center justify-center py-12 text-center'>
+            <h1 className='mb-4 text-2xl font-bold'>Bài viết không tồn tại</h1>
+            <p className='text-muted-foreground mb-6'>{error || 'Bài viết có thể đã bị xóa hoặc không tồn tại.'}</p>
             <Button asChild>
-              <Link href="/feed">Quay lại trang chủ</Link>
+              <Link href='/feed'>Quay lại trang chủ</Link>
             </Button>
           </CardContent>
         </Card>
@@ -67,8 +67,8 @@ export default function PostDetailPage() {
   }
 
   return (
-    <Container className="py-8">
-      <div className="max-w-2xl mx-auto">
+    <Container className='py-8'>
+      <div className='mx-auto max-w-2xl'>
         <Post post={post} />
       </div>
     </Container>

@@ -10,31 +10,31 @@ class CommentService {
         console.error('postId is required for getComments')
         throw new Error('postId is required')
       }
-      
+
       // Tạo đối tượng params
       const params: Record<string, any> = {
         page,
         limit,
         postId
       }
-      
+
       // Chỉ thêm parentId nếu nó tồn tại
       if (parentId) {
         params.parentId = parentId
       }
-      
+
       // Kiểm tra httpRequest
       if (!httpRequest || typeof httpRequest.get !== 'function') {
         console.error('httpRequest is not valid or get is not a function')
         throw new Error('HTTP client is not properly initialized')
       }
-      
+
       // Gọi API
       const response = await httpRequest.get('/posts/comments', { params })
-      
+
       // Log response để debug
       console.log('Comment API Response:', response)
-      
+
       return response
     } catch (error) {
       console.error('Error in getComments:', error)
@@ -57,7 +57,7 @@ class CommentService {
       throw error
     }
   }
-  
+
   // Like/unlike comment
   async likeComment(commentId: string) {
     try {
@@ -68,24 +68,24 @@ class CommentService {
       throw error
     }
   }
-  
+
   // Tham gia vào room của bài viết (socket)
   joinPostRoom(socket: Socket, postId: string) {
     if (!socket || !postId) return
     socket.emit('JOIN_POST_ROOM', { postId })
   }
-  
+
   // Rời khỏi room của bài viết (socket)
   leavePostRoom(socket: Socket, postId: string) {
     if (!socket || !postId) return
     socket.emit('LEAVE_POST_ROOM', { postId })
   }
-  
+
   // Tham gia vào room của comment (socket)
   joinCommentRoom(socket: Socket, commentId: string) {
     socket.emit('JOIN_COMMENT_ROOM', { commentId })
   }
-  
+
   // Rời khỏi room của comment (socket)
   leaveCommentRoom(socket: Socket, commentId: string) {
     socket.emit('LEAVE_COMMENT_ROOM', { commentId })
@@ -93,11 +93,3 @@ class CommentService {
 }
 
 export default new CommentService()
-
-
-
-
-
-
-
-

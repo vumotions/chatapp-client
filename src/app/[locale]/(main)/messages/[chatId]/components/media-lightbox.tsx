@@ -1,5 +1,6 @@
 import { X } from 'lucide-react'
 import React, { useEffect, useRef } from 'react'
+import Image from 'next/image'
 
 interface MediaLightboxProps {
   url: string
@@ -9,21 +10,21 @@ interface MediaLightboxProps {
 
 const MediaLightbox: React.FC<MediaLightboxProps> = ({ url, isOpen, onClose }) => {
   const videoRef = useRef<HTMLVideoElement>(null)
-  
+
   // Kiểm tra xem URL có phải là video không
   const isVideo = url.match(/\.(mp4|webm|ogg|mov)$/i)
-  
+
   // Xử lý khi component mount hoặc url thay đổi
   useEffect(() => {
     if (isOpen && isVideo && videoRef.current) {
       // Đảm bảo video được load lại khi URL thay đổi
       videoRef.current.load()
-      
+
       // Thử phát video sau khi load
       const playPromise = videoRef.current.play()
-      
+
       if (playPromise !== undefined) {
-        playPromise.catch(error => {
+        playPromise.catch((error) => {
           console.error('Auto-play was prevented:', error)
           // Hiển thị nút play cho người dùng click
         })
@@ -34,10 +35,7 @@ const MediaLightbox: React.FC<MediaLightboxProps> = ({ url, isOpen, onClose }) =
   if (!isOpen || !url) return null
 
   return (
-    <div
-      className='fixed inset-0 z-[100] flex items-center justify-center bg-black/80'
-      onClick={onClose}
-    >
+    <div className='fixed inset-0 z-[100] flex items-center justify-center bg-black/80' onClick={onClose}>
       <div className='max-h-[90vh] max-w-[90vw]'>
         {isVideo ? (
           <video
@@ -56,9 +54,11 @@ const MediaLightbox: React.FC<MediaLightboxProps> = ({ url, isOpen, onClose }) =
             }}
           />
         ) : (
-          <img
+          <Image
             src={url}
             alt='Media preview'
+            width={1200}
+            height={900}
             className='max-h-[90vh] max-w-[90vw] object-contain'
             onClick={(e) => e.stopPropagation()}
           />
@@ -78,6 +78,4 @@ const MediaLightbox: React.FC<MediaLightboxProps> = ({ url, isOpen, onClose }) =
 }
 
 export default MediaLightbox
-
-
 

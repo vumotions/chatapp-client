@@ -353,7 +353,7 @@ export function AddGroupMembersDialog({ conversation }: { conversation: any }) {
                   canApproveRequests={canApproveRequests}
                   onDataChange={() => {
                     // Cập nhật lại danh sách chat khi có thay đổi
-                    
+
                     queryClient.invalidateQueries({
                       queryKey: ['JOIN_REQUESTS', conversation._id]
                     })

@@ -9,7 +9,8 @@ function NotFound() {
             Bạn không thể xem nội dung này
           </h1>
           <p className='text-gray-500'>
-            Lỗi này thường xảy ra vì chủ sở hữu chỉ chia sẻ nội dung với một nhóm nhỏ, đã thay đổi người có thể xem nó, hoặc đã xóa nội dung.
+            Lỗi này thường xảy ra vì chủ sở hữu chỉ chia sẻ nội dung với một nhóm nhỏ, đã thay đổi người có thể xem nó,
+            hoặc đã xóa nội dung.
           </p>
         </div>
         <Link

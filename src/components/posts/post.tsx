@@ -10,6 +10,7 @@ import { vi } from 'date-fns/locale'
 import { toast } from 'sonner'
 import { useSession } from 'next-auth/react'
 import postService from '~/services/post.service'
+import Image from 'next/image'
 
 interface MediaItem {
   _id: string
@@ -109,7 +110,14 @@ export const Post: React.FC<PostProps> = ({ post }) => {
           {media.type === 'video' ? (
             <video src={media.url} className='h-auto w-full' controls />
           ) : (
-            <img src={media.url} alt='' className='h-auto w-full' />
+            <div className="relative h-[300px] w-full">
+              <Image 
+                src={media.url} 
+                alt='' 
+                fill
+                className='object-cover' 
+              />
+            </div>
           )}
         </div>
       )
@@ -128,7 +136,14 @@ export const Post: React.FC<PostProps> = ({ post }) => {
               {media.type === 'video' ? (
                 <video src={media.url} className='h-full w-full object-cover' />
               ) : (
-                <img src={media.url} alt='' className='h-full w-full object-cover' />
+                <div className="relative h-[300px] w-full">
+                  <Image 
+                    src={media.url} 
+                    alt='' 
+                    fill
+                    className='object-cover' 
+                  />
+                </div>
               )}
             </div>
           ))}
@@ -145,7 +160,14 @@ export const Post: React.FC<PostProps> = ({ post }) => {
               {post.media[0].type === 'video' ? (
                 <video src={post.media[0].url} className='h-full w-full object-cover' />
               ) : (
-                <img src={post.media[0].url} alt='' className='h-full w-full object-cover' />
+                <div className="relative h-[300px] w-full">
+                  <Image 
+                    src={post.media[0].url} 
+                    alt='' 
+                    fill
+                    className='object-cover' 
+                  />
+                </div>
               )}
             </div>
             <div className='grid grid-rows-2 gap-1'>
@@ -153,14 +175,28 @@ export const Post: React.FC<PostProps> = ({ post }) => {
                 {post.media[1].type === 'video' ? (
                   <video src={post.media[1].url} className='h-full w-full object-cover' />
                 ) : (
-                  <img src={post.media[1].url} alt='' className='h-full w-full object-cover' />
+                  <div className="relative h-[300px] w-full">
+                    <Image 
+                      src={post.media[1].url} 
+                      alt='' 
+                      fill
+                      className='object-cover' 
+                    />
+                  </div>
                 )}
               </div>
               <div className='aspect-square cursor-pointer overflow-hidden' onClick={() => openLightbox(2)}>
                 {post.media[2].type === 'video' ? (
                   <video src={post.media[2].url} className='h-full w-full object-cover' />
                 ) : (
-                  <img src={post.media[2].url} alt='' className='h-full w-full object-cover' />
+                  <div className="relative h-[300px] w-full">
+                    <Image 
+                      src={post.media[2].url} 
+                      alt='' 
+                      fill
+                      className='object-cover' 
+                    />
+                  </div>
                 )}
               </div>
             </div>
@@ -183,7 +219,14 @@ export const Post: React.FC<PostProps> = ({ post }) => {
                 {media.type === 'video' ? (
                   <video src={media.url} className='h-full w-full object-cover' />
                 ) : (
-                  <img src={media.url} alt='' className='h-full w-full object-cover' />
+                  <div className="relative h-[300px] w-full">
+                    <Image 
+                      src={media.url} 
+                      alt='' 
+                      fill
+                      className='object-cover' 
+                    />
+                  </div>
                 )}
               </div>
             ))}
@@ -205,7 +248,14 @@ export const Post: React.FC<PostProps> = ({ post }) => {
               {item.type === 'video' ? (
                 <video src={item.url} className='h-full w-full object-cover' />
               ) : (
-                <img src={item.url} alt='' className='h-full w-full object-cover' />
+                <div className="relative h-[300px] w-full">
+                  <Image 
+                    src={item.url} 
+                    alt='' 
+                    fill
+                    className='object-cover' 
+                  />
+                </div>
               )}
               {index === 3 && post.media && post.media.length > 4 && (
                 <div className='absolute inset-0 flex items-center justify-center bg-black/50 text-2xl font-bold text-white'>
@@ -295,9 +345,11 @@ export const Post: React.FC<PostProps> = ({ post }) => {
               onClick={(e) => e.stopPropagation()}
             />
           ) : (
-            <img
+            <Image
               src={currentMedia.url}
               alt=''
+              width={500}
+              height={300}
               className='max-h-[80vh] max-w-[80vw] object-contain'
               onClick={(e) => e.stopPropagation()}
             />
@@ -309,21 +361,21 @@ export const Post: React.FC<PostProps> = ({ post }) => {
 
   // Render danh sách người đã like
   const renderLikedUsers = () => {
-    if (!post.likedUsers || post.likedUsers.length === 0) return null;
-    
+    if (!post.likedUsers || post.likedUsers.length === 0) return null
+
     return (
-      <div className="text-xs text-muted-foreground mt-1">
+      <div className='text-muted-foreground mt-1 text-xs'>
         <span>Được thích bởi </span>
         {post.likedUsers.slice(0, 3).map((user, index) => (
           <span key={user._id}>
-            {index > 0 && ", "}
-            <span className="font-medium">{user.name}</span>
+            {index > 0 && ', '}
+            <span className='font-medium'>{user.name}</span>
           </span>
         ))}
         {post.likedUsers.length > 3 && ` và ${post.likesCount! - 3} người khác`}
       </div>
-    );
-  };
+    )
+  }
 
   return (
     <>

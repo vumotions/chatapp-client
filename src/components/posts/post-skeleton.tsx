@@ -3,7 +3,7 @@ import { Skeleton } from '~/components/ui/skeleton'
 
 export function PostSkeleton() {
   return (
-    <Card className="mb-4">
+    <Card className='mb-4'>
       <CardContent className='space-y-3 px-4 pt-4'>
         <div className='flex items-center gap-3'>
           <Skeleton className='h-10 w-10 rounded-full' />

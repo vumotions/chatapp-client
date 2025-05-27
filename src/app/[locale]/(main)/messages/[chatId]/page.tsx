@@ -59,6 +59,7 @@ import { useRouter } from '~/i18n/navigation'
 import { startCall } from '~/lib/call-helper'
 import { FriendActionButton } from './components/friend-action-button'
 import { PinnedMessages } from './components/pinned-messages'
+import Image from 'next/image'
 
 const PRIMARY_RGB = '14, 165, 233' // Giá trị RGB của màu primary (sky-500)
 const SUCCESS_RGB = '34, 197, 94' // Giá trị RGB của màu green-500
@@ -1540,10 +1541,12 @@ function ChatDetail({ params }: Props) {
             <div key={`${msg._id}-attachment-${index}`} className='relative overflow-hidden rounded-lg'>
               {isImage ? (
                 <div onClick={() => openLightbox(mediaUrl)}>
-                  <img
+                  <Image
+                    width={200}
+                    height={300}
                     src={mediaUrl}
                     alt='Image'
-                    className='max-h-[200px] max-w-[300px] cursor-pointer rounded-lg object-cover'
+                    className='h-full max-h-[200px] w-full max-w-[300px] cursor-pointer rounded-lg object-cover'
                   />
                 </div>
               ) : (

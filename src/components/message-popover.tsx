@@ -82,28 +82,28 @@ function MessagePopover() {
   const hasUnread = useMemo(() => {
     return chats?.some((chat: any) => {
       // Kiểm tra nếu tin nhắn cuối cùng do chính người dùng gửi, coi như đã đọc
-      const lastMessageSenderId = chat.lastMessage?.senderId?._id || chat.lastMessage?.senderId;
-      const currentUserId = session?.user?._id;
-      
-      return !chat.read && lastMessageSenderId !== currentUserId;
-    });
-  }, [chats, session?.user?._id]);
+      const lastMessageSenderId = chat.lastMessage?.senderId?._id || chat.lastMessage?.senderId
+      const currentUserId = session?.user?._id
+
+      return !chat.read && lastMessageSenderId !== currentUserId
+    })
+  }, [chats, session?.user?._id])
 
   // Lắng nghe sự kiện tin nhắn đã đọc từ socket
   useEffect(() => {
-    if (!socket) return;
-    
+    if (!socket) return
+
     const handleMessageRead = (data: { chatId: string; messageIds: string[] }) => {
       // Cập nhật cache để đánh dấu tin nhắn đã đọc
-      queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] });
-    };
-    
-    socket.on(SOCKET_EVENTS.MESSAGE_READ, handleMessageRead);
-    
+      queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] })
+    }
+
+    socket.on(SOCKET_EVENTS.MESSAGE_READ, handleMessageRead)
+
     return () => {
-      socket.off(SOCKET_EVENTS.MESSAGE_READ, handleMessageRead);
-    };
-  }, [socket, queryClient]);
+      socket.off(SOCKET_EVENTS.MESSAGE_READ, handleMessageRead)
+    }
+  }, [socket, queryClient])
 
   // Get chat name and avatar
   const getChatInfo = (chat: any) => {
@@ -116,7 +116,7 @@ function MessagePopover() {
     }
 
     // If it's a private chat, get the other participant
-  const currentUserId = session?.user?._id
+    const currentUserId = session?.user?._id
     const otherParticipant = chat.participants?.find((p: any) => p._id !== currentUserId)
 
     return {
@@ -177,11 +177,11 @@ function MessagePopover() {
               }
             >
               {chats?.map((chat: any) => {
-                const chatInfo = getChatInfo(chat);
+                const chatInfo = getChatInfo(chat)
                 // Kiểm tra nếu tin nhắn cuối cùng do chính người dùng gửi, coi như đã đọc
-                const lastMessageSenderId = chat.lastMessage?.senderId?._id || chat.lastMessage?.senderId;
-                const currentUserId = session?.user?._id;
-                const isUnread = !chat.read && lastMessageSenderId !== currentUserId;
+                const lastMessageSenderId = chat.lastMessage?.senderId?._id || chat.lastMessage?.senderId
+                const currentUserId = session?.user?._id
+                const isUnread = !chat.read && lastMessageSenderId !== currentUserId
 
                 return (
                   <Link
@@ -196,18 +196,17 @@ function MessagePopover() {
                     </Avatar>
                     <div className='ml-3 flex-1'>
                       <div className={cn('text-sm', isUnread ? 'font-bold' : 'font-medium')}>{chatInfo.name}</div>
-                      <div className={cn(
-                        'truncate text-sm max-w-[200px]', 
-                        isUnread ? 'font-semibold text-foreground' : 'text-muted-foreground'
-                      )}>
+                      <div
+                        className={cn(
+                          'max-w-[200px] truncate text-sm',
+                          isUnread ? 'text-foreground font-semibold' : 'text-muted-foreground'
+                        )}
+                      >
                         {typeof chat.lastMessage === 'string'
                           ? chat.lastMessage
                           : chat.lastMessage?.content || 'Bắt đầu cuộc trò chuyện'}
                       </div>
-                      <div className={cn(
-                        'text-xs', 
-                        isUnread ? 'text-foreground' : 'text-gray-500 dark:text-gray-400'
-                      )}>
+                      <div className={cn('text-xs', isUnread ? 'text-foreground' : 'text-gray-500 dark:text-gray-400')}>
                         {chat.updatedAt ? formatTime(chat.updatedAt) : ''}
                       </div>
                     </div>

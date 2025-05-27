@@ -172,9 +172,9 @@ export default function CommentSection({ postId, onCommentCountChange }: Comment
         _id: tempId, // Sử dụng tempId làm _id tạm thời
         tempId,
         userId: {
-          _id: session?.user?.id as string,
+          _id: session?.user?._id as string,
           name: session?.user?.name as string,
-          avatar: session?.user?.image as string
+          avatar: session?.user?.avatar as string
         },
         postId,
         content: commentContent,
@@ -225,7 +225,7 @@ export default function CommentSection({ postId, onCommentCountChange }: Comment
       {/* Comment input */}
       <div className='flex items-start gap-2'>
         <Avatar className='h-8 w-8'>
-          <AvatarImage src={session?.user?.image || ''} alt={session?.user?.name || ''} />
+          <AvatarImage src={session?.user?.avatar || ''} alt={session?.user?.name || ''} />
           <AvatarFallback>{session?.user?.name?.[0] || 'U'}</AvatarFallback>
         </Avatar>
         <div className='flex-1'>

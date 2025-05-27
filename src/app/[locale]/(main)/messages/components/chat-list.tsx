@@ -28,12 +28,12 @@ const MemoizedConversationItem = React.memo<{
   ({ conversation, isActive, onClick, isArchived = false, onArchive }) => {
     const { data: session } = useSession()
     const currentUserId = session?.user?._id
-    
+
     // Kiểm tra xem cuộc trò chuyện có được archive bởi người dùng hiện tại không
     // Nếu isArchived đã được truyền vào từ prop, sử dụng nó
     // Nếu không, kiểm tra mảng archivedFor
     const isArchivedForCurrentUser = isArchived || conversation.archivedFor?.includes(currentUserId)
-    
+
     // Sử dụng isArchivedForCurrentUser trong UI
     return (
       <motion.div
@@ -115,14 +115,11 @@ export function ChatList() {
   }, [debouncedSetQuery])
 
   // Sử dụng hook useChatList với enabled phù hợp
-  const { 
-    data, 
-    fetchNextPage, 
-    hasNextPage, 
-    isFetchingNextPage, 
-    isLoading, 
-    isError 
-  } = useChatList(filter, debouncedQuery, activeView === 'inbox')
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, isError } = useChatList(
+    filter,
+    debouncedQuery,
+    activeView === 'inbox'
+  )
 
   // Fetch danh sách cuộc trò chuyện đã lưu trữ
   const archivedChats = useInfiniteQuery({
@@ -192,7 +189,6 @@ export function ChatList() {
     // Lắng nghe các sự kiện liên quan đến tin nhắn
     socket.on(SOCKET_EVENTS.RECEIVE_MESSAGE, handleReceiveMessage)
     socket.on('MESSAGE_UPDATED', (data) => {
-      
       queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] })
       queryClient.invalidateQueries({ queryKey: ['ARCHIVED_CHAT_LIST'] })
       setRefreshKey((prev) => prev + 1)

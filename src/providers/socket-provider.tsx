@@ -173,7 +173,7 @@ function SocketProvider({ children }: Props) {
           avatar: message.senderAvatar || ''
         }
       }
-      
+
       // Cập nhật state để các component con có thể phản ứng
       setLastMessage(formattedMessage)
 

@@ -555,7 +555,7 @@ function FormAccount() {
                       <FormControl>
                         <RadioGroupItem value='light' className='sr-only' />
                       </FormControl>
-                      <div className='border-muted hover:border-accent hover:bg-accent/5 transition-all duration-200 transform hover:-translate-y-1 hover:shadow-md items-center rounded-md border-2 p-1'>
+                      <div className='border-muted hover:border-accent hover:bg-accent/5 transform items-center rounded-md border-2 p-1 transition-all duration-200 hover:-translate-y-1 hover:shadow-md'>
                         <div className='space-y-2 rounded-sm bg-[#ecedef] p-2'>
                           <div className='space-y-2 rounded-md bg-white p-2 shadow-sm'>
                             <div className='h-2 w-[80px] rounded-lg bg-[#ecedef]' />
@@ -579,7 +579,7 @@ function FormAccount() {
                       <FormControl>
                         <RadioGroupItem value='dark' className='sr-only' />
                       </FormControl>
-                      <div className='border-muted hover:border-accent hover:bg-accent/5 transition-all duration-200 transform hover:-translate-y-1 hover:shadow-md items-center rounded-md border-2 p-1'>
+                      <div className='border-muted hover:border-accent hover:bg-accent/5 transform items-center rounded-md border-2 p-1 transition-all duration-200 hover:-translate-y-1 hover:shadow-md'>
                         <div className='space-y-2 rounded-sm bg-slate-950 p-2'>
                           <div className='space-y-2 rounded-md bg-slate-800 p-2 shadow-sm'>
                             <div className='h-2 w-[80px] rounded-lg bg-slate-400' />
@@ -603,7 +603,7 @@ function FormAccount() {
                       <FormControl>
                         <RadioGroupItem value='system' className='sr-only' />
                       </FormControl>
-                      <div className='border-muted hover:border-accent hover:bg-accent/5 transition-all duration-200 transform hover:-translate-y-1 hover:shadow-md items-center rounded-md border-2 p-1'>
+                      <div className='border-muted hover:border-accent hover:bg-accent/5 transform items-center rounded-md border-2 p-1 transition-all duration-200 hover:-translate-y-1 hover:shadow-md'>
                         <SystemThemeCard />
                       </div>
                       <span className='block w-full p-2 text-center font-normal'>System</span>

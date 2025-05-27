@@ -18,15 +18,15 @@ export const useDraftMessage = (chatId: string) => {
     queryFn: () => draftService.getDraftByChatId(chatId),
     enabled: !!chatId && !!session?.user?._id,
     select: (response) => {
-      const data = response.data?.data;
+      const data = response.data?.data
       if (data) {
-        setDraftContent(data.content || '');
-        setDraftAttachments(data.attachments || []);
-        setDraftId(data._id as string); // Cast to string type
+        setDraftContent(data.content || '')
+        setDraftAttachments(data.attachments || [])
+        setDraftId(data._id as string) // Cast to string type
       }
-      setIsLoading(false);
-      return response;
-    },
+      setIsLoading(false)
+      return response
+    }
   })
 
   // Mutation để lưu draft
@@ -113,9 +113,3 @@ export const useAllDrafts = () => {
     queryFn: () => draftService.getAllDrafts()
   })
 }
-
-
-
-
-
-

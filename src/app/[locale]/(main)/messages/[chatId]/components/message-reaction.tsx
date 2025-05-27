@@ -9,24 +9,18 @@ interface MessageReactionProps {
 }
 
 export function MessageReaction({ isLiked, onToggleLike, className }: MessageReactionProps) {
-  
   return (
     <Button
-      variant="ghost"
-      size="icon"
+      variant='ghost'
+      size='icon'
       className={cn('h-8 w-8 rounded-full', className)}
       onClick={(e) => {
-        e.stopPropagation();
-        onToggleLike();
+        e.stopPropagation()
+        onToggleLike()
       }}
     >
-      <Heart
-        className={cn(
-          'h-4 w-4 transition-colors',
-          isLiked ? 'fill-red-500 text-red-500' : ''
-        )}
-      />
-      <span className="sr-only">Like</span>
+      <Heart className={cn('h-4 w-4 transition-colors', isLiked ? 'fill-red-500 text-red-500' : '')} />
+      <span className='sr-only'>Like</span>
     </Button>
   )
 }

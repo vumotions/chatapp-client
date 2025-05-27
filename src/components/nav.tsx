@@ -60,48 +60,45 @@ export function Nav({ links, isCollapsed }: Props) {
                 {link.label && <span className='text-muted-foreground ml-auto'>{link.label}</span>}
               </TooltipContent>
             </Tooltip>
+          ) : link.href ? (
+            <Link
+              key={index}
+              href={link.href}
+              className={cn(
+                buttonVariants({ variant: link.variant, size: 'sm' }),
+                link.variant === 'default' && 'dark:bg-muted dark:hover:bg-muted dark:text-white dark:hover:text-white',
+                'justify-start'
+              )}
+            >
+              <link.icon className='mr-2 h-4 w-4' />
+              {link.title}
+              {link.label && (
+                <span className={cn('ml-auto', link.variant === 'default' && 'text-background dark:text-white')}>
+                  {link.label}
+                </span>
+              )}
+            </Link>
           ) : (
-            link.href ? (
-              <Link
-                key={index}
-                href={link.href}
-                className={cn(
-                  buttonVariants({ variant: link.variant, size: 'sm' }),
-                  link.variant === 'default' && 'dark:bg-muted dark:hover:bg-muted dark:text-white dark:hover:text-white',
-                  'justify-start'
-                )}
-              >
-                <link.icon className='mr-2 h-4 w-4' />
-                {link.title}
-                {link.label && (
-                  <span className={cn('ml-auto', link.variant === 'default' && 'text-background dark:text-white')}>
-                    {link.label}
-                  </span>
-                )}
-              </Link>
-            ) : (
-              <button
-                key={index}
-                onClick={link.onClick}
-                className={cn(
-                  buttonVariants({ variant: link.variant, size: 'sm' }),
-                  link.variant === 'default' && 'dark:bg-muted dark:hover:bg-muted dark:text-white dark:hover:text-white',
-                  'justify-start w-full'
-                )}
-              >
-                <link.icon className='mr-2 h-4 w-4' />
-                {link.title}
-                {link.label && (
-                  <span className={cn('ml-auto', link.variant === 'default' && 'text-background dark:text-white')}>
-                    {link.label}
-                  </span>
-                )}
-              </button>
-            )
+            <button
+              key={index}
+              onClick={link.onClick}
+              className={cn(
+                buttonVariants({ variant: link.variant, size: 'sm' }),
+                link.variant === 'default' && 'dark:bg-muted dark:hover:bg-muted dark:text-white dark:hover:text-white',
+                'w-full justify-start'
+              )}
+            >
+              <link.icon className='mr-2 h-4 w-4' />
+              {link.title}
+              {link.label && (
+                <span className={cn('ml-auto', link.variant === 'default' && 'text-background dark:text-white')}>
+                  {link.label}
+                </span>
+              )}
+            </button>
           )
         )}
       </nav>
     </div>
   )
 }
-

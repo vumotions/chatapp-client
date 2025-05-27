@@ -25,7 +25,7 @@ interface NotificationsResponse {
 
 class NotificationsService {
   getNotifications(page = 1, limit = 10, filter = 'all', excludeTypes = ['NEW_MESSAGE']) {
-    const excludeTypesParam = excludeTypes.length > 0 ? `&excludeTypes=${excludeTypes.join(',')}` : '';
+    const excludeTypesParam = excludeTypes.length > 0 ? `&excludeTypes=${excludeTypes.join(',')}` : ''
     return httpRequest.get<SuccessResponse<NotificationsResponse>>(
       `/notifications?page=${page}&limit=${limit}&filter=${filter}${excludeTypesParam}`
     )

@@ -28,11 +28,11 @@ interface FriendActionButtonProps {
   onStatusChange: (newStatus: string | null) => void
 }
 
-export function FriendActionButton({ 
-  friendStatus, 
-  otherUserId, 
+export function FriendActionButton({
+  friendStatus,
+  otherUserId,
   isLoading: externalLoading = false, // Đổi tên để tránh nhầm lẫn với state isLoading
-  onStatusChange 
+  onStatusChange
 }: FriendActionButtonProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
@@ -133,12 +133,8 @@ export function FriendActionButton({
             <Button variant='outline' onClick={() => setShowConfirmDialog(false)}>
               Hủy
             </Button>
-            <Button 
-              variant='destructive' 
-              onClick={handleConfirmRemoveFriend}
-              disabled={isLoading}
-            >
-              {isLoading ? <Loader2 className='h-4 w-4 animate-spin mr-2' /> : null}
+            <Button variant='destructive' onClick={handleConfirmRemoveFriend} disabled={isLoading}>
+              {isLoading ? <Loader2 className='mr-2 h-4 w-4 animate-spin' /> : null}
               Xác nhận
             </Button>
           </DialogFooter>
@@ -147,6 +143,3 @@ export function FriendActionButton({
     </>
   )
 }
-
-
-

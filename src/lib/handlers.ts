@@ -11,7 +11,7 @@ export const handleError = (error: any, form: UseFormReturn<any>) => {
       Object.keys(errors).forEach((key) => {
         form.setError(key, {
           type: 'custom',
-        message: errors[key].message
+          message: errors[key].message
         })
       })
     }

@@ -120,7 +120,7 @@ export default function MessageLayout({ children }: LayoutProps) {
         <div className='flex h-full flex-col'>
           <div className='flex h-full'>
             {/* Nav bên trái - luôn hiển thị */}
-            <div className='border-r w-[60px] pt-4'>
+            <div className='w-[60px] border-r pt-4'>
               <ScrollArea className='h-screen'>
                 <div className='mt-4 flex flex-col items-center justify-center'>
                   <NetworkStatusIndicator />
@@ -175,12 +175,12 @@ export default function MessageLayout({ children }: LayoutProps) {
             </div>
 
             {/* Phần nội dung chính */}
-            <div className='flex-1 relative'>
+            <div className='relative flex-1'>
               {isViewingChat ? (
                 <AnimatePresence mode='wait'>
                   <motion.div
                     key='chat-detail'
-                    className='flex h-full flex-col absolute inset-0 z-10 bg-background'
+                    className='bg-background absolute inset-0 z-10 flex h-full flex-col'
                     initial={{ x: '100%' }}
                     animate={{ x: 0 }}
                     exit={{ x: '100%' }}

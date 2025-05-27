@@ -295,7 +295,7 @@ export default function GroupEventsListener() {
         // Cập nhật danh sách tin nhắn với tin nhắn hệ thống mới
         if (data.message) {
           console.log('Adding system message to chat:', data.message)
-          
+
           queryClient.setQueryData(['MESSAGES', data.conversationId], (oldData: any) => {
             if (!oldData) return oldData
 
@@ -304,7 +304,7 @@ export default function GroupEventsListener() {
             if (firstPage && firstPage.messages) {
               // Kiểm tra xem tin nhắn đã tồn tại chưa
               const messageExists = firstPage.messages.some((msg: any) => msg._id === data.message._id)
-              
+
               if (!messageExists) {
                 return {
                   ...oldData,
@@ -332,7 +332,7 @@ export default function GroupEventsListener() {
       // Hiển thị thông báo nếu người dùng là người được phê duyệt
       if (data.userId === currentUserId) {
         toast.success('Yêu cầu tham gia của bạn đã được chấp nhận')
-        
+
         // Nếu không đang ở trong chat, chuyển hướng đến chat
         if (!pathname?.includes(`/messages/${data.conversationId}`)) {
           // Có thể thêm logic chuyển hướng ở đây nếu cần
@@ -369,6 +369,3 @@ export default function GroupEventsListener() {
 
   return null
 }
-
-
-
