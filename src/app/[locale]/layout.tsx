@@ -52,7 +52,7 @@ function Layout({ params, children }: Props) {
   const messages = use(getMessages())
   return (
     <html lang={locale} suppressHydrationWarning>
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`} suppressHydrationWarning={true}>
         <NextIntlClientProvider locale={locale} messages={messages}>
           <NextAuthProvider>
             <ThemeProvider attribute='class' defaultTheme='dark' enableSystem disableTransitionOnChange>

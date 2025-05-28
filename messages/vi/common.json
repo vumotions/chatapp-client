@@ -1,3 +1,10 @@
 {
-  "button": "1"
+  "button": "1",
+  "comments": {
+    "hideReplies": "Hide replies",
+    "viewAllReplies": "View all {{count}} replies",
+    "saveChanges": "Save changes",
+    "edit": "Edit",
+    "delete": "Delete"
+  }
 }
