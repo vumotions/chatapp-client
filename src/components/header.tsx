@@ -24,7 +24,7 @@ function Header() {
       <div className='flex w-full items-center justify-between gap-2 px-4 py-2'>
         <div className='flex items-center gap-4 md:gap-8'>
           <Link href={'/'} className='h-8 w-8'>
-            <Logo width={24} height={28} />
+            <Logo width={24} height={28} className='text-white dark:text-white' />
           </Link>
           {!isMobile && <HeaderSearch />}
         </div>

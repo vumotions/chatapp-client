@@ -1,13 +1,13 @@
+import { useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ArrowLeft, Pin, Play } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { Button } from '~/components/ui/button'
-import { usePinMessage, usePinnedMessages } from '~/hooks/data/chat.hooks'
-import { formatMessageContent } from '~/lib/utils'
-import { useSocket } from '~/hooks/use-socket'
-import { useQueryClient } from '@tanstack/react-query'
-import SOCKET_EVENTS from '~/constants/socket-events'
 import { toast } from 'sonner'
+import { Button } from '~/components/ui/button'
+import SOCKET_EVENTS from '~/constants/socket-events'
+import { usePinMessage, usePinnedMessages } from '~/hooks/data/chat.hooks'
+import { useSocket } from '~/hooks/use-socket'
+import { formatMessageContent } from '~/lib/utils'
 
 const SUCCESS_RGB = '34, 197, 94' // Giá trị RGB của màu green-500
 
@@ -254,7 +254,9 @@ export function PinnedMessages({
                         {new Date(message.createdAt).toLocaleString()}
                       </div>
                     </div>
-                    <div className='text-sm'>{message.content ? formatMessageContent(message.content) : ''}</div>
+                    <div className='max-w-80 truncate text-sm'>
+                      {message.content ? formatMessageContent(message.content) : ''}
+                    </div>
                     {renderPinnedMessageMedia(message)}
                     <div className='mt-2 flex justify-end'>
                       <Button
