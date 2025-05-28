@@ -3,14 +3,12 @@ import { Metadata } from 'next'
 import { SidebarNav } from '~/components/sidebar-nav'
 import { Separator } from '~/components/ui/separator'
 import { LayoutProps } from '~/types/props.types'
-import { Badge } from '~/components/ui/badge'
 
 export const metadata: Metadata = {
   title: 'Settings',
   description: 'Manage your account settings and preferences.'
 }
 
-// Cập nhật danh sách tab, gộp Appearance vào Account và thêm badge cho Notifications
 const sidebarNavItems = [
   {
     title: 'Profile',
