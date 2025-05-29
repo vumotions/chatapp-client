@@ -1,16 +1,16 @@
-import React, { useState, useRef } from 'react'
-import { Heart, MessageCircle, Share2 } from 'lucide-react'
-import { Card, CardContent } from '~/components/ui/card'
-import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
-import { Button } from '~/components/ui/button'
-import SharePopover from '~/components/share-popover'
-import CommentSection from '~/components/comments/comment-section'
 import { formatDistanceToNow } from 'date-fns'
 import { vi } from 'date-fns/locale'
-import { toast } from 'sonner'
+import { Heart, MessageCircle, Share2 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
-import postService from '~/services/post.service'
 import Image from 'next/image'
+import React, { useState } from 'react'
+import { toast } from 'sonner'
+import CommentSection from '~/components/comments/comment-section'
+import SharePopover from '~/components/share-popover'
+import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
+import { Button } from '~/components/ui/button'
+import { Card, CardContent } from '~/components/ui/card'
+import postService from '~/services/post.service'
 
 interface MediaItem {
   _id: string
@@ -45,7 +45,6 @@ interface PostProps {
 }
 
 export const Post: React.FC<PostProps> = ({ post }) => {
-  const { data: session } = useSession()
   const [liked, setLiked] = useState(post.userLiked || post.isLiked || false)
   const [likesCount, setLikesCount] = useState(post.likesCount || 0)
   const [commentCount, setCommentCount] = useState(post.commentsCount || 0)
@@ -398,7 +397,7 @@ export const Post: React.FC<PostProps> = ({ post }) => {
           </div>
 
           {/* Comment section */}
-          {showComments && <CommentSection postId={post._id} onCommentCountChange={setCommentCount} />}
+          {showComments && <CommentSection postId={post._id} />}
         </CardContent>
       </Card>
       {renderLightbox()}

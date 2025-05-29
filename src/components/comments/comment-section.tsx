@@ -11,8 +11,8 @@ import { Button } from '~/components/ui/button'
 import {
   useCreateCommentMutation,
   useDeleteCommentMutation,
-  useUpdateCommentMutation,
-  useLikeCommentMutation
+  useLikeCommentMutation,
+  useUpdateCommentMutation
 } from '~/hooks/data/comment.hooks'
 import commentService from '~/services/comment.service'
 import CommentItem from './comment-item'
@@ -37,7 +37,7 @@ export default function CommentSection({ postId, focusCommentId }: CommentSectio
     isFetchingNextPage,
     refetch
   } = useInfiniteQuery({
-    queryKey: ['comments', postId],
+    queryKey: ['COMMENTS', postId],
     queryFn: ({ pageParam }) => commentService.getComments(postId, pageParam, 10).then((res) => res.data),
     getNextPageParam: (lastPage: any) => {
       const { currentPage, totalPages } = lastPage.pagination
@@ -45,7 +45,7 @@ export default function CommentSection({ postId, focusCommentId }: CommentSectio
     },
     initialPageParam: 1
   })
-  const createComment = useCreateCommentMutation()
+  const createComment = useCreateCommentMutation(postId)
   const deleteComment = useDeleteCommentMutation(postId)
   const updateComment = useUpdateCommentMutation(postId)
   const likeComment = useLikeCommentMutation(postId)

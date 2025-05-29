@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import commentService from '~/services/comment.service'
 import { Comment } from '~/types/comment'
@@ -139,9 +139,19 @@ export const useLikeComment = () => {
 //     }
 //   })
 // }
-export const useCreateCommentMutation = () => {
+export const useCreateCommentMutation = (postId: string) => {
+  const queryClient = useQueryClient()
+
   return useMutation({
-    mutationFn: (data: any) => commentService.createComment(data)
+    mutationFn: (data: any) => commentService.createComment(data),
+    onSuccess: async () => {
+      queryClient.invalidateQueries({
+        queryKey: ['COMMENTS', postId]
+      })
+      queryClient.invalidateQueries({
+        queryKey: ['POSTS']
+      })
+    }
   })
 }
 
@@ -154,6 +164,9 @@ export const useUpdateCommentMutation = (postId: string) => {
     onSuccess: async () => {
       queryClient.invalidateQueries({
         queryKey: ['COMMENTS', postId]
+      })
+      queryClient.invalidateQueries({
+        queryKey: ['POSTS']
       })
     }
   })
@@ -168,6 +181,9 @@ export const useDeleteCommentMutation = (postId: string) => {
       queryClient.invalidateQueries({
         queryKey: ['COMMENTS', postId]
       })
+      queryClient.invalidateQueries({
+        queryKey: ['POSTS']
+      })
     }
   })
 }
@@ -180,6 +196,9 @@ export const useLikeCommentMutation = (postId: string) => {
     onSuccess: async () => {
       queryClient.invalidateQueries({
         queryKey: ['COMMENTS', postId]
+      })
+      queryClient.invalidateQueries({
+        queryKey: ['POSTS']
       })
     }
   })

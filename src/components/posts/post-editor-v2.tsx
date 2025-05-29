@@ -20,7 +20,7 @@ import Image from 'next/image'
 import postService from '~/services/post.service'
 import { toast } from 'sonner'
 
-export default function PostEditorV2({ getPosts }) {
+export default function PostEditorV2({ getPosts }: { getPosts: () => any }) {
   const { data: session } = useSession()
   const [isOpen, setIsOpen] = useState(false)
   const [content, setContent] = useState('')
