@@ -49,10 +49,10 @@ export function CallFrame2({
   // Hàm tiện ích để xử lý các ICE candidates đã buffer
   const processBufferedIceCandidates = async () => {
     if (!peerConnectionRef.current || !peerConnectionRef.current.remoteDescription) return
-    
+
     if (iceCandidatesBuffer.current && iceCandidatesBuffer.current.length > 0) {
       console.log(`Processing ${iceCandidatesBuffer.current.length} buffered ICE candidates`)
-      
+
       for (const candidate of iceCandidatesBuffer.current) {
         try {
           await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate))
@@ -61,7 +61,7 @@ export function CallFrame2({
           console.error('Error adding buffered ICE candidate:', error)
         }
       }
-      
+
       // Xóa buffer sau khi đã xử lý
       iceCandidatesBuffer.current = []
     }
@@ -203,28 +203,28 @@ export function CallFrame2({
   // Tạo và gửi offer
   const createAndSendOffer = async () => {
     if (!peerConnectionRef.current) return
-    
+
     try {
       console.log('Creating offer...')
-      
+
       const offerOptions = {
         offerToReceiveAudio: true,
         offerToReceiveVideo: callType === CALL_TYPE.VIDEO
       }
-      
+
       const offer = await peerConnectionRef.current.createOffer(offerOptions)
       console.log('Created offer:', offer.type)
-      
+
       await peerConnectionRef.current.setLocalDescription(offer)
       console.log('Set local description (offer)')
-      
+
       // Đợi một chút để đảm bảo ICE gathering hoàn tất
       // Sử dụng timeout ngắn hơn để tránh delay quá lâu
-      await new Promise(resolve => setTimeout(resolve, 500))
-      
+      await new Promise((resolve) => setTimeout(resolve, 500))
+
       // Kiểm tra xem local description có sẵn không
       const localDescription = peerConnectionRef.current.localDescription || offer
-      
+
       console.log('Sending SDP offer to recipient')
       socket?.emit(SOCKET_EVENTS.SDP_OFFER, {
         sdp: localDescription,
@@ -402,26 +402,26 @@ export function CallFrame2({
   // Xử lý SDP offer
   const handleOffer = async (data: { sdp: RTCSessionDescriptionInit; chatId: string }) => {
     if (data.chatId !== chatId) return
-    
+
     try {
       console.log('Received SDP offer')
-      
+
       // Khởi tạo WebRTC nếu chưa có
       if (!peerConnectionRef.current) {
         await initializeWebRTC()
       }
-      
+
       if (!peerConnectionRef.current) {
         console.error('Peer connection is null after initialization')
         return
       }
-      
+
       console.log('Setting remote description (offer)')
       await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(data.sdp))
-      
+
       // Xử lý các ICE candidates đã được buffer
       await processBufferedIceCandidates()
-      
+
       // Tạo và gửi answer
       await createAndSendAnswer()
     } catch (error) {
@@ -432,13 +432,13 @@ export function CallFrame2({
   // Xử lý SDP answer
   const handleAnswer = async (data: { sdp: RTCSessionDescriptionInit; chatId: string }) => {
     if (data.chatId !== chatId || !peerConnectionRef.current) return
-    
+
     try {
       console.log('Received SDP answer')
       console.log('Setting remote description (answer)')
       await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(data.sdp))
       console.log('Remote description set successfully')
-      
+
       // Xử lý các ICE candidates đã được buffer
       await processBufferedIceCandidates()
     } catch (error) {
@@ -477,13 +477,13 @@ export function CallFrame2({
     if (isInitiator) {
       console.log('Call accepted by recipient')
       setCallStatus(CALL_STATUS.CONNECTING)
-      
+
       try {
         // Khởi tạo WebRTC nếu chưa có
         if (!peerConnectionRef.current) {
           await initializeWebRTC()
         }
-        
+
         // Tạo và gửi offer
         await createAndSendOffer()
       } catch (error) {
@@ -715,8 +715,3 @@ export function CallFrame2({
     </div>
   )
 }
-
-
-
-
-

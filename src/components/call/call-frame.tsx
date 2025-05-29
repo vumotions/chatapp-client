@@ -1171,34 +1171,34 @@ export function CallFrame({
 
   // Thêm vào useEffect để lắng nghe các sự kiện socket
   useEffect(() => {
-    if (!socket) return;
+    if (!socket) return
 
     // Xử lý sự kiện CALL_MISSED
     const handleCallMissed = (data: { chatId: string; recipientId: string }) => {
-      console.log('Received CALL_MISSED event:', data);
-      
+      console.log('Received CALL_MISSED event:', data)
+
       // Kiểm tra xem cuộc gọi nhỡ có phải cho cuộc gọi hiện tại không
       if (data.chatId === chatId) {
-        console.log('This call was marked as missed, closing call frame');
-        
+        console.log('This call was marked as missed, closing call frame')
+
         // Đóng cuộc gọi
-        setCallStatus(CALL_STATUS.MISSED);
+        setCallStatus(CALL_STATUS.MISSED)
         setTimeout(() => {
-          onClose();
+          onClose()
           // Cập nhật store để xóa thông tin cuộc gọi
-          useCallStore.getState().endCall();
-        }, 1000);
+          useCallStore.getState().endCall()
+        }, 1000)
       }
-    };
+    }
 
     // Đăng ký lắng nghe sự kiện
-    socket.on(SOCKET_EVENTS.CALL_MISSED, handleCallMissed);
+    socket.on(SOCKET_EVENTS.CALL_MISSED, handleCallMissed)
 
     return () => {
       // Hủy đăng ký khi component unmount
-      socket.off(SOCKET_EVENTS.CALL_MISSED, handleCallMissed);
-    };
-  }, [socket, chatId, onClose]);
+      socket.off(SOCKET_EVENTS.CALL_MISSED, handleCallMissed)
+    }
+  }, [socket, chatId, onClose])
 
   return (
     <div className='pointer-events-none fixed inset-0 z-50 flex items-center justify-center'>

@@ -29,15 +29,25 @@ function MessagePopover() {
   const { socket } = useSocket()
 
   // Fetch chats using the existing hook with search query
-  const { data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage, refetch } = useChatList(
+  const { data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage } = useChatList(
     'all',
-    searchQuery
+    searchQuery,
+    true // Đảm bảo hook luôn được kích hoạt
   )
 
-  // Extract chats from the data
+  // Extract chats from the data - Đặt khai báo này TRƯỚC khi sử dụng trong useEffect
   const chats = useMemo(() => {
     return data?.pages.flatMap((page) => page?.conversations) || []
   }, [data])
+
+  // Kiểm tra console.log để debug - Đặt useEffect này SAU khi khai báo chats
+  useEffect(() => {
+    if (data) {
+      console.log('Chat data:', data)
+      console.log('Has next page:', hasNextPage)
+      console.log('Current chats count:', chats.length)
+    }
+  }, [data, hasNextPage, chats.length])
 
   // Create debounced search function
   const debouncedSearch = useCallback(
@@ -173,8 +183,12 @@ function MessagePopover() {
               }
               scrollableTarget='messageScrollableDiv'
               endMessage={
-                <div className='text-muted-foreground p-2 text-center text-xs'>Không còn cuộc trò chuyện nào nữa</div>
+                <div className='text-muted-foreground p-2 text-center text-xs'>
+                  {chats.length > 0 ? 'Không còn cuộc trò chuyện nào nữa' : ''}
+                </div>
               }
+              scrollThreshold={0.8}
+              style={{ overflow: 'visible', height: '100%' }}
             >
               {chats?.map((chat: any) => {
                 const chatInfo = getChatInfo(chat)

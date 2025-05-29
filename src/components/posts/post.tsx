@@ -110,13 +110,8 @@ export const Post: React.FC<PostProps> = ({ post }) => {
           {media.type === 'video' ? (
             <video src={media.url} className='h-auto w-full' controls />
           ) : (
-            <div className="relative h-[300px] w-full">
-              <Image 
-                src={media.url} 
-                alt='' 
-                fill
-                className='object-cover' 
-              />
+            <div className='relative h-[300px] w-full'>
+              <Image src={media.url} alt='' fill className='object-cover' />
             </div>
           )}
         </div>
@@ -136,13 +131,8 @@ export const Post: React.FC<PostProps> = ({ post }) => {
               {media.type === 'video' ? (
                 <video src={media.url} className='h-full w-full object-cover' />
               ) : (
-                <div className="relative h-[300px] w-full">
-                  <Image 
-                    src={media.url} 
-                    alt='' 
-                    fill
-                    className='object-cover' 
-                  />
+                <div className='relative h-[300px] w-full'>
+                  <Image src={media.url} alt='' fill className='object-cover' />
                 </div>
               )}
             </div>
@@ -160,13 +150,8 @@ export const Post: React.FC<PostProps> = ({ post }) => {
               {post.media[0].type === 'video' ? (
                 <video src={post.media[0].url} className='h-full w-full object-cover' />
               ) : (
-                <div className="relative h-[300px] w-full">
-                  <Image 
-                    src={post.media[0].url} 
-                    alt='' 
-                    fill
-                    className='object-cover' 
-                  />
+                <div className='relative h-[300px] w-full'>
+                  <Image src={post.media[0].url} alt='' fill className='object-cover' />
                 </div>
               )}
             </div>
@@ -175,13 +160,8 @@ export const Post: React.FC<PostProps> = ({ post }) => {
                 {post.media[1].type === 'video' ? (
                   <video src={post.media[1].url} className='h-full w-full object-cover' />
                 ) : (
-                  <div className="relative h-[300px] w-full">
-                    <Image 
-                      src={post.media[1].url} 
-                      alt='' 
-                      fill
-                      className='object-cover' 
-                    />
+                  <div className='relative h-[300px] w-full'>
+                    <Image src={post.media[1].url} alt='' fill className='object-cover' />
                   </div>
                 )}
               </div>
@@ -189,13 +169,8 @@ export const Post: React.FC<PostProps> = ({ post }) => {
                 {post.media[2].type === 'video' ? (
                   <video src={post.media[2].url} className='h-full w-full object-cover' />
                 ) : (
-                  <div className="relative h-[300px] w-full">
-                    <Image 
-                      src={post.media[2].url} 
-                      alt='' 
-                      fill
-                      className='object-cover' 
-                    />
+                  <div className='relative h-[300px] w-full'>
+                    <Image src={post.media[2].url} alt='' fill className='object-cover' />
                   </div>
                 )}
               </div>
@@ -219,13 +194,8 @@ export const Post: React.FC<PostProps> = ({ post }) => {
                 {media.type === 'video' ? (
                   <video src={media.url} className='h-full w-full object-cover' />
                 ) : (
-                  <div className="relative h-[300px] w-full">
-                    <Image 
-                      src={media.url} 
-                      alt='' 
-                      fill
-                      className='object-cover' 
-                    />
+                  <div className='relative h-[300px] w-full'>
+                    <Image src={media.url} alt='' fill className='object-cover' />
                   </div>
                 )}
               </div>
@@ -248,13 +218,8 @@ export const Post: React.FC<PostProps> = ({ post }) => {
               {item.type === 'video' ? (
                 <video src={item.url} className='h-full w-full object-cover' />
               ) : (
-                <div className="relative h-[300px] w-full">
-                  <Image 
-                    src={item.url} 
-                    alt='' 
-                    fill
-                    className='object-cover' 
-                  />
+                <div className='relative h-[300px] w-full'>
+                  <Image src={item.url} alt='' fill className='object-cover' />
                 </div>
               )}
               {index === 3 && post.media && post.media.length > 4 && (

@@ -20,4 +20,3 @@ export function endCurrentCall() {
   console.log('Ending current call')
   useCallStore.getState().endCall()
 }
-

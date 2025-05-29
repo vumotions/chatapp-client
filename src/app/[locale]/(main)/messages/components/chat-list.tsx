@@ -1,4 +1,5 @@
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
+import { AnimatePresence, motion } from 'framer-motion'
 import { debounce } from 'lodash'
 import { Search } from 'lucide-react'
 import { useSession } from 'next-auth/react'
@@ -12,10 +13,9 @@ import { ScrollArea } from '~/components/ui/scroll-area'
 import { Skeleton } from '~/components/ui/skeleton'
 import SOCKET_EVENTS from '~/constants/socket-events'
 import { useArchiveChat, useChatList } from '~/hooks/data/chat.hooks'
+import useMediaQuery from '~/hooks/use-media-query'
 import { useSocket } from '~/hooks/use-socket'
 import conversationsService from '~/services/conversations.service'
-import { AnimatePresence, motion } from 'framer-motion'
-import useMediaQuery from '~/hooks/use-media-query'
 
 // Tạo component MemoizedConversationItem
 const MemoizedConversationItem = React.memo<{
@@ -34,7 +34,6 @@ const MemoizedConversationItem = React.memo<{
     // Nếu không, kiểm tra mảng archivedFor
     const isArchivedForCurrentUser = isArchived || conversation.archivedFor?.includes(currentUserId)
 
-    // Sử dụng isArchivedForCurrentUser trong UI
     return (
       <motion.div
         layout

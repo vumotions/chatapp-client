@@ -36,7 +36,7 @@ export default function FriendHoverCard({ friend, children }: FriendHoverCardPro
 
     try {
       const result = await startConversation.mutateAsync(friendId)
-      
+
       startTransition(() => {
         router.push(`/messages/${result.conversationId}`)
       })
@@ -105,5 +105,3 @@ export default function FriendHoverCard({ friend, children }: FriendHoverCardPro
     </HoverCard>
   )
 }
-
-
