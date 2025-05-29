@@ -1,7 +1,11 @@
-import { Card, CardContent } from '~/components/ui/card'
-import { Button } from '~/components/ui/button'
-import { Input } from '~/components/ui/input'
 import { Images, SmilePlus, Users, X } from 'lucide-react'
+import { useSession } from 'next-auth/react'
+import Image from 'next/image'
+import { useRef, useState } from 'react'
+import { toast } from 'sonner'
+import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
+import { Button } from '~/components/ui/button'
+import { Card, CardContent } from '~/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -10,15 +14,11 @@ import {
   DialogTitle,
   DialogTrigger
 } from '~/components/ui/dialog'
-import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
-import { useSession } from 'next-auth/react'
-import { useState, useRef } from 'react'
-import { Textarea } from '~/components/ui/textarea'
+import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '~/components/ui/select'
-import Image from 'next/image'
+import { Textarea } from '~/components/ui/textarea'
 import postService from '~/services/post.service'
-import { toast } from 'sonner'
 
 export default function PostEditorV2({ getPosts }: { getPosts: () => any }) {
   const { data: session } = useSession()
@@ -31,11 +31,9 @@ export default function PostEditorV2({ getPosts }: { getPosts: () => any }) {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      // Cộng dồn files mới vào mảng files hiện tại thay vì ghi đè
       const newFiles = Array.from(e.target.files)
       setFiles((prevFiles) => [...prevFiles, ...newFiles])
 
-      // Reset input để có thể chọn lại file đã chọn trước đó
       if (fileInputRef.current) {
         fileInputRef.current.value = ''
       }
@@ -162,9 +160,7 @@ export default function PostEditorV2({ getPosts }: { getPosts: () => any }) {
             >
               <Images className='mr-2 h-4 w-4' /> Ảnh/video
             </Button>
-            <Button variant='outline'>
-              <SmilePlus className='h-4 w-4' />
-            </Button>
+
             <DialogTrigger asChild>
               <Button variant='default'>Post</Button>
             </DialogTrigger>
@@ -236,9 +232,6 @@ export default function PostEditorV2({ getPosts }: { getPosts: () => any }) {
           </div>
           <div className='grid flex-none gap-4 py-4'>
             <div className='flex justify-end gap-2'>
-              <Button variant='outline'>
-                <SmilePlus className='h-4 w-4' />
-              </Button>
               <Button onClick={handleSubmit} disabled={isSubmitting}>
                 {isSubmitting ? 'Đang đăng...' : 'Post'}
               </Button>

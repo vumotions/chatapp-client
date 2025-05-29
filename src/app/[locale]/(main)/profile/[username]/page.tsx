@@ -1,14 +1,16 @@
 'use client'
 
+import { useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { Calendar, Users } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { use, useMemo, useState } from 'react'
 import InfiniteScroll from 'react-infinite-scroll-component'
+import ProfileForm from '~/app/[locale]/(main)/settings/(profile)/form-profile'
 import FriendHoverCard from '~/components/friend-hover-card'
 import PostSkeleton from '~/components/post-skeleton'
 import { Post } from '~/components/posts/post'
-import ProfileForm from '~/app/[locale]/(main)/settings/(profile)/form-profile'
+import PostEditorV2 from '~/components/posts/post-editor-v2'
 import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
 import { Button } from '~/components/ui/button'
 import { Card, CardContent } from '~/components/ui/card'
@@ -20,7 +22,6 @@ import {
   DialogHeader,
   DialogTitle
 } from '~/components/ui/dialog'
-import { Input } from '~/components/ui/input'
 import { Skeleton } from '~/components/ui/skeleton'
 import { FRIEND_REQUEST_STATUS } from '~/constants/enums'
 import { useStartConversationMutation } from '~/hooks/data/chat.hooks'
@@ -72,7 +73,7 @@ function Profile({ params }: Props) {
   } = useFriendStatus(profileData?._id, {
     enabled: !!profileData && !isMyProfile
   })
-
+  const queryClient = useQueryClient()
   const sendFriendRequest = useSendFriendRequestMutation()
   const startConversation = useStartConversationMutation()
   const cancelFriendRequest = useCancelFriendRequestMutation()
@@ -80,6 +81,13 @@ function Profile({ params }: Props) {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
   const [showProfileFormDialog, setShowProfileFormDialog] = useState(false)
 
+  const refreshPosts = async () => {
+    try {
+      await queryClient.invalidateQueries({ queryKey: ['POSTS'] })
+    } catch (error) {
+      console.error('Error refreshing posts:', error)
+    }
+  }
   const handleFriendAction = () => {
     // Nếu đang là bạn bè, hiển thị dialog xác nhận hủy kết bạn
     if (friendStatus?.status === FRIEND_REQUEST_STATUS.ACCEPTED) {
@@ -177,7 +185,6 @@ function Profile({ params }: Props) {
           <div className='flex gap-2'>
             {isMyProfile ? (
               <>
-                <Button size='sm'>+ Thêm vào tin</Button>
                 <Button size='sm' variant='outline' onClick={() => setShowProfileFormDialog(true)}>
                   Chỉnh sửa trang cá nhân
                 </Button>
@@ -258,28 +265,6 @@ function Profile({ params }: Props) {
                   <span>Tham gia từ {format(new Date(profileData.createdAt), 'MM/yyyy')}</span>
                 </div>
               )}
-              {isMyProfile && (
-                <Button size='sm' className='mt-2 w-full'>
-                  Chỉnh sửa chi tiết
-                </Button>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Ảnh */}
-          <Card className='py-0'>
-            <CardContent className='space-y-2 p-4'>
-              <div className='flex items-center justify-between'>
-                <h3 className='font-semibold'>Ảnh</h3>
-                <Button variant='link' size='sm'>
-                  Xem tất cả ảnh
-                </Button>
-              </div>
-              <div className='grid grid-cols-3 gap-1'>
-                {[...Array(6)].map((_, i) => (
-                  <div key={i} className='bg-muted aspect-square rounded' />
-                ))}
-              </div>
             </CardContent>
           </Card>
 
@@ -295,7 +280,6 @@ function Profile({ params }: Props) {
               <p className='text-muted-foreground text-sm'>{profileFriends?.length || 0} người bạn</p>
               <div className='space-y-2'>
                 {isLoadingProfileFriends ? (
-                  // Hiển thị skeleton khi đang tải
                   [...Array(6)].map((_, i) => (
                     <div key={i} className='flex items-center gap-3 p-2'>
                       <Skeleton className='h-12 w-12 rounded-full' />
@@ -306,7 +290,6 @@ function Profile({ params }: Props) {
                     </div>
                   ))
                 ) : profileFriends && profileFriends.length > 0 ? (
-                  // Hiển thị danh sách bạn bè với HoverCard
                   profileFriends.slice(0, 9).map((friend: any) => (
                     <FriendHoverCard key={friend._id} friend={friend}>
                       <div className='hover:bg-muted flex items-center gap-3 rounded-md p-2 transition-colors'>
@@ -321,7 +304,6 @@ function Profile({ params }: Props) {
                     </FriendHoverCard>
                   ))
                 ) : (
-                  // Hiển thị khi không có bạn bè
                   <div className='text-muted-foreground py-2 text-center'>Chưa có bạn bè</div>
                 )}
               </div>
@@ -332,24 +314,7 @@ function Profile({ params }: Props) {
         {/* Right column */}
         <div className='space-y-4 md:col-span-2'>
           {/* Form status - chỉ hiển thị nếu là profile của mình */}
-          {isMyProfile && (
-            <Card className='py-0'>
-              <CardContent className='space-y-2 p-4'>
-                <Input placeholder='Bạn đang nghĩ gì?' className='w-full resize-none rounded-md border p-3 text-sm' />
-                <div className='flex flex-wrap gap-2'>
-                  <Button size='sm' variant='ghost'>
-                    📹 Video trực tiếp
-                  </Button>
-                  <Button size='sm' variant='ghost'>
-                    🖼 Ảnh/video
-                  </Button>
-                  <Button size='sm' variant='ghost'>
-                    📅 Sự kiện
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+          {isMyProfile && <PostEditorV2 getPosts={refreshPosts} />}
 
           {/* Bài viết của người dùng */}
           <div className='space-y-4'>

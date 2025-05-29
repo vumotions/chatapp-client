@@ -1,22 +1,16 @@
 'use client'
 
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
-import { useSession } from 'next-auth/react'
 import InfiniteScroll from 'react-infinite-scroll-component'
-import { toast } from 'sonner'
 import FriendSuggestions from '~/components/friend-suggestions'
 import { Post } from '~/components/posts/post'
 import PostEditorV2 from '~/components/posts/post-editor-v2'
 import { PostSkeleton } from '~/components/posts/post-skeleton'
-
 import postService from '~/services/post.service'
 import RightSidebarFriendList from './components/right-sidebar'
 
 function Home() {
-  const { data: session } = useSession()
-  const queryClient = useQueryClient() // Thêm dòng này
-
-  // Sử dụng useInfiniteQuery thay vì useState và useEffect
+  const queryClient = useQueryClient()
   const { data, isLoading, isError, fetchNextPage, hasNextPage } = useInfiniteQuery({
     queryKey: ['POSTS'],
     queryFn: async ({ pageParam = 1 }) => {
@@ -41,10 +35,8 @@ function Home() {
   const refreshPosts = async () => {
     try {
       await queryClient.invalidateQueries({ queryKey: ['POSTS'] })
-      toast.success('Đã làm mới danh sách bài viết')
     } catch (error) {
       console.error('Error refreshing posts:', error)
-      toast.error('Không thể làm mới bài viết')
     }
   }
 

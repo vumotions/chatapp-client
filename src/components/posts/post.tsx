@@ -1,15 +1,32 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { formatDistanceToNow } from 'date-fns'
 import { vi } from 'date-fns/locale'
-import { Heart, MessageCircle, Share2 } from 'lucide-react'
+import { Heart, MessageCircle, Share2, UserCheck, UserPlus, UserX } from 'lucide-react'
+import { useSession } from 'next-auth/react'
 import Image from 'next/image'
-import React, { useEffect, useState } from 'react'
+import React, { useState } from 'react'
 import { toast } from 'sonner'
 import CommentSection from '~/components/comments/comment-section'
 import SharePopover from '~/components/share-popover'
 import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
 import { Button } from '~/components/ui/button'
 import { Card, CardContent } from '~/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '~/components/ui/dialog'
+import { FRIEND_REQUEST_STATUS } from '~/constants/enums'
+import {
+  useAcceptFriendRequestMutation,
+  useCancelFriendRequestMutation,
+  useFriendStatus,
+  useRemoveFriendMutation,
+  useSendFriendRequestMutation
+} from '~/hooks/data/friends.hook'
 import postService from '~/services/post.service'
 
 interface MediaItem {
@@ -45,20 +62,37 @@ interface PostProps {
 }
 
 export const Post: React.FC<PostProps> = ({ post }) => {
-  const queryClient = useQueryClient();
+  const { data: session } = useSession()
+  const queryClient = useQueryClient()
   const [liked, setLiked] = useState(post.userLiked || post.isLiked || false)
   const [likesCount, setLikesCount] = useState(post.likesCount || 0)
   const [commentCount, setCommentCount] = useState(post.commentsCount || 0)
   const [showComments, setShowComments] = useState(false)
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0)
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false)
 
-  // Cập nhật state khi prop thay đổi
-  useEffect(() => {
-    setLikesCount(post.likesCount || 0);
-    setCommentCount(post.commentsCount || 0);
-    setLiked(post.userLiked || post.isLiked || false);
-  }, [post.likesCount, post.commentsCount, post.userLiked, post.isLiked]);
+  // Lấy userId của người đăng bài
+  const postUserId = post?.user_id?._id || post?.userId?._id
+  const currentUserId = session?.user?._id
+
+  // Bỏ qua nếu là bài viết của chính mình
+  const isMyPost = postUserId === currentUserId
+
+  // Lấy trạng thái kết bạn
+  const {
+    data: friendStatus,
+    refetch: refetchStatus,
+    isLoading: isLoadingFriendStatus
+  } = useFriendStatus(postUserId, {
+    enabled: !!postUserId && !!currentUserId && !isMyPost
+  })
+
+  // Các mutation cho hành động kết bạn
+  const sendFriendRequest = useSendFriendRequestMutation()
+  const cancelFriendRequest = useCancelFriendRequestMutation()
+  const acceptFriendRequest = useAcceptFriendRequestMutation()
+  const removeFriend = useRemoveFriendMutation()
 
   const timeAgo = formatDistanceToNow(new Date(post.createdAt || post.created_at || new Date()), {
     addSuffix: true,
@@ -351,29 +385,128 @@ export const Post: React.FC<PostProps> = ({ post }) => {
 
   // Hàm toggle comments với revalidate
   const handleToggleComments = () => {
-    setShowComments(!showComments);
-    
+    setShowComments(!showComments)
+
     // Nếu đang mở comments, revalidate data
     if (!showComments) {
       // Revalidate post data để cập nhật comment count
-      queryClient.invalidateQueries({queryKey: ['POST', post._id]});
-      queryClient.invalidateQueries({queryKey: ['COMMENTS', post._id]});
-      
+      queryClient.invalidateQueries({ queryKey: ['POST', post._id] })
+      queryClient.invalidateQueries({ queryKey: ['COMMENTS', post._id] })
+
       // Fetch trực tiếp số lượng comment nếu cần
-      postService.getComments(post._id)
-        .then(response => {
+      postService
+        .getComments(post._id)
+        .then((response) => {
           if (response?.data?.totalComments !== undefined) {
-            setCommentCount(response.data.totalComments);
+            setCommentCount(response.data.totalComments)
           }
         })
-        .catch(error => console.error('Error fetching comments:', error));
+        .catch((error) => console.error('Error fetching comments:', error))
     }
-  };
+  }
+
+  // Xử lý hành động kết bạn
+  const handleFriendAction = () => {
+    if (!postUserId || !currentUserId) return
+
+    // Nếu đang là bạn bè, hiển thị dialog xác nhận hủy kết bạn
+    if (friendStatus?.status === FRIEND_REQUEST_STATUS.ACCEPTED) {
+      setShowConfirmDialog(true)
+      return
+    }
+
+    // Nếu đã gửi lời mời, thực hiện hủy lời mời
+    if (friendStatus?.status === FRIEND_REQUEST_STATUS.PENDING) {
+      cancelFriendRequest.mutate(postUserId, {
+        onSuccess: () => refetchStatus()
+      })
+      return
+    }
+
+    // Nếu đã nhận lời mời, thực hiện chấp nhận lời mời
+    if (friendStatus?.status === FRIEND_REQUEST_STATUS.RECEIVED) {
+      acceptFriendRequest.mutate(postUserId, {
+        onSuccess: () => refetchStatus()
+      })
+      return
+    }
+
+    // Trường hợp gửi lời mời kết bạn mới
+    sendFriendRequest.mutate(postUserId, {
+      onSuccess: () => refetchStatus()
+    })
+  }
+
+  // Xử lý khi xác nhận hủy kết bạn
+  const handleConfirmRemoveFriend = () => {
+    if (!postUserId) return
+
+    removeFriend.mutate(postUserId, {
+      onSuccess: () => {
+        refetchStatus()
+        setShowConfirmDialog(false)
+      }
+    })
+  }
+
+  // Render nút kết bạn
+  const renderFriendButton = () => {
+    if (isMyPost || !currentUserId) return null
+
+    // Xác định icon, text và style dựa trên trạng thái
+    let icon = <UserPlus className='h-4 w-4' />
+    let buttonText = 'Kết bạn'
+    let buttonClass = 'bg-primary text-primary-foreground hover:bg-primary/90'
+
+    if (isLoadingFriendStatus) {
+      return <div className='bg-muted absolute top-4 right-4 h-9 w-24 animate-pulse rounded-md'></div>
+    }
+
+    if (friendStatus?.status === FRIEND_REQUEST_STATUS.PENDING) {
+      icon = <UserX className='h-4 w-4' />
+      buttonText = 'Hủy lời mời'
+      buttonClass = 'bg-muted text-muted-foreground hover:bg-muted/90'
+    } else if (friendStatus?.status === FRIEND_REQUEST_STATUS.RECEIVED) {
+      icon = <UserCheck className='h-4 w-4' />
+      buttonText = 'Chấp nhận'
+      buttonClass = 'bg-green-500 text-white hover:bg-green-600'
+    } else if (friendStatus?.status === FRIEND_REQUEST_STATUS.ACCEPTED) {
+      icon = <UserCheck className='h-4 w-4' />
+      buttonText = 'Bạn bè'
+      buttonClass = 'bg-green-500 text-white hover:bg-green-600'
+    }
+
+    const isLoading =
+      sendFriendRequest.isPending ||
+      cancelFriendRequest.isPending ||
+      acceptFriendRequest.isPending ||
+      removeFriend.isPending
+
+    return (
+      <button
+        className={`absolute top-4 right-4 flex h-9 items-center justify-center gap-1.5 rounded-md px-3 ${buttonClass}`}
+        onClick={handleFriendAction}
+        disabled={isLoading}
+      >
+        {isLoading ? (
+          <div className='h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent'></div>
+        ) : (
+          <>
+            {icon}
+            <span className='text-xs font-medium'>{buttonText}</span>
+          </>
+        )}
+      </button>
+    )
+  }
 
   return (
     <>
-      <Card className='mb-4'>
+      <Card className='relative mb-4'>
         <CardContent className='space-y-3 px-4 pt-4'>
+          {/* Nút kết bạn */}
+          {renderFriendButton()}
+
           {/* Header của bài viết hiện tại */}
           <div className='flex items-center gap-3'>
             <Avatar className='h-10 w-10'>
@@ -427,13 +560,32 @@ export const Post: React.FC<PostProps> = ({ post }) => {
 
           {/* Comment section - Thêm prop để cập nhật số lượng comment */}
           {showComments && (
-            <CommentSection 
-              postId={post._id} 
-              onCommentCountChange={(count) => setCommentCount(count)}
-            />
+            <CommentSection postId={post._id} onCommentCountChange={(count) => setCommentCount(count)} />
           )}
         </CardContent>
       </Card>
+
+      {/* Dialog xác nhận hủy kết bạn */}
+      <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Xác nhận hủy kết bạn</DialogTitle>
+            <DialogDescription>
+              Bạn có chắc chắn muốn hủy kết bạn với {post?.user_id?.name || post?.userId?.name}? Hành động này sẽ xóa
+              tất cả các kết nối bạn bè giữa hai người.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant='outline' onClick={() => setShowConfirmDialog(false)}>
+              Hủy
+            </Button>
+            <Button variant='destructive' onClick={handleConfirmRemoveFriend} disabled={removeFriend.isPending}>
+              {removeFriend.isPending ? 'Đang xử lý...' : 'Xác nhận'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {renderLightbox()}
     </>
   )

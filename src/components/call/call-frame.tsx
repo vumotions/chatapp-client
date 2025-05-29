@@ -944,8 +944,7 @@ export function CallFrame({
 
       setIsScreenSharing(!isScreenSharing)
     } catch (error) {
-      console.error('Error toggling screen sharing:', error)
-      toast.error('Không thể chia sẻ màn hình.')
+      console.log('Bạn đã từ chối chia sẻ màn hình.')
     }
   }
 
@@ -1063,12 +1062,6 @@ export function CallFrame({
       }
     }
   }, [remoteVideoRef.current, callStatus])
-
-  // Thay đổi toàn bộ container khi thu nhỏ trên mobile để có hiệu ứng glass
-  const minimizedContainerClass =
-    isMobile && isMinimizedOnMobile
-      ? 'fixed bottom-16 right-4 w-[200px] h-[250px] rounded-xl overflow-hidden border border-gray-700 bg-black/30 backdrop-blur-md shadow-lg z-50'
-      : ''
 
   // Thêm hàm để khởi tạo camera trước khi chấp nhận cuộc gọi
   const initializeLocalPreviewBeforeAccept = async () => {
