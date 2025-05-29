@@ -1,10 +1,23 @@
 {
-  "button": "1",
+  "button": "2",
   "comments": {
     "hideReplies": "Hide replies",
-    "viewAllReplies": "View all {{count}} replies",
+    "viewAllReplies": "View all {count} replies",
     "saveChanges": "Save changes",
     "edit": "Edit",
-    "delete": "Delete"
+    "delete": "Delete",
+    "writeComment": "Write a comment...",
+    "send": "Send",
+    "reply": "Reply"
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "An error occurred",
+    "noData": "No data available",
+    "search": "Search",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "yes": "Yes",
+    "no": "No"
   }
 }

@@ -1,12 +1,12 @@
 'use client'
 
 import { useQueryClient } from '@tanstack/react-query'
+import { useSession } from 'next-auth/react'
 import { useEffect } from 'react'
 import { toast } from 'sonner'
-import { useSocket } from '~/hooks/use-socket'
 import { NOTIFICATION_TYPE } from '~/constants/enums'
 import SOCKET_EVENTS from '~/constants/socket-events'
-import { useSession } from 'next-auth/react'
+import { useSocket } from '~/hooks/use-socket'
 
 export default function NotificationListener() {
   const { socket } = useSocket()

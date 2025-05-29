@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { useRouter } from '~/i18n/navigation'
 
+import { Loader2, Trash, Upload } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
 import { Button } from '~/components/ui/button'
 import { Checkbox } from '~/components/ui/checkbox'
@@ -20,16 +21,14 @@ import {
 import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
 import { Tooltip, TooltipContent, TooltipTrigger } from '~/components/ui/tooltip'
-import { useFriendsQuery } from '~/hooks/data/friends.hook'
-import conversationService from '~/services/conversations.service'
 import { GROUP_TYPE } from '~/constants/enums'
-import { RadioGroup, RadioGroupItem } from './ui/radio-group'
-import { Switch } from './ui/switch'
-import { CreateGroupChatData } from '~/types/chat.types'
-import { ScrollArea } from './ui/scroll-area'
+import { useFriendsQuery } from '~/hooks/data/friends.hook'
 import { useFileUpload } from '~/hooks/data/upload.hooks'
-import { Upload } from 'lucide-react'
-import { Loader2 } from 'lucide-react'
+import conversationService from '~/services/conversations.service'
+import { CreateGroupChatData } from '~/types/chat.types'
+import { RadioGroup, RadioGroupItem } from './ui/radio-group'
+import { ScrollArea } from './ui/scroll-area'
+import { Switch } from './ui/switch'
 
 export function CreateGroupChatDialog() {
   const [open, setOpen] = useState(false)
@@ -39,6 +38,7 @@ export function CreateGroupChatDialog() {
   const [groupType, setGroupType] = useState(GROUP_TYPE.PUBLIC)
   const [requireApproval, setRequireApproval] = useState(false)
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
+  const [showAvatar, setShowAvatar] = useState(true)
   const { data: friends } = useFriendsQuery()
   const queryClient = useQueryClient()
   const router = useRouter()
@@ -122,6 +122,13 @@ export function CreateGroupChatDialog() {
     }
   }
 
+  const handleRemoveAvatar = () => {
+    setAvatarUrl('')
+    setAvatarFile(null)
+    setShowAvatar(true) // Reset lại trạng thái hiển thị
+    toast.success('Đã xóa ảnh đại diện nhóm')
+  }
+
   return (
     <>
       <Tooltip>
@@ -167,23 +174,38 @@ export function CreateGroupChatDialog() {
                   disabled={isUploading}
                 />
                 <div className='relative'>
-                  <Input
-                    type='file'
-                    id='avatar-upload'
-                    className='absolute inset-0 cursor-pointer opacity-0'
-                    accept='image/*'
-                    onChange={handleAvatarUpload}
-                    disabled={isUploading}
-                    multiple={false} // Chỉ cho phép chọn 1 file
-                  />
-                  <Button type='button' variant='outline' size='icon' disabled={isUploading}>
-                    {isUploading ? <Loader2 className='h-4 w-4 animate-spin' /> : <Upload className='h-4 w-4' />}
-                  </Button>
+                  {avatarUrl ? (
+                    <Button
+                      type='button'
+                      variant='destructive'
+                      size='icon'
+                      onClick={handleRemoveAvatar}
+                      disabled={isUploading}
+                      className='h-10 w-10'
+                    >
+                      <Trash className='h-4 w-4' />
+                    </Button>
+                  ) : (
+                    <>
+                      <Input
+                        type='file'
+                        id='avatar-upload'
+                        className='absolute inset-0 cursor-pointer opacity-0'
+                        accept='image/*'
+                        onChange={handleAvatarUpload}
+                        disabled={isUploading}
+                        multiple={false}
+                      />
+                      <Button type='button' variant='outline' size='icon' disabled={isUploading} className='h-10 w-10'>
+                        {isUploading ? <Loader2 className='h-4 w-4 animate-spin' /> : <Upload className='h-4 w-4' />}
+                      </Button>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
 
-            {avatarUrl && (
+            {avatarUrl && showAvatar && (
               <div className='my-2 flex justify-center'>
                 <Avatar className='h-20 w-20'>
                   <AvatarImage src={avatarUrl} alt='Group avatar preview' />

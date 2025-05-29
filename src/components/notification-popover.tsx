@@ -1,17 +1,18 @@
 'use client'
 
+import { useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { vi } from 'date-fns/locale'
 import { Bell, Check, MoreVertical, Trash } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import InfiniteScroll from 'react-infinite-scroll-component'
-import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
 import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
 import { Popover, PopoverContent, PopoverTrigger } from '~/components/ui/popover'
-import { NOTIFICATION_TYPE, FRIEND_REQUEST_STATUS } from '~/constants/enums'
+import { FRIEND_REQUEST_STATUS, NOTIFICATION_TYPE } from '~/constants/enums'
 import SOCKET_EVENTS from '~/constants/socket-events'
+import { useAcceptFriendRequestMutation, useRejectFriendRequestMutation } from '~/hooks/data/friends.hook'
 import {
   useDeleteAllNotificationsMutation,
   useDeleteNotificationMutation,
@@ -19,7 +20,6 @@ import {
   useMarkNotificationAsRead,
   useNotifications
 } from '~/hooks/data/notification.hooks'
-import { useAcceptFriendRequestMutation, useRejectFriendRequestMutation } from '~/hooks/data/friends.hook'
 import { useSocket } from '~/hooks/use-socket'
 import { useRouter } from '~/i18n/navigation'
 import { cn } from '~/lib/utils'
@@ -72,25 +72,33 @@ function NotificationPopover() {
   }, [notifications])
 
   // Handle notification click
-  const handleNotificationClick = (notification: any) => {
+  const handleNotificationClick = async (notification: any) => {
     try {
-      // Mark as read
-      if (notification && notification.read === false) {
-        markAsRead(notification._id)
-      }
+      // Đánh dấu thông báo đã đọc
+      await markAsRead(notification._id)
 
-      // Navigate based on notification type
-      if (notification?.type === NOTIFICATION_TYPE.FRIEND_REQUEST) {
-        router.push('/friends/requests')
-      } else if (notification?.type === NOTIFICATION_TYPE.FRIEND_ACCEPTED) {
-        router.push('/friends')
-      }
-
+      // Đóng popover
       setOpen(false)
+
+      // Xử lý chuyển hướng dựa trên loại thông báo
+      switch (notification.type) {
+        case NOTIFICATION_TYPE.FRIEND_REQUEST:
+          router.push('/friends/requests')
+          break
+        case NOTIFICATION_TYPE.FRIEND_ACCEPTED:
+          router.push('/friends')
+          break
+        case NOTIFICATION_TYPE.NEW_COMMENT:
+          // Chuyển hướng đến bài viết có bình luận
+          if (notification.relatedId) {
+            router.push(`/posts/${notification.relatedId}`)
+          }
+          break
+        default:
+          console.log('Unhandled notification type:', notification.type)
+      }
     } catch (error) {
       console.error('Error handling notification click:', error)
-      // Keep the UI working even if there's an error
-      setOpen(false)
     }
   }
 
@@ -313,9 +321,16 @@ function NotificationPopover() {
       case NOTIFICATION_TYPE.LIKE:
         return `${senderName} đã thích bài viết của bạn`
       case NOTIFICATION_TYPE.NEW_COMMENT:
+        // Nếu có nội dung tùy chỉnh, sử dụng nó
+        if (notification.content) {
+          return `${senderName} ${notification.content}`
+        }
+        // Nếu không có nội dung tùy chỉnh, sử dụng nội dung mặc định
         return `${senderName} đã bình luận về bài viết của bạn`
       case NOTIFICATION_TYPE.MENTION:
         return `${senderName} đã nhắc đến bạn trong một bình luận`
+      case NOTIFICATION_TYPE.POST_LIKE:
+        return `${senderName} đã thích bài viết của bạn`
       default:
         return notification.content || `Bạn có một thông báo mới (${notification.type})`
     }
@@ -444,31 +459,7 @@ function NotificationPopover() {
                 const senderName = item.senderId?.name || 'Người dùng'
 
                 // Tạo nội dung thông báo dựa trên loại
-                let notificationText = ''
-
-                if (item.type === NOTIFICATION_TYPE.FRIEND_REQUEST) {
-                  notificationText = `${senderName} đã gửi cho bạn lời mời kết bạn`
-                } else if (item.type === NOTIFICATION_TYPE.FRIEND_ACCEPTED) {
-                  notificationText = `${senderName} đã chấp nhận lời mời kết bạn của bạn`
-                } else if (item.type === NOTIFICATION_TYPE.JOIN_REQUEST) {
-                  if (item.metadata?.chatName) {
-                    if (item.metadata.invitedUsers && item.metadata.invitedUsers.length > 0) {
-                      notificationText = `${senderName} đã mời ${item.metadata.invitedUsers.length} người vào nhóm "${item.metadata.chatName}"`
-                    } else {
-                      notificationText = `${senderName} muốn tham gia nhóm "${item.metadata.chatName}"`
-                    }
-                  } else {
-                    notificationText = `${senderName} muốn tham gia nhóm của bạn`
-                  }
-                } else if (item.type === NOTIFICATION_TYPE.NEW_MESSAGE) {
-                  if (item.metadata?.chatName) {
-                    notificationText = `${senderName} đã gửi tin nhắn trong nhóm "${item.metadata.chatName}"`
-                  } else {
-                    notificationText = `${senderName} đã gửi cho bạn một tin nhắn mới`
-                  }
-                } else {
-                  notificationText = item.content || `Bạn có một thông báo mới (${item.type})`
-                }
+                let notificationText = getNotificationContent(item)
 
                 return (
                   <div

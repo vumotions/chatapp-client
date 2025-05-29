@@ -663,6 +663,15 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
     }
   }
 
+  // Thêm hàm xử lý xóa avatar
+  const handleRemoveAvatar = () => {
+    groupSettingsForm.setValue('avatar', '', {
+      shouldDirty: true,
+      shouldTouch: true
+    })
+    toast.success('Đã xóa ảnh đại diện nhóm')
+  }
+
   return (
     <>
       <Sheet open={open} onOpenChange={setOpen}>
@@ -756,32 +765,49 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                                 />
                               </FormControl>
                               <div className='relative'>
-                                <Input
-                                  type='file'
-                                  id='avatar-upload'
-                                  className='absolute inset-0 h-full w-full cursor-pointer opacity-0'
-                                  accept='image/*'
-                                  onChange={handleAvatarUpload}
-                                  disabled={isUploadingAvatar || !canChangeGroupInfo}
-                                  multiple={false}
-                                  aria-label='Upload avatar'
-                                />
-                                <Button
-                                  type='button'
-                                  variant='outline'
-                                  size='icon'
-                                  disabled={isUploadingAvatar || !canChangeGroupInfo}
-                                  aria-hidden='true'
-                                  tabIndex={-1}
-                                  className='h-10 w-10 overflow-hidden p-0'
-                                >
-                                  {isUploadingAvatar ? (
-                                    <Loader2 className='h-4 w-4 animate-spin' />
-                                  ) : (
-                                    <Upload className='h-4 w-4' />
-                                  )}
-                                  <span className='sr-only'>Upload avatar</span>
-                                </Button>
+                                {field.value ? (
+                                  <Button
+                                    type='button'
+                                    variant='destructive'
+                                    size='icon'
+                                    onClick={handleRemoveAvatar}
+                                    disabled={isUploadingAvatar || !canChangeGroupInfo}
+                                    aria-label='Remove avatar'
+                                    className='h-10 w-10 overflow-hidden p-0'
+                                  >
+                                    <Trash className='h-4 w-4' />
+                                    <span className='sr-only'>Remove avatar</span>
+                                  </Button>
+                                ) : (
+                                  <>
+                                    <Input
+                                      type='file'
+                                      id='avatar-upload'
+                                      className='absolute inset-0 h-full w-full cursor-pointer opacity-0'
+                                      accept='image/*'
+                                      onChange={handleAvatarUpload}
+                                      disabled={isUploadingAvatar || !canChangeGroupInfo}
+                                      multiple={false}
+                                      aria-label='Upload avatar'
+                                    />
+                                    <Button
+                                      type='button'
+                                      variant='outline'
+                                      size='icon'
+                                      disabled={isUploadingAvatar || !canChangeGroupInfo}
+                                      aria-hidden='true'
+                                      tabIndex={-1}
+                                      className='h-10 w-10 overflow-hidden p-0'
+                                    >
+                                      {isUploadingAvatar ? (
+                                        <Loader2 className='h-4 w-4 animate-spin' />
+                                      ) : (
+                                        <Upload className='h-4 w-4' />
+                                      )}
+                                      <span className='sr-only'>Upload avatar</span>
+                                    </Button>
+                                  </>
+                                )}
                               </div>
                             </div>
                             {field.value && (
