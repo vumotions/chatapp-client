@@ -261,7 +261,7 @@ export default function CommentSection({ postId, focusCommentId }: CommentSectio
             Xem thêm bình luận
           </Button>
         )}
-        <div className='mt-4 rounded-lg bg-white p-4 shadow'>
+        <div className='mt-4 rounded-lg p-4 shadow'>
           <CommentForm
             onSubmit={(content) => {
               handleCreateComment(content)

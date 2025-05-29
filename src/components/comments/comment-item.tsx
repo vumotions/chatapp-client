@@ -62,25 +62,19 @@ export default function CommentItem({
               />
             ) : (
               <div className='flex items-center justify-between'>
-                <div className='mt-1 text-sm text-gray-800'>{renderCommentContent(comment.content)}</div>
+                <div className='mt-1 text-sm'>{renderCommentContent(comment.content)}</div>
                 {canEditDelete(comment.userId) && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant='ghost' size='icon' className='h-6 w-6 cursor-pointer p-0 text-gray-500'>
+                      <Button variant='ghost' size='icon' className='h-6 w-6 cursor-pointer p-0'>
                         <MoreVertical className='h-4 w-4' />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent className='absolute right-0 z-30 mt-2 w-28 rounded-md bg-white p-1 shadow-lg'>
-                      <DropdownMenuItem
-                        className='cursor-pointer p-2 hover:bg-gray-100'
-                        onClick={() => setEditing(true)}
-                      >
+                    <DropdownMenuContent className='bg-card absolute right-0 z-30 mt-2 w-28 rounded-md p-1 shadow-lg'>
+                      <DropdownMenuItem className='cursor-pointer p-2' onClick={() => setEditing(true)}>
                         {t('comments.edit')}
                       </DropdownMenuItem>
-                      <DropdownMenuItem
-                        className='cursor-pointer p-2 hover:bg-gray-100'
-                        onClick={() => handleDeleteComment(comment._id)}
-                      >
+                      <DropdownMenuItem className='cursor-pointer p-2' onClick={() => handleDeleteComment(comment._id)}>
                         {t('comments.delete')}
                       </DropdownMenuItem>
                     </DropdownMenuContent>
