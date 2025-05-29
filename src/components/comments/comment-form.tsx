@@ -171,7 +171,7 @@ export const CommentForm = ({
 
   return (
     <div className='relative flex items-start gap-3'>
-      <Avatar className='h-8 w-8'>
+      <Avatar className='h-8 w-8 overflow-hidden rounded-full'>
         <AvatarImage src={user?.avatar ?? ''} />
         <AvatarFallback>{user?.name?.[0]?.toUpperCase() || 'U'}</AvatarFallback>
       </Avatar>

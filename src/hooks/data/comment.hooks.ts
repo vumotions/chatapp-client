@@ -179,7 +179,7 @@ export const useLikeCommentMutation = (postId: string) => {
     mutationFn: (commentId: string) => commentService.likeComment(commentId),
     onSuccess: async () => {
       queryClient.invalidateQueries({
-        queryKey: ['comments', postId]
+        queryKey: ['COMMENTS', postId]
       })
     }
   })

@@ -172,7 +172,7 @@ export default function CommentSection({ postId, focusCommentId }: CommentSectio
           />
           {comment.comments?.length > 0 && (
             <>
-              <div onClick={() => toggleReplies(comment._id)} className='ml-[50px] cursor-pointer'>
+              <div onClick={() => toggleReplies(comment._id)} className='ml-[50px] cursor-pointer text-sm'>
                 {expandedComments[comment._id]
                   ? t('comments.hideReplies')
                   : t('comments.viewAllReplies', { count: comment.comments.length })}
