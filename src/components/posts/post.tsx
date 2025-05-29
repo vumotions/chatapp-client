@@ -1,9 +1,9 @@
+import { useQueryClient } from '@tanstack/react-query'
 import { formatDistanceToNow } from 'date-fns'
 import { vi } from 'date-fns/locale'
 import { Heart, MessageCircle, Share2 } from 'lucide-react'
-import { useSession } from 'next-auth/react'
 import Image from 'next/image'
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import CommentSection from '~/components/comments/comment-section'
 import SharePopover from '~/components/share-popover'
@@ -45,12 +45,20 @@ interface PostProps {
 }
 
 export const Post: React.FC<PostProps> = ({ post }) => {
+  const queryClient = useQueryClient();
   const [liked, setLiked] = useState(post.userLiked || post.isLiked || false)
   const [likesCount, setLikesCount] = useState(post.likesCount || 0)
   const [commentCount, setCommentCount] = useState(post.commentsCount || 0)
   const [showComments, setShowComments] = useState(false)
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0)
+
+  // Cập nhật state khi prop thay đổi
+  useEffect(() => {
+    setLikesCount(post.likesCount || 0);
+    setCommentCount(post.commentsCount || 0);
+    setLiked(post.userLiked || post.isLiked || false);
+  }, [post.likesCount, post.commentsCount, post.userLiked, post.isLiked]);
 
   const timeAgo = formatDistanceToNow(new Date(post.createdAt || post.created_at || new Date()), {
     addSuffix: true,
@@ -341,6 +349,27 @@ export const Post: React.FC<PostProps> = ({ post }) => {
     )
   }
 
+  // Hàm toggle comments với revalidate
+  const handleToggleComments = () => {
+    setShowComments(!showComments);
+    
+    // Nếu đang mở comments, revalidate data
+    if (!showComments) {
+      // Revalidate post data để cập nhật comment count
+      queryClient.invalidateQueries({queryKey: ['POST', post._id]});
+      queryClient.invalidateQueries({queryKey: ['COMMENTS', post._id]});
+      
+      // Fetch trực tiếp số lượng comment nếu cần
+      postService.getComments(post._id)
+        .then(response => {
+          if (response?.data?.totalComments !== undefined) {
+            setCommentCount(response.data.totalComments);
+          }
+        })
+        .catch(error => console.error('Error fetching comments:', error));
+    }
+  };
+
   return (
     <>
       <Card className='mb-4'>
@@ -384,7 +413,7 @@ export const Post: React.FC<PostProps> = ({ post }) => {
               <Heart className={`mr-2 h-4 w-4 ${liked ? 'fill-red-500 text-red-500' : ''}`} />
               Thích
             </Button>
-            <Button variant='ghost' size='sm' className='flex-1' onClick={() => setShowComments(!showComments)}>
+            <Button variant='ghost' size='sm' className='flex-1' onClick={handleToggleComments}>
               <MessageCircle className='mr-2 h-4 w-4' />
               Bình luận
             </Button>
@@ -396,8 +425,13 @@ export const Post: React.FC<PostProps> = ({ post }) => {
             </SharePopover>
           </div>
 
-          {/* Comment section */}
-          {showComments && <CommentSection postId={post._id} />}
+          {/* Comment section - Thêm prop để cập nhật số lượng comment */}
+          {showComments && (
+            <CommentSection 
+              postId={post._id} 
+              onCommentCountChange={(count) => setCommentCount(count)}
+            />
+          )}
         </CardContent>
       </Card>
       {renderLightbox()}

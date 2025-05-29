@@ -20,9 +20,14 @@ import CommentItem from './comment-item'
 interface CommentSectionProps {
   postId: string
   focusCommentId?: string
+  onCommentCountChange?: (count: number) => void
 }
 
-export default function CommentSection({ postId, focusCommentId }: CommentSectionProps) {
+export default function CommentSection({ 
+  postId, 
+  focusCommentId,
+  onCommentCountChange 
+}: CommentSectionProps) {
   const { data: session } = useSession()
   const user = session?.user
   const queryClient = useQueryClient()
@@ -68,8 +73,12 @@ export default function CommentSection({ postId, focusCommentId }: CommentSectio
           mentions: mentions.map((mention) => mention.userId)
         },
         {
-          onSuccess: async () => {
+          onSuccess: async (response) => {
             await refetch()
+            // Cập nhật số lượng comment nếu có
+            if (response?.data?.totalComments !== undefined && onCommentCountChange) {
+              onCommentCountChange(response.data.totalComments);
+            }
           }
         }
       )
@@ -96,8 +105,12 @@ export default function CommentSection({ postId, focusCommentId }: CommentSectio
   const handleDeleteComment = async (commentId: string) => {
     try {
       await deleteComment.mutateAsync(commentId, {
-        onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: ['comments', postId] })
+        onSuccess: (response) => {
+          queryClient.invalidateQueries({ queryKey: ['COMMENTS', postId] })
+          // Cập nhật số lượng comment nếu có
+          if (response?.data?.totalComments !== undefined && onCommentCountChange) {
+            onCommentCountChange(response.data.totalComments);
+          }
         }
       })
     } catch (error) {
@@ -226,6 +239,21 @@ export default function CommentSection({ postId, focusCommentId }: CommentSectio
       }
     }
   }, [focusCommentId, isFetchingNextPage, commentsData])
+  useEffect(() => {
+    if (commentsData?.pages && commentsData.pages.length > 0 && onCommentCountChange) {
+      // Kiểm tra cấu trúc dữ liệu để lấy tổng số comment
+      const firstPage = commentsData.pages[0];
+      
+      // Kiểm tra các cấu trúc dữ liệu có thể có
+      const totalComments = firstPage.pagination?.totalItems || 
+                           firstPage.totalComments || 
+                           firstPage.data?.totalComments;
+      
+      if (totalComments !== undefined) {
+        onCommentCountChange(totalComments);
+      }
+    }
+  }, [commentsData, onCommentCountChange]);
   return (
     <div className='space-y-4'>
       {/* Comment input */}

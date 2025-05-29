@@ -141,16 +141,13 @@ export const useLikeComment = () => {
 // }
 export const useCreateCommentMutation = (postId: string) => {
   const queryClient = useQueryClient()
-
   return useMutation({
     mutationFn: (data: any) => commentService.createComment(data),
     onSuccess: async () => {
-      queryClient.invalidateQueries({
-        queryKey: ['COMMENTS', postId]
-      })
-      queryClient.invalidateQueries({
-        queryKey: ['POSTS']
-      })
+      // Invalidate các queries liên quan
+      queryClient.invalidateQueries({ queryKey: ['COMMENTS', postId] })
+      queryClient.invalidateQueries({ queryKey: ['POST', postId] })
+      queryClient.invalidateQueries({ queryKey: ['POSTS'] })
     }
   })
 }
@@ -162,12 +159,9 @@ export const useUpdateCommentMutation = (postId: string) => {
     mutationFn: ({ commentId, data }: { commentId: string; data: { content: string } }) =>
       commentService.updateComment(commentId, data),
     onSuccess: async () => {
-      queryClient.invalidateQueries({
-        queryKey: ['COMMENTS', postId]
-      })
-      queryClient.invalidateQueries({
-        queryKey: ['POSTS']
-      })
+      queryClient.invalidateQueries({ queryKey: ['COMMENTS', postId] })
+      queryClient.invalidateQueries({ queryKey: ['POST', postId] })
+      queryClient.invalidateQueries({ queryKey: ['POSTS'] })
     }
   })
 }
@@ -178,12 +172,9 @@ export const useDeleteCommentMutation = (postId: string) => {
   return useMutation({
     mutationFn: (commentId: string) => commentService.deleteComment(commentId),
     onSuccess: async () => {
-      queryClient.invalidateQueries({
-        queryKey: ['COMMENTS', postId]
-      })
-      queryClient.invalidateQueries({
-        queryKey: ['POSTS']
-      })
+      queryClient.invalidateQueries({ queryKey: ['COMMENTS', postId] })
+      queryClient.invalidateQueries({ queryKey: ['POST', postId] })
+      queryClient.invalidateQueries({ queryKey: ['POSTS'] })
     }
   })
 }
@@ -194,12 +185,9 @@ export const useLikeCommentMutation = (postId: string) => {
   return useMutation({
     mutationFn: (commentId: string) => commentService.likeComment(commentId),
     onSuccess: async () => {
-      queryClient.invalidateQueries({
-        queryKey: ['COMMENTS', postId]
-      })
-      queryClient.invalidateQueries({
-        queryKey: ['POSTS']
-      })
+      queryClient.invalidateQueries({ queryKey: ['COMMENTS', postId] })
+      queryClient.invalidateQueries({ queryKey: ['POST', postId] })
+      queryClient.invalidateQueries({ queryKey: ['POSTS'] })
     }
   })
 }
