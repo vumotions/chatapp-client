@@ -906,7 +906,7 @@ export const Post: React.FC<PostProps> = ({ post }) => {
             >
               {deletePostMutation.isPending ? 'Đang xóa...' : 'Xóa'}
             </AlertDialogAction>
-          </AlertDialogFooter>
+        </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 

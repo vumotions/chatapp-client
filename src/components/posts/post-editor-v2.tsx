@@ -1,3 +1,5 @@
+'use client'
+
 import { useQueryClient } from '@tanstack/react-query'
 import { Images, Loader2, Users, X } from 'lucide-react'
 import { useSession } from 'next-auth/react'
