@@ -15,7 +15,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger
 } from '~/components/ui/alert-dialog'
-import { toast } from 'react-toastify'
+import { toast } from 'sonner'
 import { useSession } from 'next-auth/react'
 
 interface UserProfileActionsProps {
@@ -31,7 +31,7 @@ export default function UserProfileActions({ userId, username }: UserProfileActi
 
   const handleBlockUser = () => {
     // Kiểm tra xem có phải đang cố gắng block chính mình không
-    const currentUserId = session?.user?.id
+    const currentUserId = session?.user?._id
 
     if (currentUserId === userId) {
       toast.error('Không thể chặn chính mình')
