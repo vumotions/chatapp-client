@@ -100,6 +100,7 @@ export const Post: React.FC<PostProps> = ({ post }) => {
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0)
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
   const [linkVideo, setLinkVideo] = useState<string | null>(null)
+  const [isExpanded, setIsExpanded] = useState(false)
   useEffect(() => {
     if (post.content) {
       const regexVideoMultipeSocial =
@@ -695,7 +696,24 @@ export const Post: React.FC<PostProps> = ({ post }) => {
           </div>
         </div>
 
-        {sharedPost.content && <p className='text-sm whitespace-pre-line'>{sharedPost.content}</p>}
+        {sharedPost.content && (
+          <div>
+            <p className={`text-sm break-all whitespace-pre-line ${!isExpanded && sharedPost.content.length > 300 ? 'line-clamp-3' : ''}`}>
+              {sharedPost.content}
+            </p>
+            {sharedPost.content.length > 300 && (
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsExpanded(!isExpanded);
+                }}
+                className="text-muted-foreground text-xs font-medium mt-1 hover:underline"
+              >
+                {isExpanded ? 'Ẩn bớt' : 'Xem thêm'}
+              </button>
+            )}
+          </div>
+        )}
 
         {sharedPost.media && sharedPost.media.length > 0 && (
           <div className='mt-2'>
@@ -718,6 +736,32 @@ export const Post: React.FC<PostProps> = ({ post }) => {
       </div>
     )
   }
+
+  // Hàm render nội dung với chức năng "Xem thêm"
+  const renderContent = (content: string) => {
+    const MAX_LINES = 3;
+    const shouldTruncate = content.split('\n').length > MAX_LINES || content.length > 300;
+    
+    return (
+      <div>
+        <p className={`whitespace-pre-line break-all ${!isExpanded && shouldTruncate ? 'line-clamp-3' : ''}`}>
+          {content}
+        </p>
+        {shouldTruncate && (
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsExpanded(!isExpanded);
+            }}
+            className="text-muted-foreground text-sm font-medium mt-1 hover:underline"
+          >
+            {isExpanded ? 'Ẩn bớt' : 'Xem thêm'}
+          </button>
+        )}
+        {!post.media?.length && linkVideo && <IframeVideo linkVideo={linkVideo} width='100%' height='385' />}
+      </div>
+    );
+  };
 
   return (
     <>
@@ -782,12 +826,7 @@ export const Post: React.FC<PostProps> = ({ post }) => {
           </div>
 
           {/* Nội dung bài viết hiện tại (nếu có) */}
-          {post.content && (
-            <div>
-              <p className='whitespace-pre-line'>{post.content}</p>
-              {!post.media?.length && linkVideo && <IframeVideo linkVideo={linkVideo} width='100%' height='385' />}
-            </div>
-          )}
+          {post.content && renderContent(post.content)}
 
           {/* Media của bài viết hiện tại (nếu có) */}
           {renderMedia()}
