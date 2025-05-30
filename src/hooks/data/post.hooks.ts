@@ -1,4 +1,7 @@
-import { useInfiniteQuery } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useSession } from 'next-auth/react'
+import { toast } from 'sonner'
+import { useRouter } from '~/i18n/navigation'
 import postService from '~/services/post.service'
 
 export const usePosts = () => {
@@ -58,5 +61,44 @@ export const useUserPosts = (userId: string, options = {}) => {
     },
     initialPageParam: 1,
     ...options
+  })
+}
+
+// Hook để xóa bài viết
+export const useDeletePostMutation = () => {
+  const queryClient = useQueryClient()
+  const router = useRouter()
+  const { data: session } = useSession()
+
+  return useMutation({
+    mutationFn: (postId: string) => postService.deletePost(postId),
+    onSuccess: () => {
+      // Invalidate tất cả các query liên quan đến bài viết
+      queryClient.invalidateQueries({ queryKey: ['POSTS'] })
+
+      // Invalidate danh sách bài viết của người dùng hiện tại
+      if (session?.user?._id) {
+        queryClient.invalidateQueries({ queryKey: ['USER_POSTS', session.user._id] })
+      }
+
+      // Hiển thị thông báo thành công
+      toast.success('Đã xóa bài viết thành công')
+
+      // Chuyển hướng về trang chủ nếu đang ở trang chi tiết bài viết
+      if (typeof window !== 'undefined') {
+        const pathname = window.location.pathname
+        if (pathname.includes('/posts/')) {
+          if (router) {
+            router.push('/')
+          } else {
+            window.location.href = '/'
+          }
+        }
+      }
+    },
+    onError: (error: any) => {
+      console.error('Error deleting post:', error)
+      toast.error(error?.response?.data?.message || 'Không thể xóa bài viết')
+    }
   })
 }

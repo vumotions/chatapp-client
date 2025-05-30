@@ -1,7 +1,18 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { formatDistanceToNow } from 'date-fns'
 import { vi } from 'date-fns/locale'
-import { Heart, MessageCircle, Share2, UserCheck, UserPlus, UserX } from 'lucide-react'
+import {
+  Edit,
+  Flag,
+  Heart,
+  MessageCircle,
+  MoreHorizontal,
+  Share2,
+  Trash,
+  UserCheck,
+  UserPlus,
+  UserX
+} from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
@@ -9,6 +20,16 @@ import React, { useState } from 'react'
 import { toast } from 'sonner'
 import CommentSection from '~/components/comments/comment-section'
 import SharePopover from '~/components/share-popover'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from '~/components/ui/alert-dialog'
 import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
 import { Button } from '~/components/ui/button'
 import { Card, CardContent } from '~/components/ui/card'
@@ -20,6 +41,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '~/components/ui/dialog'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '~/components/ui/dropdown-menu'
 import { FRIEND_REQUEST_STATUS } from '~/constants/enums'
 import {
   useAcceptFriendRequestMutation,
@@ -28,6 +50,7 @@ import {
   useRemoveFriendMutation,
   useSendFriendRequestMutation
 } from '~/hooks/data/friends.hook'
+import { useDeletePostMutation } from '~/hooks/data/post.hooks'
 import postService from '~/services/post.service'
 
 interface MediaItem {
@@ -60,6 +83,7 @@ interface PostProps {
     created_at?: string
     updated_at?: string
     shared_post_data: any
+    shared_post: any
   }
 }
 
@@ -74,6 +98,15 @@ export const Post: React.FC<PostProps> = ({ post }) => {
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0)
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const deletePostMutation = useDeletePostMutation()
+
+  // Kiểm tra xem người dùng hiện tại có phải là người tạo bài viết không
+
+  // Xử lý khi xóa bài viết
+  const handleDeletePost = () => {
+    deletePostMutation.mutate(post._id)
+  }
 
   // Lấy userId của người đăng bài
   const postUserId = post?.user_id?._id || post?.userId?._id
@@ -552,7 +585,20 @@ export const Post: React.FC<PostProps> = ({ post }) => {
 
   // Thêm hàm renderSharedPost vào component Post
   const renderSharedPost = () => {
-    if (!post.shared_post_data) return null
+    if (!post.shared_post_data) {
+      // Trường hợp bài viết được chia sẻ đã bị xóa
+      if (post.shared_post) {
+        return (
+          <div className='bg-muted/30 relative mt-3 rounded-md border p-4'>
+            <div className='flex flex-col items-center justify-center py-4 text-center'>
+              <p className='text-muted-foreground text-sm'>Bài viết này không còn tồn tại</p>
+              <p className='text-muted-foreground text-xs'>Bài viết này có thể đã bị xóa hoặc không còn khả dụng</p>
+            </div>
+          </div>
+        )
+      }
+      return null
+    }
 
     const sharedPost = post.shared_post_data
 
@@ -665,6 +711,46 @@ export const Post: React.FC<PostProps> = ({ post }) => {
     <>
       <Card className='relative mb-4'>
         <CardContent className='space-y-3 px-4 pt-4'>
+          {/* Thêm dropdown menu cho các action */}
+          {isMyPost && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant='ghost' size='icon' className='absolute top-2 right-2'>
+                  <MoreHorizontal className='h-5 w-5' />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align='end'>
+                <DropdownMenuItem onClick={() => router.push(`/posts/edit/${post._id}`)}>
+                  <Edit className='mr-2 h-4 w-4' />
+                  Chỉnh sửa bài viết
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setShowDeleteDialog(true)}
+                  className='text-destructive focus:text-destructive'
+                >
+                  <Trash className='mr-2 h-4 w-4' />
+                  Xóa bài viết
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
+          {!isMyPost && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant='ghost' size='icon' className='absolute top-2 right-2'>
+                  <MoreHorizontal className='h-5 w-5' />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align='end'>
+                <DropdownMenuItem className='text-destructive focus:text-destructive'>
+                  <Flag className='mr-2 h-4 w-4' />
+                  Báo cáo bài viết
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
           {/* Nút kết bạn */}
           {renderFriendButton()}
 
@@ -749,6 +835,28 @@ export const Post: React.FC<PostProps> = ({ post }) => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog xác nhận xóa bài viết */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Xóa bài viết</AlertDialogTitle>
+            <AlertDialogDescription>
+              Bạn có chắc chắn muốn xóa bài viết này? Hành động này không thể hoàn tác.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Hủy</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeletePost}
+              className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
+              disabled={deletePostMutation.isPending}
+            >
+              {deletePostMutation.isPending ? 'Đang xóa...' : 'Xóa'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {renderLightbox()}
     </>
