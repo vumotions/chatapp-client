@@ -98,19 +98,42 @@ export const Post: React.FC<PostProps> = ({ post }) => {
   const [showComments, setShowComments] = useState(false)
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0)
+  const [linkImageLightboxOpen, setLinkImageLightboxOpen] = useState(false)
+  const [currentLinkImageIndex, setCurrentLinkImageIndex] = useState(0)
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
   const [linkVideo, setLinkVideo] = useState<string | null>(null)
+  const [linkImages, setLinkImages] = useState<string[]>([])
+  const [sharedPostLinkImages, setSharedPostLinkImages] = useState<string[]>([])
   const [isExpanded, setIsExpanded] = useState(false)
+
   useEffect(() => {
     if (post.content) {
+      // Regex cho video từ các platform social
       const regexVideoMultipeSocial =
         /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})|(?:https?:\/\/)?(?:www\.)?(?:facebook\.com\/(?:watch\/?\?v=\d+|video\.php\?v=\d+|.+?\/videos\/\d+))|(?:https?:\/\/)?(?:www\.)?instagram\.com\/(?:p|tv|reel)\/[\w-]+|(?:https?:\/\/)?(?:www\.)?tiktok\.com\/(?:@[\w.-]+\/video\/[\d]+)|(?:https?:\/\/)?(?:www\.)?twitch\.tv\/(?:videos\/[\d]+|[\w.-]+\/clip\/[\w-]+)|(?:https?:\/\/)?(?:www\.)?vimeo\.com\/(?:[\d]+)|(?:https?:\/\/)?(?:www\.)?bilibili\.com\/video\/(?:BV[\w-]+)|(?:https?:\/\/)?(?:www\.)?v\.qq\.com\/(?:x\/cover\/\w+\/\w+)|(?:https?:\/\/)?(?:www\.)?v\.youku\.com\/v_show\/id_([\w-]+)/gi
-      const matchedLinks = post.content.match(regexVideoMultipeSocial) || []
-      setLinkVideo(matchedLinks?.[matchedLinks.length - 1] || null)
+      const matchedVideoLinks = post.content.match(regexVideoMultipeSocial) || []
+      setLinkVideo(matchedVideoLinks?.[matchedVideoLinks.length - 1] || null)
+
+      // Regex cho ảnh (các định dạng phổ biến)
+      const regexImageLinks = /https?:\/\/[^\s]+\.(?:jpg|jpeg|png|gif|webp|bmp|svg)(?:\?[^\s]*)?/gi
+      const matchedImageLinks = post.content.match(regexImageLinks) || []
+      setLinkImages(matchedImageLinks)
     } else {
       setLinkVideo(null)
+      setLinkImages([])
     }
   }, [post.content])
+
+  // useEffect để xử lý ảnh từ link trong shared post
+  useEffect(() => {
+    if (post.shared_post_data?.content) {
+      const regexImageLinks = /https?:\/\/[^\s]+\.(?:jpg|jpeg|png|gif|webp|bmp|svg)(?:\?[^\s]*)?/gi
+      const matchedImageLinks = post.shared_post_data.content.match(regexImageLinks) || []
+      setSharedPostLinkImages(matchedImageLinks)
+    } else {
+      setSharedPostLinkImages([])
+    }
+  }, [post.shared_post_data?.content])
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const deletePostMutation = useDeletePostMutation()
 
@@ -367,6 +390,75 @@ export const Post: React.FC<PostProps> = ({ post }) => {
             </div>
           ))}
         </div>
+      </div>
+    )
+  }
+
+  // Render ảnh từ link trong nội dung
+  const renderLinkImages = () => {
+    if (!linkImages || linkImages.length === 0) {
+      return null
+    }
+
+    return (
+      <div className='mt-3 space-y-2'>
+        {linkImages.map((imageUrl, index) => (
+          <div key={index} className='overflow-hidden rounded-md'>
+            <div
+              className='relative h-[300px] w-full cursor-pointer'
+              onClick={() => {
+                // Mở lightbox cho ảnh từ link
+                setCurrentLinkImageIndex(index)
+                setLinkImageLightboxOpen(true)
+              }}
+            >
+              <Image
+                src={imageUrl}
+                alt={`Ảnh từ link ${index + 1}`}
+                fill
+                className='object-cover'
+                onError={(e) => {
+                  // Ẩn ảnh nếu không load được
+                  e.currentTarget.style.display = 'none'
+                }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  // Render ảnh từ link trong shared post
+  const renderSharedPostLinkImages = () => {
+    if (!sharedPostLinkImages || sharedPostLinkImages.length === 0) {
+      return null
+    }
+    return (
+      <div className='mt-2 space-y-2'>
+        {sharedPostLinkImages.map((imageUrl, index) => (
+          <div key={index} className='overflow-hidden rounded-md'>
+            <div
+              className='relative h-[200px] w-full cursor-pointer'
+              onClick={() => {
+                // Mở lightbox cho ảnh từ link của shared post
+                setCurrentLinkImageIndex(index)
+                setLinkImageLightboxOpen(true)
+              }}
+            >
+              <Image
+                src={imageUrl}
+                alt={`Ảnh từ link shared post ${index + 1}`}
+                fill
+                className='object-cover'
+                onError={(e) => {
+                  // Ẩn ảnh nếu không load được
+                  e.currentTarget.style.display = 'none'
+                }}
+              />
+            </div>
+          </div>
+        ))}
       </div>
     )
   }
@@ -698,16 +790,18 @@ export const Post: React.FC<PostProps> = ({ post }) => {
 
         {sharedPost.content && (
           <div>
-            <p className={`text-sm break-all whitespace-pre-line ${!isExpanded && sharedPost.content.length > 300 ? 'line-clamp-3' : ''}`}>
+            <p
+              className={`text-sm break-all whitespace-pre-line ${!isExpanded && sharedPost.content.length > 300 ? 'line-clamp-3' : ''}`}
+            >
               {sharedPost.content}
             </p>
             {sharedPost.content.length > 300 && (
-              <button 
+              <button
                 onClick={(e) => {
-                  e.stopPropagation();
-                  setIsExpanded(!isExpanded);
+                  e.stopPropagation()
+                  setIsExpanded(!isExpanded)
                 }}
-                className="text-muted-foreground text-xs font-medium mt-1 hover:underline"
+                className='text-muted-foreground mt-1 text-xs font-medium hover:underline'
               >
                 {isExpanded ? 'Ẩn bớt' : 'Xem thêm'}
               </button>
@@ -733,35 +827,137 @@ export const Post: React.FC<PostProps> = ({ post }) => {
             </div>
           </div>
         )}
+
+        {/* Hiển thị ảnh từ link trong shared post (nếu không có media) */}
+        {(!sharedPost.media || sharedPost.media.length === 0) && renderSharedPostLinkImages()}
       </div>
     )
   }
 
   // Hàm render nội dung với chức năng "Xem thêm"
   const renderContent = (content: string) => {
-    const MAX_LINES = 3;
-    const shouldTruncate = content.split('\n').length > MAX_LINES || content.length > 300;
-    
+    const MAX_LINES = 3
+    const shouldTruncate = content.split('\n').length > MAX_LINES || content.length > 300
+
     return (
       <div>
-        <p className={`whitespace-pre-line break-all ${!isExpanded && shouldTruncate ? 'line-clamp-3' : ''}`}>
+        <p className={`break-all whitespace-pre-line ${!isExpanded && shouldTruncate ? 'line-clamp-3' : ''}`}>
           {content}
         </p>
         {shouldTruncate && (
-          <button 
+          <button
             onClick={(e) => {
-              e.stopPropagation();
-              setIsExpanded(!isExpanded);
+              e.stopPropagation()
+              setIsExpanded(!isExpanded)
             }}
-            className="text-muted-foreground text-sm font-medium mt-1 hover:underline"
+            className='text-muted-foreground mt-1 text-sm font-medium hover:underline'
           >
             {isExpanded ? 'Ẩn bớt' : 'Xem thêm'}
           </button>
         )}
         {!post.media?.length && linkVideo && <IframeVideo linkVideo={linkVideo} width='100%' height='385' />}
+        {!post.media?.length && renderLinkImages()}
       </div>
-    );
-  };
+    )
+  }
+
+  // Render lightbox cho ảnh từ link
+  const renderLinkImageLightbox = () => {
+    if (!linkImageLightboxOpen) return null
+
+    // Sử dụng ảnh từ shared post nếu có, nếu không thì dùng ảnh từ post chính
+    const imagesToShow = sharedPostLinkImages.length > 0 ? sharedPostLinkImages : linkImages
+    if (!imagesToShow || imagesToShow.length === 0) return null
+
+    const currentImage = imagesToShow[currentLinkImageIndex]
+
+    const goToNextImage = (e: React.MouseEvent) => {
+      e.stopPropagation()
+      setCurrentLinkImageIndex((prev) => (prev + 1) % imagesToShow.length)
+    }
+
+    const goToPreviousImage = (e: React.MouseEvent) => {
+      e.stopPropagation()
+      setCurrentLinkImageIndex((prev) => (prev - 1 + imagesToShow.length) % imagesToShow.length)
+    }
+
+    const closeLinkImageLightbox = () => {
+      setLinkImageLightboxOpen(false)
+    }
+
+    return (
+      <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/90' onClick={closeLinkImageLightbox}>
+        <button className='absolute top-4 right-4 text-white' onClick={closeLinkImageLightbox}>
+          <svg
+            xmlns='http://www.w3.org/2000/svg'
+            width='24'
+            height='24'
+            viewBox='0 0 24 24'
+            fill='none'
+            stroke='currentColor'
+            strokeWidth='2'
+            strokeLinecap='round'
+            strokeLinejoin='round'
+          >
+            <line x1='18' y1='6' x2='6' y2='18'></line>
+            <line x1='6' y1='6' x2='18' y2='18'></line>
+          </svg>
+        </button>
+
+        {imagesToShow.length > 1 && (
+          <>
+            <button
+              className='absolute top-1/2 left-4 -translate-y-1/2 rounded-full bg-black/50 p-2 text-white'
+              onClick={goToPreviousImage}
+            >
+              <svg
+                xmlns='http://www.w3.org/2000/svg'
+                width='24'
+                height='24'
+                viewBox='0 0 24 24'
+                fill='none'
+                stroke='currentColor'
+                strokeWidth='2'
+                strokeLinecap='round'
+                strokeLinejoin='round'
+              >
+                <polyline points='15 18 9 12 15 6'></polyline>
+              </svg>
+            </button>
+            <button
+              className='absolute top-1/2 right-4 -translate-y-1/2 rounded-full bg-black/50 p-2 text-white'
+              onClick={goToNextImage}
+            >
+              <svg
+                xmlns='http://www.w3.org/2000/svg'
+                width='24'
+                height='24'
+                viewBox='0 0 24 24'
+                fill='none'
+                stroke='currentColor'
+                strokeWidth='2'
+                strokeLinecap='round'
+                strokeLinejoin='round'
+              >
+                <polyline points='9 18 15 12 9 6'></polyline>
+              </svg>
+            </button>
+          </>
+        )}
+
+        <div className='max-h-[80vh] max-w-[80vw]'>
+          <Image
+            src={currentImage}
+            alt='Ảnh từ link'
+            width={800}
+            height={600}
+            className='max-h-[80vh] max-w-[80vw] object-contain'
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <>
@@ -906,11 +1102,12 @@ export const Post: React.FC<PostProps> = ({ post }) => {
             >
               {deletePostMutation.isPending ? 'Đang xóa...' : 'Xóa'}
             </AlertDialogAction>
-        </AlertDialogFooter>
+          </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
       {renderLightbox()}
+      {renderLinkImageLightbox()}
     </>
   )
 }

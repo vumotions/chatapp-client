@@ -121,7 +121,9 @@ function SocketProvider({ children }: Props) {
     const socketInstance = io(socketUrl, {
       auth: {
         Authorization: `Bearer ${accessToken}`
-      }
+      },
+      autoConnect: true,
+      transports: ['websocket', 'polling']
     })
 
     setSocket(socketInstance)
