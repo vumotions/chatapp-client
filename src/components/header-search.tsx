@@ -468,7 +468,7 @@ function HeaderSearch() {
     <div
       className={cn({
         hidden: !session,
-        'relative w-full max-w-xs': true
+        'relative w-full max-w-md': true
       })}
       ref={searchRef}
     >

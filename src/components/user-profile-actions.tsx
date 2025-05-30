@@ -1,9 +1,7 @@
-import { useState } from 'react'
 import { MoreHorizontal } from 'lucide-react'
-import { Button } from '~/components/ui/button'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '~/components/ui/dropdown-menu'
-import { useBlockUserMutation } from '~/hooks/data/user.hooks'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '~/components/ui/dialog'
+import { useSession } from 'next-auth/react'
+import { useState } from 'react'
+import { toast } from 'sonner'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -12,11 +10,11 @@ import {
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger
+  AlertDialogTitle
 } from '~/components/ui/alert-dialog'
-import { toast } from 'sonner'
-import { useSession } from 'next-auth/react'
+import { Button } from '~/components/ui/button'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '~/components/ui/dropdown-menu'
+import { useBlockUserMutation } from '~/hooks/data/user.hooks'
 
 interface UserProfileActionsProps {
   userId: string

@@ -446,7 +446,7 @@ function NotificationPopover() {
                 const senderName = item.senderId?.name || 'Người dùng'
 
                 // Tạo nội dung thông báo dựa trên loại
-                let notificationText = getNotificationContent(item)
+                const notificationText = getNotificationContent(item)
 
                 return (
                   <div

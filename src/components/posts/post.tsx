@@ -1,18 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { formatDistanceToNow } from 'date-fns'
 import { vi } from 'date-fns/locale'
-import {
-  Edit,
-  Flag,
-  Heart,
-  MessageCircle,
-  MoreHorizontal,
-  Share2,
-  Trash,
-  UserCheck,
-  UserPlus,
-  UserX
-} from 'lucide-react'
+import { Flag, Heart, MessageCircle, MoreHorizontal, Share2, Trash, UserCheck, UserPlus, UserX } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
@@ -981,10 +970,6 @@ export const Post: React.FC<PostProps> = ({ post }) => {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align='end'>
-                <DropdownMenuItem onClick={() => router.push(`/posts/edit/${post._id}`)}>
-                  <Edit className='mr-2 h-4 w-4' />
-                  Chỉnh sửa bài viết
-                </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => setShowDeleteDialog(true)}
                   className='text-destructive focus:text-destructive'
