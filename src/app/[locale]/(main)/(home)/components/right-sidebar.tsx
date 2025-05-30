@@ -87,7 +87,7 @@ export default function RightSidebarFriendList() {
 
   // Lấy danh sách bạn bè với tìm kiếm từ server
   const { data: friends, isLoading: isLoadingFriends } = useFriendsQuery(debouncedQuery)
-
+  console.log({ friends })
   // Khởi tạo mutation để bắt đầu cuộc trò chuyện
   const startConversation = useStartConversationMutation()
 
