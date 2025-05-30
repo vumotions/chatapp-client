@@ -103,6 +103,7 @@ export const Post: React.FC<PostProps> = ({ post }) => {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
   const [linkVideo, setLinkVideo] = useState<string | null>(null)
   const [linkImages, setLinkImages] = useState<string[]>([])
+  const [sharedPostLinkVideo, setSharedPostLinkVideo] = useState<string | null>(null)
   const [sharedPostLinkImages, setSharedPostLinkImages] = useState<string[]>([])
   const [isExpanded, setIsExpanded] = useState(false)
 
@@ -127,6 +128,10 @@ export const Post: React.FC<PostProps> = ({ post }) => {
   // useEffect để xử lý ảnh từ link trong shared post
   useEffect(() => {
     if (post.shared_post_data?.content) {
+      const regexVideoMultipeSocial =
+        /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})|(?:https?:\/\/)?(?:www\.)?(?:facebook\.com\/(?:watch\/?\?v=\d+|video\.php\?v=\d+|.+?\/videos\/\d+))|(?:https?:\/\/)?(?:www\.)?instagram\.com\/(?:p|tv|reel)\/[\w-]+|(?:https?:\/\/)?(?:www\.)?tiktok\.com\/(?:@[\w.-]+\/video\/[\d]+)|(?:https?:\/\/)?(?:www\.)?twitch\.tv\/(?:videos\/[\d]+|[\w.-]+\/clip\/[\w-]+)|(?:https?:\/\/)?(?:www\.)?vimeo\.com\/(?:[\d]+)|(?:https?:\/\/)?(?:www\.)?bilibili\.com\/video\/(?:BV[\w-]+)|(?:https?:\/\/)?(?:www\.)?v\.qq\.com\/(?:x\/cover\/\w+\/\w+)|(?:https?:\/\/)?(?:www\.)?v\.youku\.com\/v_show\/id_([\w-]+)/gi
+      const matchedVideoLinks = post.shared_post_data.content.match(regexVideoMultipeSocial) || []
+      setSharedPostLinkVideo(matchedVideoLinks?.[matchedVideoLinks.length - 1] || null)
       const regexImageLinks = /https?:\/\/[^\s]+\.(?:jpg|jpeg|png|gif|webp|bmp|svg)(?:\?[^\s]*)?/gi
       const matchedImageLinks = post.shared_post_data.content.match(regexImageLinks) || []
       setSharedPostLinkImages(matchedImageLinks)
@@ -395,7 +400,7 @@ export const Post: React.FC<PostProps> = ({ post }) => {
   }
 
   // Render ảnh từ link trong nội dung
-  const renderLinkImages = () => {
+  const renderLinkImages = (linkImages: string[]) => {
     if (!linkImages || linkImages.length === 0) {
       return null
     }
@@ -794,6 +799,10 @@ export const Post: React.FC<PostProps> = ({ post }) => {
               className={`text-sm break-all whitespace-pre-line ${!isExpanded && sharedPost.content.length > 300 ? 'line-clamp-3' : ''}`}
             >
               {sharedPost.content}
+              {!sharedPost.media?.length && sharedPostLinkVideo && (
+                <IframeVideo linkVideo={sharedPostLinkVideo} width='100%' height='385' />
+              )}
+              {!sharedPost.media?.length && renderLinkImages(sharedPostLinkImages)}
             </p>
             {sharedPost.content.length > 300 && (
               <button
@@ -856,7 +865,7 @@ export const Post: React.FC<PostProps> = ({ post }) => {
           </button>
         )}
         {!post.media?.length && linkVideo && <IframeVideo linkVideo={linkVideo} width='100%' height='385' />}
-        {!post.media?.length && renderLinkImages()}
+        {!post.media?.length && renderLinkImages(linkImages)}
       </div>
     )
   }
