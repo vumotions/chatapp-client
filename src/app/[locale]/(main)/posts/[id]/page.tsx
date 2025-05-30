@@ -1,16 +1,15 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useParams } from 'next/navigation'
-import { useSession } from 'next-auth/react'
 import { Loader2 } from 'lucide-react'
+import Link from 'next/link'
+import { useParams } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import Post from '~/components/posts/post'
-import postService from '~/services/post.service'
-import { Container } from '~/components/ui/container'
-import { Card, CardContent } from '~/components/ui/card'
 import { Button } from '~/components/ui/button'
-import Link from 'next/link'
+import { Card, CardContent } from '~/components/ui/card'
+import { Container } from '~/components/ui/container'
+import postService from '~/services/post.service'
 
 export default function PostDetailPage() {
   const params = useParams()
@@ -18,7 +17,6 @@ export default function PostDetailPage() {
   const [post, setPost] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const { data: session } = useSession()
 
   useEffect(() => {
     const fetchPost = async () => {
