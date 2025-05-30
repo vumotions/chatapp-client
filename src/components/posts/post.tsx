@@ -4,6 +4,7 @@ import { vi } from 'date-fns/locale'
 import { Heart, MessageCircle, Share2, UserCheck, UserPlus, UserX } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import Image from 'next/image'
+import { useRouter } from 'next/navigation'
 import React, { useState } from 'react'
 import { toast } from 'sonner'
 import CommentSection from '~/components/comments/comment-section'
@@ -58,12 +59,14 @@ interface PostProps {
     createdAt?: string
     created_at?: string
     updated_at?: string
+    shared_post_data: any
   }
 }
 
 export const Post: React.FC<PostProps> = ({ post }) => {
   const { data: session } = useSession()
   const queryClient = useQueryClient()
+  const router = useRouter()
   const [liked, setLiked] = useState(post.userLiked || post.isLiked || false)
   const [likesCount, setLikesCount] = useState(post.likesCount || 0)
   const [commentCount, setCommentCount] = useState(post.commentsCount || 0)
@@ -88,6 +91,19 @@ export const Post: React.FC<PostProps> = ({ post }) => {
     enabled: !!postUserId && !!currentUserId && !isMyPost
   })
 
+  // Thêm hooks cho shared post ở đây, trước bất kỳ render có điều kiện nào
+  const sharedPostUserId = post.shared_post_data?.userId?._id
+  const isMySharedPost = sharedPostUserId === currentUserId
+
+  // Sử dụng hook cho shared post
+  const {
+    data: sharedPostFriendStatus,
+    refetch: refetchSharedPostStatus,
+    isLoading: isLoadingSharedPostFriendStatus
+  } = useFriendStatus(sharedPostUserId, {
+    enabled: !!sharedPostUserId && !!currentUserId && !isMySharedPost
+  })
+
   // Các mutation cho hành động kết bạn
   const sendFriendRequest = useSendFriendRequestMutation()
   const cancelFriendRequest = useCancelFriendRequestMutation()
@@ -98,6 +114,40 @@ export const Post: React.FC<PostProps> = ({ post }) => {
     addSuffix: true,
     locale: vi
   })
+
+  // Hàm xử lý hành động kết bạn với người đăng bài viết được chia sẻ
+  const handleSharedPostFriendAction = (e: React.MouseEvent) => {
+    e.stopPropagation() // Ngăn chặn sự kiện click lan tỏa lên div cha
+
+    if (!sharedPostUserId || !currentUserId) return
+
+    // Nếu đang là bạn bè, hiển thị dialog xác nhận hủy kết bạn
+    if (sharedPostFriendStatus?.status === FRIEND_REQUEST_STATUS.ACCEPTED) {
+      setShowConfirmDialog(true)
+      return
+    }
+
+    // Nếu đã gửi lời mời, thực hiện hủy lời mời
+    if (sharedPostFriendStatus?.status === FRIEND_REQUEST_STATUS.PENDING) {
+      cancelFriendRequest.mutate(sharedPostUserId, {
+        onSuccess: () => refetchSharedPostStatus()
+      })
+      return
+    }
+
+    // Nếu đã nhận lời mời, thực hiện chấp nhận lời mời
+    if (sharedPostFriendStatus?.status === FRIEND_REQUEST_STATUS.RECEIVED) {
+      acceptFriendRequest.mutate(sharedPostUserId, {
+        onSuccess: () => refetchSharedPostStatus()
+      })
+      return
+    }
+
+    // Trường hợp gửi lời mời kết bạn mới
+    sendFriendRequest.mutate(sharedPostUserId, {
+      onSuccess: () => refetchSharedPostStatus()
+    })
+  }
 
   const handleLike = async () => {
     try {
@@ -500,6 +550,117 @@ export const Post: React.FC<PostProps> = ({ post }) => {
     )
   }
 
+  // Thêm hàm renderSharedPost vào component Post
+  const renderSharedPost = () => {
+    if (!post.shared_post_data) return null
+
+    const sharedPost = post.shared_post_data
+
+    // Hàm xử lý khi click vào bài viết được chia sẻ
+    const handleSharedPostClick = () => {
+      router.push(`/posts/${sharedPost._id}`)
+    }
+
+    // Render nút kết bạn cho bài viết được chia sẻ
+    const renderSharedPostFriendButton = () => {
+      if (isMySharedPost || !currentUserId || !sharedPostUserId) return null
+
+      // Xác định icon, text và style dựa trên trạng thái
+      let icon = <UserPlus className='h-3 w-3' />
+      let buttonText = 'Kết bạn'
+      let buttonClass = 'bg-primary text-primary-foreground hover:bg-primary/90'
+
+      if (isLoadingSharedPostFriendStatus) {
+        return <div className='bg-muted absolute top-2 right-2 h-7 w-20 animate-pulse rounded-md'></div>
+      }
+
+      if (sharedPostFriendStatus?.status === FRIEND_REQUEST_STATUS.PENDING) {
+        icon = <UserX className='h-3 w-3' />
+        buttonText = 'Hủy lời mời'
+        buttonClass = 'bg-muted text-muted-foreground hover:bg-muted/90'
+      } else if (sharedPostFriendStatus?.status === FRIEND_REQUEST_STATUS.RECEIVED) {
+        icon = <UserCheck className='h-3 w-3' />
+        buttonText = 'Chấp nhận'
+        buttonClass = 'bg-green-500 text-white hover:bg-green-600'
+      } else if (sharedPostFriendStatus?.status === FRIEND_REQUEST_STATUS.ACCEPTED) {
+        icon = <UserCheck className='h-3 w-3' />
+        buttonText = 'Bạn bè'
+        buttonClass = 'bg-green-500 text-white hover:bg-green-600'
+      }
+
+      const isLoading =
+        sendFriendRequest.isPending ||
+        cancelFriendRequest.isPending ||
+        acceptFriendRequest.isPending ||
+        removeFriend.isPending
+
+      return (
+        <button
+          className={`absolute top-2 right-2 flex h-7 items-center justify-center gap-1 rounded-md px-2 text-xs ${buttonClass}`}
+          onClick={handleSharedPostFriendAction}
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <div className='h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent'></div>
+          ) : (
+            <>
+              {icon}
+              <span className='text-xs font-medium'>{buttonText}</span>
+            </>
+          )}
+        </button>
+      )
+    }
+
+    return (
+      <div
+        className='bg-muted/30 hover:bg-muted/50 relative mt-3 cursor-pointer rounded-md border p-4 transition-colors'
+        onClick={handleSharedPostClick}
+      >
+        {/* Nút kết bạn - đảm bảo hiển thị */}
+        {renderSharedPostFriendButton()}
+
+        <div className='mb-2 flex items-center gap-2'>
+          <Avatar className='h-8 w-8'>
+            <AvatarImage src={sharedPost.userId?.avatar} alt={sharedPost.userId?.name} />
+            <AvatarFallback>{sharedPost.userId?.name?.[0] || '?'}</AvatarFallback>
+          </Avatar>
+          <div>
+            <p className='text-sm font-medium'>{sharedPost.userId?.name}</p>
+            <p className='text-muted-foreground text-xs'>
+              {sharedPost.created_at &&
+                formatDistanceToNow(new Date(sharedPost.created_at), {
+                  addSuffix: true,
+                  locale: vi
+                })}
+            </p>
+          </div>
+        </div>
+
+        {sharedPost.content && <p className='text-sm whitespace-pre-line'>{sharedPost.content}</p>}
+
+        {sharedPost.media && sharedPost.media.length > 0 && (
+          <div className='mt-2'>
+            <div className='overflow-hidden rounded-md'>
+              {sharedPost.media[0].type === 'video' ? (
+                <video src={sharedPost.media[0].url} className='h-auto max-h-[300px] w-full object-cover' controls />
+              ) : (
+                <div className='relative h-[200px] w-full'>
+                  <Image src={sharedPost.media[0].url} alt='' fill className='object-cover' />
+                </div>
+              )}
+              {sharedPost.media.length > 1 && (
+                <div className='absolute right-2 bottom-2 rounded-full bg-black/60 px-2 py-1 text-xs text-white'>
+                  +{sharedPost.media.length - 1}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <>
       <Card className='relative mb-4'>
@@ -532,6 +693,9 @@ export const Post: React.FC<PostProps> = ({ post }) => {
           {/* Media của bài viết hiện tại (nếu có) */}
           {renderMedia()}
 
+          {/* Nội dung bài viết được chia sẻ (nếu có) */}
+          {renderSharedPost()}
+
           {/* Reactions và actions */}
           <div className='text-muted-foreground flex justify-between pt-2 text-xs'>
             <div>{likesCount || 0} lượt thích</div>
@@ -550,7 +714,7 @@ export const Post: React.FC<PostProps> = ({ post }) => {
               <MessageCircle className='mr-2 h-4 w-4' />
               Bình luận
             </Button>
-            <SharePopover postId={post._id}>
+            <SharePopover postId={post._id} post={post}>
               <Button variant='ghost' size='sm' className='flex-1'>
                 <Share2 className='mr-2 h-4 w-4' />
                 Chia sẻ

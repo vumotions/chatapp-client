@@ -1,39 +1,43 @@
 'use client'
 
+import { Check, Copy, Share } from 'lucide-react'
+import { useSession } from 'next-auth/react'
 import { ReactNode, useState } from 'react'
 import {
+  EmailIcon,
+  EmailShareButton,
   FacebookIcon,
   FacebookShareButton,
+  LinkedinIcon,
+  LinkedinShareButton,
   TelegramIcon,
   TelegramShareButton,
   TwitterIcon,
   TwitterShareButton,
   WhatsappIcon,
-  WhatsappShareButton,
-  LinkedinIcon,
-  LinkedinShareButton,
-  EmailIcon,
-  EmailShareButton
+  WhatsappShareButton
 } from 'react-share'
-import { Popover, PopoverContent, PopoverTrigger } from '~/components/ui/popover'
-import { Button } from '~/components/ui/button'
-import { Copy, Check, Share } from 'lucide-react'
 import { toast } from 'sonner'
+import { Button } from '~/components/ui/button'
+import { Popover, PopoverContent, PopoverTrigger } from '~/components/ui/popover'
 import postService from '~/services/post.service'
-import { useSession } from 'next-auth/react'
 
 type Props = {
   title?: string
   children: ReactNode
-  postId: string // Thêm postId để có thể chia sẻ lên tường
+  postId: string
+  post: any
 }
 
-function SharePopover({ children, title, postId }: Props) {
+function SharePopover({ children, title, postId, post }: Props) {
   const [copied, setCopied] = useState(false)
   const [isSharing, setIsSharing] = useState(false)
   const { data: session } = useSession()
 
   const shareUrl = `${window.location.origin}/posts/${postId}`
+
+  // Kiểm tra xem bài viết có phải của chính mình không
+  const isMyPost = post?.userId?._id === session?.user?._id || post?.user_id?._id === session?.user?._id
 
   const handleCopyLink = async () => {
     try {
@@ -64,7 +68,7 @@ function SharePopover({ children, title, postId }: Props) {
       setIsSharing(false)
     }
   }
-  console.log({ shareUrl })
+
   return (
     <Popover>
       <PopoverTrigger asChild>{children}</PopoverTrigger>
@@ -72,8 +76,8 @@ function SharePopover({ children, title, postId }: Props) {
         <div className='space-y-4'>
           <h3 className='text-center font-medium'>Chia sẻ bài viết</h3>
 
-          {/* Share to wall button */}
-          {session?.user && (
+          {/* Share to wall button - chỉ hiển thị khi không phải bài viết của mình */}
+          {session?.user && !isMyPost && (
             <Button
               variant='default'
               size='sm'

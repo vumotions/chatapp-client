@@ -276,21 +276,6 @@ function NotificationPopover() {
     })
   }
 
-  // Kiểm tra xem lời mời kết bạn đã được xử lý chưa
-  const isFriendRequestProcessed = (item: any) => {
-    // Kiểm tra trường processed của thông báo
-    if (item.processed === true) {
-      return true
-    }
-
-    // Kiểm tra thêm trạng thái của lời mời kết bạn nếu có
-    if (item.relatedId && item.relatedId.status) {
-      return item.relatedId.status !== FRIEND_REQUEST_STATUS.PENDING
-    }
-
-    return false
-  }
-
   // Hàm lấy nội dung thông báo
   const getNotificationContent = (notification: any) => {
     // Xác định tên người gửi
@@ -331,6 +316,8 @@ function NotificationPopover() {
         return `${senderName} đã nhắc đến bạn trong một bình luận`
       case NOTIFICATION_TYPE.POST_LIKE:
         return `${senderName} đã thích bài viết của bạn`
+      case NOTIFICATION_TYPE.POST_SHARE:
+        return `${senderName} đã chia sẻ bài viết của bạn`
       default:
         return notification.content || `Bạn có một thông báo mới (${notification.type})`
     }
