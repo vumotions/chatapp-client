@@ -16,9 +16,10 @@ import {
 import { useSession } from 'next-auth/react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import CommentSection from '~/components/comments/comment-section'
+import IframeVideo from '~/components/iframevideo'
 import SharePopover from '~/components/share-popover'
 import {
   AlertDialog,
@@ -108,6 +109,17 @@ export const Post: React.FC<PostProps> = ({ post }) => {
     deletePostMutation.mutate(post._id)
   }
 
+  const [linkVideo, setLinkVideo] = useState<string | null>(null)
+  useEffect(() => {
+    if (post.content) {
+      const regexVideoMultipeSocial =
+        /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})|(?:https?:\/\/)?(?:www\.)?(?:facebook\.com\/(?:watch\/?\?v=\d+|video\.php\?v=\d+|.+?\/videos\/\d+))|(?:https?:\/\/)?(?:www\.)?instagram\.com\/(?:p|tv|reel)\/[\w-]+|(?:https?:\/\/)?(?:www\.)?tiktok\.com\/(?:@[\w.-]+\/video\/[\d]+)|(?:https?:\/\/)?(?:www\.)?twitch\.tv\/(?:videos\/[\d]+|[\w.-]+\/clip\/[\w-]+)|(?:https?:\/\/)?(?:www\.)?vimeo\.com\/(?:[\d]+)|(?:https?:\/\/)?(?:www\.)?bilibili\.com\/video\/(?:BV[\w-]+)|(?:https?:\/\/)?(?:www\.)?v\.qq\.com\/(?:x\/cover\/\w+\/\w+)|(?:https?:\/\/)?(?:www\.)?v\.youku\.com\/v_show\/id_([\w-]+)/gi
+      const matchedLinks = post.content.match(regexVideoMultipeSocial) || []
+      setLinkVideo(matchedLinks?.[matchedLinks.length - 1] || null)
+    } else {
+      setLinkVideo(null)
+    }
+  }, [post.content])
   // Lấy userId của người đăng bài
   const postUserId = post?.user_id?._id || post?.userId?._id
   const currentUserId = session?.user?._id
@@ -773,6 +785,7 @@ export const Post: React.FC<PostProps> = ({ post }) => {
           {post.content && (
             <div>
               <p className='whitespace-pre-line'>{post.content}</p>
+              {!post.media?.length && linkVideo && <IframeVideo linkVideo={linkVideo} width='100%' height='385' />}
             </div>
           )}
 
