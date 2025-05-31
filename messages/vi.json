@@ -1,5 +1,4 @@
 {
-  "button": "2",
   "comments": {
     "hideReplies": "Hide replies",
     "viewAllReplies": "View all {count} replies",
@@ -19,5 +18,8 @@
     "confirm": "Confirm",
     "yes": "Yes",
     "no": "No"
+  },
+  "RegisterPage": {
+    "title": "Đăng ký"
   }
 }
