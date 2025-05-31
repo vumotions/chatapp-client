@@ -1,8 +1,8 @@
 'use client'
 
-import { Loader2, MessageSquare, User } from 'lucide-react'
+import { MessageSquare, User } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { useState, useTransition } from 'react'
+import { useTransition } from 'react'
 import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
 import { Button } from '~/components/ui/button'
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '~/components/ui/hover-card'
@@ -23,8 +23,6 @@ type FriendHoverCardProps = {
 export default function FriendHoverCard({ friend, children }: FriendHoverCardProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
-  const [processingFriendId, setProcessingFriendId] = useState<string | null>(null)
-  const [processingProfileId, setProcessingProfileId] = useState<string | null>(null)
 
   // Khởi tạo mutation để bắt đầu cuộc trò chuyện
   const startConversation = useStartConversationMutation()
@@ -32,21 +30,17 @@ export default function FriendHoverCard({ friend, children }: FriendHoverCardPro
   // Xử lý khi người dùng muốn bắt đầu cuộc trò chuyện
   const handleStartChat = async (friendId: string) => {
     if (isPending) return
-    setProcessingFriendId(friendId)
 
     try {
       await startConversation.mutateAsync(friendId)
     } catch (error) {
       console.error('Failed to start conversation:', error)
-    } finally {
-      setProcessingFriendId(null)
     }
   }
 
   // Xử lý khi người dùng muốn xem trang cá nhân
   const handleViewProfile = (userId: string, username: string) => {
     if (isPending) return
-    setProcessingProfileId(userId)
 
     startTransition(() => {
       router.push(`/profile/${username}`)
@@ -64,7 +58,6 @@ export default function FriendHoverCard({ friend, children }: FriendHoverCardPro
           </Avatar>
           <div className='text-center'>
             <h4 className='text-lg font-medium'>{friend.name}</h4>
-            {/* Đã loại bỏ phần hiển thị trạng thái online/offline */}
           </div>
           <div className='mt-2 flex w-full gap-2'>
             <Button
@@ -72,27 +65,13 @@ export default function FriendHoverCard({ friend, children }: FriendHoverCardPro
               size='icon'
               className='flex-1'
               onClick={() => handleViewProfile(friend._id, friend.username || '')}
-              disabled={isPending || processingProfileId === friend._id}
             >
-              {processingProfileId === friend._id ? (
-                <Loader2 className='size-4 animate-spin' />
-              ) : (
-                <User className='size-4' />
-              )}
+              <User className='size-4' />
               <span className='sr-only'>Trang cá nhân</span>
             </Button>
-            <Button
-              variant='default'
-              size='icon'
-              className='flex-1'
-              onClick={() => handleStartChat(friend._id)}
-              disabled={isPending || processingFriendId === friend._id}
-            >
-              {processingFriendId === friend._id ? (
-                <Loader2 className='size-4 animate-spin' />
-              ) : (
-                <MessageSquare className='size-4' />
-              )}
+            <Button variant='default' size='icon' className='flex-1' onClick={() => handleStartChat(friend._id)}>
+              <MessageSquare className='size-4' />
+
               <span className='sr-only'>Nhắn tin</span>
             </Button>
           </div>

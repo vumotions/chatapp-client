@@ -102,7 +102,6 @@ export function ChatList() {
     activeView === 'inbox'
   )
 
-  // Fetch danh sách cuộc trò chuyện đã lưu trữ
   const archivedChats = useInfiniteQuery({
     queryKey: ['ARCHIVED_CHAT_LIST', debouncedQuery, filter],
     queryFn: ({ pageParam = 1 }) => conversationsService.getArchivedChats(pageParam, 10),
@@ -113,14 +112,12 @@ export function ChatList() {
       return undefined
     },
     initialPageParam: 1,
-    enabled: activeView === 'archived' // Chỉ fetch khi đang ở chế độ xem archived
+    enabled: activeView === 'archived'
   })
 
   // Xử lý khi click vào cuộc trò chuyện
   const handleChatClick = (id: string) => {
-    // Lấy các search params hiện tại
     const params = new URLSearchParams(searchParams.toString())
-    // Tạo URL mới với chatId và giữ nguyên các params
     router.push(`/messages/${id}?${params.toString()}`)
   }
 
@@ -146,25 +143,13 @@ export function ChatList() {
   const archivedItems = archivedChats.data?.pages.flatMap((page) => page.conversations) || []
   const uniqueArchivedItems = Array.from(new Map(archivedItems.map((item) => [item._id, item])).values())
 
-  // Log để kiểm tra trùng lặp
-  useEffect(() => {
-    if (items.length !== uniqueItems.length) {
-      console.warn('Phát hiện ID trùng lặp trong danh sách chat:', items.length, uniqueItems.length)
-    }
-  }, [items, uniqueItems])
-
-  // Thêm state để theo dõi khi nào cần render lại danh sách
-  const [refreshKey, setRefreshKey] = useState(0)
-
   // Cập nhật refreshKey khi nhận tin nhắn mới
   useEffect(() => {
     if (!socket) return
 
     const handleReceiveMessage = (message: any) => {
-      console.log('Received new message in chat list:', message)
       queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] })
       queryClient.invalidateQueries({ queryKey: ['ARCHIVED_CHAT_LIST'] })
-      setRefreshKey((prev) => prev + 1)
     }
 
     // Lắng nghe các sự kiện liên quan đến tin nhắn
@@ -172,7 +157,6 @@ export function ChatList() {
     socket.on('MESSAGE_UPDATED', (data) => {
       queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] })
       queryClient.invalidateQueries({ queryKey: ['ARCHIVED_CHAT_LIST'] })
-      setRefreshKey((prev) => prev + 1)
     })
 
     return () => {
@@ -183,7 +167,6 @@ export function ChatList() {
 
   // Xử lý khi bỏ lưu trữ cuộc trò chuyện
   const handleUnarchive = (chatId: string) => {
-    console.log('Unarchiving chat', chatId)
     unarchiveChat.mutate(chatId)
   }
 

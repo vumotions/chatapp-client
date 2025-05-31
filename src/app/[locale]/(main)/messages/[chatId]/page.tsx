@@ -179,8 +179,6 @@ function ChatDetail({ params }: Props) {
           }, 2000)
         }, 100)
       } else {
-        console.log('Không tìm thấy tin nhắn hoặc container:', messageId)
-        // Nếu không tìm thấy tin nhắn, có thể nó chưa được tải
         // Cần tải thêm tin nhắn cũ và thử lại
         if (hasNextPage && !isFetchingNextPage) {
           fetchNextPage().then(() => {
@@ -882,26 +880,18 @@ function ChatDetail({ params }: Props) {
     refetch: refetchSendPermission
   } = useCheckSendMessagePermissionQuery(chatId)
 
-  // Xác định biến canSendMessages dựa trên kết quả từ API
   const canSendMessages = useMemo(() => {
-    // Nếu đang kiểm tra, mặc định là có thể gửi
     if (isCheckingSendPermission) return true
 
-    // Nếu không có dữ liệu, mặc định là có thể gửi
     if (!sendPermission) return true
 
-    // Trả về giá trị canSendMessages từ API
     return sendPermission.canSendMessages
   }, [sendPermission, isCheckingSendPermission])
 
-  // Thêm useEffect để lắng nghe sự kiện từ socket
   useEffect(() => {
     if (!socket || !chatId) return
 
-    // Lắng nghe sự kiện khi cài đặt nhóm thay đổi
     const handleGroupSettingsChanged = (data: any) => {
-      console.log('Group settings changed:', data)
-
       // Cập nhật quyền gửi tin nhắn
       refetchSendPermission()
 
@@ -920,7 +910,6 @@ function ChatDetail({ params }: Props) {
           }
         }
 
-        // Thêm tin nhắn hệ thống vào cache nếu có
         if (data.message) {
           queryClient.setQueryData(['MESSAGES', chatId], (oldData: any) => {
             if (!oldData) return oldData
@@ -1134,10 +1123,8 @@ function ChatDetail({ params }: Props) {
     })
   }
 
-  // Thêm hàm xử lý xóa tim với log để debug
   const handleRemoveReaction = (messageId: string) => {
     if (!socket) {
-      console.error('Socket not connected')
       return
     }
 
@@ -1296,7 +1283,6 @@ function ChatDetail({ params }: Props) {
           // Lọc tin nhắn đã xóa khỏi tất cả các trang
           const updatedPages = oldData.pages.map((page: any) => {
             if (!page.messages) return page
-
             const filteredMessages = page.messages.filter((msg: any) => msg._id !== data.messageId)
 
             return {
@@ -1516,7 +1502,6 @@ function ChatDetail({ params }: Props) {
 
   // Hàm mở lightbox
   const openLightbox = (mediaUrl: string) => {
-    console.log('Opening lightbox with URL:', mediaUrl)
     setLightboxUrl(mediaUrl)
     setLightboxOpen(true)
   }
@@ -1660,7 +1645,6 @@ function ChatDetail({ params }: Props) {
       // Nếu là nhóm chat, tìm thông tin người gửi trong danh sách thành viên
       else if (isGroupChat) {
         const sender = data?.pages[0]?.conversation?.participants?.find((p: any) => p._id === message.senderId)
-        console.log('SENDER: ', { sender })
         if (sender) {
           senderInfo = {
             _id: message.senderId,
@@ -1825,11 +1809,9 @@ function ChatDetail({ params }: Props) {
   // Thêm các hàm xử lý cuộc gọi
   const handleStartAudioCall = () => {
     if (!otherUser?._id) {
-      console.error('No recipient found')
       return
     }
 
-    console.log('Starting audio call with:', otherUser)
     startCall({
       recipientId: otherUser._id,
       recipientName: otherUser.name || 'User',
@@ -1841,11 +1823,9 @@ function ChatDetail({ params }: Props) {
 
   const handleStartVideoCall = () => {
     if (!otherUser?._id) {
-      console.error('No recipient found')
       return
     }
 
-    console.log('Starting video call with:', otherUser)
     startCall({
       recipientId: otherUser._id,
       recipientName: otherUser.name || 'User',
@@ -1857,8 +1837,6 @@ function ChatDetail({ params }: Props) {
 
   // Thêm hàm xử lý khi files được upload thành công
   const handleFilesUploaded = (urls: string[]) => {
-    console.log('Files uploaded successfully:', urls)
-
     if (!urls || urls.length === 0) return
 
     // Tạo tin nhắn tạm thời với ID duy nhất
@@ -1900,7 +1878,7 @@ function ChatDetail({ params }: Props) {
   }
 
   return (
-    <div className='max-h-[calc(100dvh-64px)] sticky top-0 flex h-full flex-col'>
+    <div className='sticky top-0 flex h-full max-h-[calc(100dvh-64px)] flex-col'>
       <div className='flex items-center border-b p-2'>
         {isMobile && (
           <>
@@ -2088,7 +2066,7 @@ function ChatDetail({ params }: Props) {
           )}
           <div className='relative'>
             <div
-              className='h-[calc(100dvh-300px)] flex-1 overflow-y-auto'
+              className='max-h-[calc(100dvh-262px)] flex-1 overflow-y-auto'
               id='messageScrollableDiv'
               ref={scrollContainerRef}
               onScroll={(e) => {
