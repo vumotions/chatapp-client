@@ -25,13 +25,14 @@ import { AnimatePresence, motion } from 'framer-motion'
 import dynamic from 'next/dynamic'
 import { use } from 'react'
 import { Skeleton } from '~/components/ui/skeleton'
-import { useArchiveChat, useMarkChatAsRead, useMessages, usePinMessage } from '~/hooks/data/chat.hooks'
+import { useArchiveChat, useMarkChatAsRead, useMessages } from '~/hooks/data/chat.hooks'
 import { useSocket } from '~/hooks/use-socket'
 
 import { useQueryClient } from '@tanstack/react-query'
 import { vi } from 'date-fns/locale'
 import { throttle } from 'lodash'
 import { useSession } from 'next-auth/react'
+import Image from 'next/image'
 import { toast } from 'sonner'
 import { AddGroupMembersDialog } from '~/components/add-group-members-dialog'
 import FriendHoverCard from '~/components/friend-hover-card'
@@ -59,7 +60,6 @@ import { useRouter } from '~/i18n/navigation'
 import { startCall } from '~/lib/call-helper'
 import { FriendActionButton } from './components/friend-action-button'
 import { PinnedMessages } from './components/pinned-messages'
-import Image from 'next/image'
 
 const PRIMARY_RGB = '14, 165, 233' // Giá trị RGB của màu primary (sky-500)
 const SUCCESS_RGB = '34, 197, 94' // Giá trị RGB của màu green-500
@@ -2050,7 +2050,7 @@ function ChatDetail({ params }: Props) {
           )}
           <div className='relative'>
             <div
-              className='max-h-[calc(100dvh-226px)] flex-1 overflow-y-auto'
+              className='max-h-[calc(100dvh-300px)] flex-1 overflow-y-auto'
               id='messageScrollableDiv'
               ref={scrollContainerRef}
               onScroll={(e) => {
