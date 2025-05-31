@@ -160,8 +160,6 @@ export default function FriendSuggestions() {
       queryClient.invalidateQueries({ queryKey: ['FRIENDS'] })
       queryClient.invalidateQueries({ queryKey: ['FRIEND_STATUS'] })
       queryClient.invalidateQueries({ queryKey: ['FRIEND_SUGGESTIONS'] })
-
-      toast.success('Đã chấp nhận lời mời kết bạn')
     } catch (e) {
       // error handled by hook
     } finally {
@@ -387,7 +385,7 @@ export default function FriendSuggestions() {
           )}
 
           {pagination && pagination.totalPages > 1 && (
-            <div className='mt-4 flex justify-center gap-1'>
+            <div className='mt-4 flex flex-wrap justify-center gap-1'>
               {[...Array(pagination.totalPages)].map((_, index) => (
                 <Button
                   key={index}

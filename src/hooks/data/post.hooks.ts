@@ -9,7 +9,7 @@ export const usePosts = () => {
     queryKey: ['POSTS'],
     queryFn: async ({ pageParam = 1 }) => {
       const response = await postService.getPosts(pageParam, 10)
-      return response.data
+      return response.data.data
     },
     initialPageParam: 1,
     getNextPageParam: (lastPage) => {
@@ -53,13 +53,13 @@ export const useUserPosts = (userId: string, options = {}) => {
         }
       }
     },
+    initialPageParam: 1,
     getNextPageParam: (lastPage) => {
-      if (lastPage?.hasMore) {
+      if (lastPage && lastPage.hasMore) {
         return lastPage.currentPage + 1
       }
       return undefined
     },
-    initialPageParam: 1,
     ...options
   })
 }

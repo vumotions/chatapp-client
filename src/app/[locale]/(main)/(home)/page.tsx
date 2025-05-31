@@ -1,35 +1,20 @@
 'use client'
 
-import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import InfiniteScroll from 'react-infinite-scroll-component'
 import FriendSuggestions from '~/components/friend-suggestions'
 import { Post } from '~/components/posts/post'
 import PostEditorV2 from '~/components/posts/post-editor-v2'
 import { PostSkeleton } from '~/components/posts/post-skeleton'
-import postService from '~/services/post.service'
+import { usePosts } from '~/hooks/data/post.hooks'
 import RightSidebarFriendList from './components/right-sidebar'
 
 function Home() {
   const queryClient = useQueryClient()
-  const { data, isLoading, isError, fetchNextPage, hasNextPage } = useInfiniteQuery({
-    queryKey: ['POSTS'],
-    queryFn: async ({ pageParam = 1 }) => {
-      const response = await postService.getPosts(pageParam, 10)
-      return response.data
-    },
-    initialPageParam: 1,
-    getNextPageParam: (lastPage) => {
-      if (lastPage && lastPage.data.hasMore) {
-        return lastPage.data.currentPage + 1
-      }
-      return undefined
-    },
-    staleTime: 1000 * 60 * 5, // 5 phút
-    refetchOnWindowFocus: false
-  })
+  const { data, isLoading, isError, fetchNextPage, hasNextPage } = usePosts()
 
   // Làm phẳng danh sách bài viết từ tất cả các trang
-  const posts = data?.pages.flatMap((page) => page.data) || []
+  const posts = data?.pages.flatMap((page) => page.posts) || []
 
   // Hàm để làm mới danh sách bài viết
   const refreshPosts = async () => {

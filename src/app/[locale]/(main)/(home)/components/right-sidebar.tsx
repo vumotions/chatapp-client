@@ -1,14 +1,14 @@
 'use client'
 
 import debounce from 'lodash/debounce'
-import { Loader2, MessageSquare, Search, User } from 'lucide-react'
+import { Loader2, Search, User } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { Fragment, useCallback, useEffect, useMemo, useState, useTransition } from 'react'
+import FriendHoverCard from '~/components/friend-hover-card'
 import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
 import { Button, buttonVariants } from '~/components/ui/button'
 import { Card, CardContent } from '~/components/ui/card'
-import { HoverCard, HoverCardContent, HoverCardTrigger } from '~/components/ui/hover-card'
 import { Input } from '~/components/ui/input'
 import { ScrollArea } from '~/components/ui/scroll-area'
 import { Skeleton } from '~/components/ui/skeleton'
@@ -20,7 +20,6 @@ import useMediaQuery from '~/hooks/use-media-query'
 import { useSocket } from '~/hooks/use-socket'
 import { Link } from '~/i18n/navigation'
 import { cn } from '~/lib/utils'
-import FriendHoverCard from '~/components/friend-hover-card'
 
 // Skeleton component cho item bạn bè
 function FriendItemSkeleton() {
@@ -231,7 +230,7 @@ export default function RightSidebarFriendList() {
   }
   return (
     <div
-      className={cn('sticky top-0 h-fit w-fit lg:w-[250px]', {
+      className={cn('sticky top-0 hidden h-fit w-fit sm:block lg:w-[250px]', {
         'hidden lg:flex': !session,
         '!hidden': (isMobile && !sortedFriends) || (isMobile && sortedFriends.length === 0)
       })}
@@ -240,7 +239,7 @@ export default function RightSidebarFriendList() {
         <CardContent className='px-2 lg:pr-2 lg:pl-4'>
           {isLoading ? (
             <div className='space-y-4 p-2'>
-              <Skeleton className='h-6 w-32' />
+              <Skeleton className='h-6 w-full max-w-32' />
               <Skeleton className='h-8 w-full' />
               <div className='space-y-3'>
                 {Array(5)

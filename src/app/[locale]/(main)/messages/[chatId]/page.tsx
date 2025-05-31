@@ -1877,8 +1877,6 @@ function ChatDetail({ params }: Props) {
       }
     })
 
-    console.log('Sending media message with attachments:', attachments)
-
     // Gửi tin nhắn qua socket với tempId và attachments
     socket?.emit(SOCKET_EVENTS.SEND_MESSAGE, {
       chatId,
@@ -1902,7 +1900,7 @@ function ChatDetail({ params }: Props) {
   }
 
   return (
-    <div className='sticky top-0 flex h-full max-h-[calc(100vh-64px)] flex-col'>
+    <div className='sticky top-0 flex h-full max-h-[calc(100dvh -64px)] flex-col'>
       <div className='flex items-center border-b p-2'>
         {isMobile && (
           <>

@@ -239,7 +239,6 @@ function NotificationPopover() {
       onSuccess: () => {
         // Thêm ID vào danh sách đã xử lý
         setProcessedIds((prev) => [...prev, notificationId])
-        toast.success('Đã chấp nhận lời mời kết bạn')
         // Cập nhật lại danh sách bạn bè
         queryClient.invalidateQueries({ queryKey: ['FRIENDS'] })
         // Cập nhật lại danh sách gợi ý bạn bè
