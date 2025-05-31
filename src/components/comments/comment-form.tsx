@@ -183,7 +183,7 @@ export const CommentForm = ({
           onKeyDown={handleKeyDown}
           placeholder={t('comments.writeComment')}
           rows={2}
-          className='rounded-lg border border-gray-300 bg-gray-100 text-sm'
+          className='rounded-lg border border-gray-300 bg-gray-100 text-base'
         />
         {showMentions && (
           <div className='absolute z-10 mt-1 max-h-60 w-full max-w-[594px] rounded-lg border border-gray-200 bg-white shadow-lg'>

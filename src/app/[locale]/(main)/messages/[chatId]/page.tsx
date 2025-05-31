@@ -46,7 +46,6 @@ import {
   CALL_TYPE,
   CHAT_TYPE,
   FRIEND_REQUEST_STATUS,
-  MEDIA_TYPE,
   MESSAGE_STATUS,
   MESSAGE_TYPE
 } from '~/constants/enums'
@@ -58,6 +57,7 @@ import useMediaQuery from '~/hooks/use-media-query'
 import { useProtectedChat } from '~/hooks/use-protected-chat'
 import { useRouter } from '~/i18n/navigation'
 import { startCall } from '~/lib/call-helper'
+import { cn } from '~/lib/utils'
 import { FriendActionButton } from './components/friend-action-button'
 import { PinnedMessages } from './components/pinned-messages'
 
@@ -66,27 +66,6 @@ const SUCCESS_RGB = '34, 197, 94' // Giá trị RGB của màu green-500
 
 type Props = {
   params: Promise<{ chatId: string }>
-}
-
-interface Message {
-  _id: string
-  chatId: string
-  senderId: {
-    _id: string
-    name: string
-    avatar?: string
-  }
-  content?: string
-  attachments?: {
-    mediaUrl: string
-    type: MEDIA_TYPE
-  }[]
-  type: MESSAGE_TYPE
-  status: MESSAGE_STATUS
-  readBy: string[]
-  isPinned?: boolean
-  createdAt: string
-  updatedAt: string
 }
 
 function ChatDetail({ params }: Props) {
@@ -222,6 +201,7 @@ function ChatDetail({ params }: Props) {
   const queryClient = useQueryClient()
   const { data: session } = useSession()
   const { archiveChat, unarchiveChat } = useArchiveChat()
+  const pinnedMessage = queryClient.getQueryData(['PINNED_MESSAGES', chatId]) as any
 
   // Kiểm tra xem có ai đang typing không
   const isAnyoneTyping = useMemo(() => {
@@ -1862,7 +1842,7 @@ function ChatDetail({ params }: Props) {
   }
 
   return (
-    <div className='sticky top-0 flex h-full max-h-[calc(100dvh-64px)] flex-col'>
+    <div className='sticky top-0 flex flex-col'>
       <div className='flex items-center border-b p-2'>
         {isMobile && (
           <>
@@ -2050,7 +2030,9 @@ function ChatDetail({ params }: Props) {
           )}
           <div className='relative'>
             <div
-              className='max-h-[calc(100dvh-300px)] flex-1 overflow-y-auto'
+              className={cn('max-h-[calc(100dvh-262px)] flex-1 overflow-y-auto', {
+                'max-h-[calc(100dvh-300px)]': pinnedMessage && pinnedMessage?.length > 0
+              })}
               id='messageScrollableDiv'
               ref={scrollContainerRef}
               onScroll={(e) => {
