@@ -223,39 +223,28 @@ function ChatDetail({ params }: Props) {
   const { data: session } = useSession()
   const { archiveChat, unarchiveChat } = useArchiveChat()
 
-  // Thêm hook để ghim tin nhắn
-  const { mutate: pinMessage } = usePinMessage(chatId as string)
-
   // Kiểm tra xem có ai đang typing không
   const isAnyoneTyping = useMemo(() => {
     return Object.values(typingUsers).some(Boolean)
   }, [typingUsers])
 
-  // Lấy tất cả tin nhắn từ cache - Không cần localMessages nữa
   const allMessages = useMemo(() => {
-    // Lấy tin nhắn từ cache
     const messages = data ? data.pages.flatMap((page: any) => page?.messages || []) : []
 
-    // Sắp xếp tin nhắn theo thời gian tạo (từ cũ đến mới)
     return [...messages].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
   }, [data])
 
-  // Đánh dấu chat đã đọc và revalidate query khi component mount
   useEffect(() => {
     if (chatId) {
-      // Đánh dấu chat đã đọc
       markAsRead(chatId)
 
-      // Revalidate query để lấy tin nhắn mới nhất
       queryClient.invalidateQueries({
         queryKey: ['MESSAGES', chatId]
       })
     }
   }, [chatId, markAsRead])
 
-  // Scroll to bottom on first load or when new message arrives
   useEffect(() => {
-    // Nếu đang tải tin nhắn cũ, không cuộn xuống
     if (isFetchingNextPage) {
       return
     }
@@ -271,9 +260,8 @@ function ChatDetail({ params }: Props) {
         setIsFirstLoad(false)
       }, 500) // Tăng timeout lên 500ms
     }
-  }, [isFirstLoad, isFetchingNextPage, data]) // Thêm data để đảm bảo cuộn xuống khi data đã sẵn sàng
+  }, [isFirstLoad, isFetchingNextPage, data])
 
-  // Thêm useEffect để đảm bảo socket đã kết nối và tham gia vào room
   useEffect(() => {
     if (!socket || !chatId) return
 
@@ -473,11 +461,9 @@ function ChatDetail({ params }: Props) {
     }
   }, [socket, chatId, data])
 
-  // Thêm useEffect để đánh dấu tin nhắn đã đọc khi người dùng xem
   useEffect(() => {
     if (!socket || !chatId || !allMessages.length || !isAtBottom) return
 
-    // Lấy các tin nhắn chưa đọc từ người khác
     const unreadMessages = allMessages.filter(
       (msg) => !isMessageFromCurrentUser(msg) && msg.status !== MESSAGE_STATUS.SEEN
     )
@@ -556,7 +542,6 @@ function ChatDetail({ params }: Props) {
     }
   }, [socket, chatId, allMessages, isAtBottom, queryClient])
 
-  // Thêm event listener cho visibility change
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible' && socket && chatId && allMessages.length) {
@@ -566,7 +551,6 @@ function ChatDetail({ params }: Props) {
         )
 
         if (unreadMessages.length > 0) {
-          // Gửi sự kiện đánh dấu đã đọc
           socket.emit(SOCKET_EVENTS.MARK_AS_READ, {
             chatId,
             messageIds: unreadMessages.map((msg) => msg._id)
@@ -2066,7 +2050,7 @@ function ChatDetail({ params }: Props) {
           )}
           <div className='relative'>
             <div
-              className='max-h-[calc(100dvh-262px)] flex-1 overflow-y-auto'
+              className='max-h-[calc(100dvh-226px)] flex-1 overflow-y-auto'
               id='messageScrollableDiv'
               ref={scrollContainerRef}
               onScroll={(e) => {
