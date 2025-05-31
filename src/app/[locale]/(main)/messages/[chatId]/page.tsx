@@ -1900,7 +1900,7 @@ function ChatDetail({ params }: Props) {
   }
 
   return (
-    <div className='sticky top-0 flex h-full max-h-[calc(100dvh -64px)] flex-col'>
+    <div className='max-h-[calc(100dvh -64px)] sticky top-0 flex h-full flex-col'>
       <div className='flex items-center border-b p-2'>
         {isMobile && (
           <>
@@ -2088,7 +2088,7 @@ function ChatDetail({ params }: Props) {
           )}
           <div className='relative'>
             <div
-              className='h-[calc(100vh-300px)] flex-1 overflow-y-auto'
+              className='h-[calc(100dvh-300px)] flex-1 overflow-y-auto'
               id='messageScrollableDiv'
               ref={scrollContainerRef}
               onScroll={(e) => {
@@ -2468,7 +2468,7 @@ function ChatDetail({ params }: Props) {
               )}
             </AnimatePresence>
           </div>
-          <Separator className='mt-auto' />
+          <Separator />
 
           <ChatInput
             chatId={chatId}

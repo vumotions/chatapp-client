@@ -48,14 +48,9 @@ export function ChatInput({
   const fileInputRef = React.useRef<HTMLInputElement>(null)
   const videoInputRef = React.useRef<HTMLInputElement>(null)
 
-  // Thêm log để kiểm tra giá trị enum
-  console.log('MEDIA_TYPE values:', MEDIA_TYPE)
-
   // Sử dụng hook upload với xử lý thành công
   const { mutate: uploadFiles, isPending: isUploading } = useFileUpload({
     onSuccess: (data) => {
-      console.log('Upload success data:', data)
-
       if (data?.urls && data.urls.length > 0 && chatId) {
         // Gọi callback onFilesUploaded với URLs
         onFilesUploaded(data.urls)
@@ -64,7 +59,6 @@ export function ChatInput({
         setAttachmentPopoverOpen(false)
         toast.success('Tệp đã được tải lên thành công')
       } else {
-        toast.error('Không nhận được URL từ server hoặc thiếu chatId')
         setAttachmentPopoverOpen(false)
       }
     },
@@ -87,15 +81,6 @@ export function ChatInput({
       e.target.value = ''
     }
   }
-
-  // Determine if we should show the send button instead of heart
-  const shouldShowSendButton = message.trim().length > 0 || attachmentPopoverOpen
-
-  // Debug logs để kiểm tra giá trị
-  console.log('Message:', message)
-  console.log('Message trim length:', message.trim().length)
-  console.log('Attachment popover open:', attachmentPopoverOpen)
-  console.log('Should show send button:', shouldShowSendButton)
 
   return (
     <div className={cn('p-4', className)}>
