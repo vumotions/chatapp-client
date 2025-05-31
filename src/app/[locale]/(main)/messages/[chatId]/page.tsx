@@ -1900,7 +1900,7 @@ function ChatDetail({ params }: Props) {
   }
 
   return (
-    <div className='max-h-[calc(100dvh -64px)] sticky top-0 flex h-full flex-col'>
+    <div className='max-h-[calc(100dvh-64px)] sticky top-0 flex h-full flex-col'>
       <div className='flex items-center border-b p-2'>
         {isMobile && (
           <>

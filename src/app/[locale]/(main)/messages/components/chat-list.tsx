@@ -5,15 +5,13 @@ import { Search } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import React, { useCallback, useEffect, useState } from 'react'
-import { v4 as uuidv4 } from 'uuid'
+import InfiniteScroll from 'react-infinite-scroll-component'
 import CreateGroupChatDialog from '~/components/create-group-chat-dialog'
 import ConversationItem from '~/components/ui/chat/conversation-item'
 import { Input } from '~/components/ui/input'
-import { ScrollArea } from '~/components/ui/scroll-area'
 import { Skeleton } from '~/components/ui/skeleton'
 import SOCKET_EVENTS from '~/constants/socket-events'
 import { useArchiveChat, useChatList } from '~/hooks/data/chat.hooks'
-import useMediaQuery from '~/hooks/use-media-query'
 import { useSocket } from '~/hooks/use-socket'
 import conversationsService from '~/services/conversations.service'
 
@@ -27,12 +25,6 @@ const MemoizedConversationItem = React.memo<{
 }>(
   ({ conversation, isActive, onClick, isArchived = false, onArchive }) => {
     const { data: session } = useSession()
-    const currentUserId = session?.user?._id
-
-    // Kiểm tra xem cuộc trò chuyện có được archive bởi người dùng hiện tại không
-    // Nếu isArchived đã được truyền vào từ prop, sử dụng nó
-    // Nếu không, kiểm tra mảng archivedFor
-    const isArchivedForCurrentUser = isArchived || conversation.archivedFor?.includes(currentUserId)
 
     return (
       <motion.div
@@ -77,20 +69,11 @@ export function ChatList() {
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const queryClient = useQueryClient()
   const { socket } = useSocket()
-  const { data: session } = useSession()
   const { unarchiveChat } = useArchiveChat()
-  const isMobile = useMediaQuery('(max-width: 768px)')
-  const currentUserId = session?.user?._id
 
-  // Tạo một ID duy nhất cho mỗi lần render sử dụng uuid
-  const [renderUniqueId] = useState(() => uuidv4())
-
-  // Lấy view từ URL
   const activeView = (searchParams.get('view') as 'inbox' | 'archived') || 'inbox'
-  // Lấy filter từ URL
   const filter = (searchParams.get('filter') as 'all' | 'unread') || 'all'
 
-  // Tạo hàm debounced để cập nhật debouncedQuery
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const debouncedSetQuery = useCallback(
     debounce((value: string) => {
@@ -99,7 +82,6 @@ export function ChatList() {
     []
   )
 
-  // Cập nhật searchQuery và gọi hàm debounced
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
     setSearchQuery(value)
@@ -217,31 +199,43 @@ export function ChatList() {
       </div>
 
       {/* Hiển thị danh sách cuộc trò chuyện dựa trên chế độ xem hiện tại */}
-      <ScrollArea className='h-[calc(100vh-180px)]'>
+      <div className='h-[calc(100dvh-180px)] overflow-y-auto' id='chatListScrollableDiv'>
         {activeView === 'inbox' ? (
-          // Hiển thị hộp thư đến
-          <div className='p-2'>
-            {isLoading ? (
-              renderChatSkeletons()
-            ) : isError ? (
-              <div className='text-muted-foreground p-4 text-center'>Không thể tải tin nhắn.</div>
-            ) : items.length === 0 ? (
-              <div className='text-muted-foreground p-4 text-center'>
-                {searchQuery ? 'Không tìm thấy kết quả phù hợp.' : 'Không có cuộc trò chuyện nào.'}
+          <InfiniteScroll
+            dataLength={items.length || 0}
+            next={fetchNextPage}
+            hasMore={!!hasNextPage}
+            loader={renderChatSkeletons()}
+            scrollableTarget='chatListScrollableDiv'
+            endMessage={
+              <div className='text-muted-foreground p-2 text-center text-xs'>
+                {items.length > 0 ? 'Không còn cuộc trò chuyện nào nữa' : ''}
               </div>
-            ) : (
-              <AnimatePresence initial={false}>
-                {uniqueItems.map((chat, index) => (
-                  <MemoizedConversationItem
-                    key={`${chat._id}`}
-                    conversation={chat}
-                    isActive={chat._id === chatId}
-                    onClick={() => handleChatClick(chat._id)}
-                  />
-                ))}
-              </AnimatePresence>
-            )}
-          </div>
+            }
+          >
+            <div className='p-2'>
+              {isLoading ? (
+                renderChatSkeletons()
+              ) : isError ? (
+                <div className='text-muted-foreground p-4 text-center'>Không thể tải tin nhắn.</div>
+              ) : items.length === 0 ? (
+                <div className='text-muted-foreground p-4 text-center'>
+                  {searchQuery ? 'Không tìm thấy kết quả phù hợp.' : 'Không có cuộc trò chuyện nào.'}
+                </div>
+              ) : (
+                <AnimatePresence initial={false}>
+                  {uniqueItems.map((chat, index) => (
+                    <MemoizedConversationItem
+                      key={`${chat._id}`}
+                      conversation={chat}
+                      isActive={chat._id === chatId}
+                      onClick={() => handleChatClick(chat._id)}
+                    />
+                  ))}
+                </AnimatePresence>
+              )}
+            </div>
+          </InfiniteScroll>
         ) : (
           // Hiển thị đã lưu trữ
           <div className='p-2'>
@@ -269,7 +263,7 @@ export function ChatList() {
             )}
           </div>
         )}
-      </ScrollArea>
+      </div>
     </div>
   )
 }

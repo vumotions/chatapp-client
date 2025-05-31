@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import { Loader2, MessageSquare, User } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { useState, useTransition } from 'react'
 import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
 import { Button } from '~/components/ui/button'
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '~/components/ui/hover-card'
@@ -35,11 +35,7 @@ export default function FriendHoverCard({ friend, children }: FriendHoverCardPro
     setProcessingFriendId(friendId)
 
     try {
-      const result = await startConversation.mutateAsync(friendId)
-
-      startTransition(() => {
-        router.push(`/messages/${result.conversationId}`)
-      })
+      await startConversation.mutateAsync(friendId)
     } catch (error) {
       console.error('Failed to start conversation:', error)
     } finally {

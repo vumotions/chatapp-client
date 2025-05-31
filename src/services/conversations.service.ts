@@ -10,7 +10,6 @@ class ConversationsService {
 
   // Lấy danh sách cuộc trò chuyện
   async getConversations(page = 1, limit = 10, filter = 'all', searchQuery = '') {
-    console.log('Calling getConversations API with:', { page, limit, filter, searchQuery })
     const res = await httpRequest.get(`/chat?page=${page}&limit=${limit}&filter=${filter}&search=${searchQuery}`)
     console.log('API response for getConversations:', res.data)
     return res.data.data
