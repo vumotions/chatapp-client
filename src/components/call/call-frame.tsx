@@ -22,6 +22,7 @@ interface CallFrameProps {
   callType: CALL_TYPE
   isInitiator: boolean
   onClose: () => void
+  onAcceptCall?: () => void // Thêm prop mới
 }
 
 export function CallFrame({
@@ -31,7 +32,8 @@ export function CallFrame({
   recipientAvatar,
   callType,
   isInitiator,
-  onClose
+  onClose,
+  onAcceptCall
 }: CallFrameProps) {
   const { socket } = useSocket()
   const { data: session } = useSession()
@@ -736,6 +738,11 @@ export function CallFrame({
     try {
       console.log('Accepting call...')
 
+      // Gọi callback onAcceptCall nếu được cung cấp
+      if (onAcceptCall) {
+        onAcceptCall()
+      }
+
       // Thông báo cho người gọi rằng cuộc gọi đã được chấp nhận
       socket?.emit(SOCKET_EVENTS.CALL_ACCEPTED, {
         chatId,
@@ -778,6 +785,11 @@ export function CallFrame({
   }
 
   const handleRejectCall = () => {
+    // Gọi callback onAcceptCall nếu được cung cấp để dừng âm thanh
+    if (onAcceptCall) {
+      onAcceptCall()
+    }
+    
     socket?.emit(SOCKET_EVENTS.CALL_REJECTED, {
       chatId,
       callerId: recipientId

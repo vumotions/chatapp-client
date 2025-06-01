@@ -7,11 +7,13 @@ import { Post } from '~/components/posts/post'
 import PostEditorV2 from '~/components/posts/post-editor-v2'
 import { PostSkeleton } from '~/components/posts/post-skeleton'
 import { usePosts } from '~/hooks/data/post.hooks'
+import { useHomeTranslation } from '~/hooks/use-translations'
 import RightSidebarFriendList from './components/right-sidebar'
 
 function Home() {
   const queryClient = useQueryClient()
   const { data, isLoading, isError, fetchNextPage, hasNextPage } = usePosts()
+  const t = useHomeTranslation()
 
   // Làm phẳng danh sách bài viết từ tất cả các trang
   const posts = data?.pages.flatMap((page) => page.posts) || []
@@ -45,7 +47,7 @@ function Home() {
               <PostSkeleton />
             </div>
           }
-          endMessage={<div className='text-muted-foreground p-2 text-center text-xs'>Không còn bài viết nào nữa</div>}
+          endMessage={<div className='text-muted-foreground p-2 text-center text-xs'>{t('noMorePosts')}</div>}
         >
           {isLoading ? (
             // Initial loading state
@@ -55,9 +57,9 @@ function Home() {
               <PostSkeleton />
             </div>
           ) : isError ? (
-            <div className='text-muted-foreground p-4 text-center'>Không thể tải bài viết. Vui lòng thử lại sau.</div>
+            <div className='text-muted-foreground p-4 text-center'>{t('errorLoadingPosts')}</div>
           ) : posts.length === 0 ? (
-            <div className='text-muted-foreground p-4 text-center'>Chưa có bài viết nào.</div>
+            <div className='text-muted-foreground p-4 text-center'>{t('noPosts')}</div>
           ) : (
             posts.map((post) => <Post key={post._id} post={post} />)
           )}

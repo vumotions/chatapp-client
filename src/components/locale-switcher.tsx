@@ -6,9 +6,10 @@ import { useTransition } from 'react'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '~/components/ui/select'
 import { usePathname, useRouter } from '~/i18n/navigation'
 import { routing } from '~/i18n/routing'
+import { useCommonTranslation } from '~/hooks/use-translations'
 
 function LocaleSwitcher() {
-  const t = useTranslations()
+  const commonT = useCommonTranslation()
   const locale = useLocale()
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -25,13 +26,13 @@ function LocaleSwitcher() {
   return (
     <Select onValueChange={onSelectLocale} defaultValue={locale}>
       <SelectTrigger className='w-[180px]'>
-        <SelectValue />
+        <SelectValue placeholder={commonT('selectLanguage')} />
       </SelectTrigger>
       <SelectContent>
         <SelectGroup>
           {routing.locales.map((cur) => (
             <SelectItem value={cur} key={cur} disabled={isPending}>
-              {cur}
+              {commonT(`languages.${cur}`)}
             </SelectItem>
           ))}
         </SelectGroup>

@@ -60,6 +60,7 @@ import {
   useUpdateSendMessageRestrictionMutation
 } from '~/hooks/data/group-chat.hooks'
 import { useFileUpload } from '~/hooks/data/upload.hooks'
+import { useMessagesTranslation } from '~/hooks/use-translations'
 import { TransferOwnershipDialog } from './transfer-ownership-dialog'
 import { Badge } from './ui/badge'
 
@@ -113,6 +114,8 @@ type MemberEditValues = z.infer<typeof memberEditSchema>
 type MessageRestrictionValues = z.infer<typeof messageRestrictionSchema>
 
 export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: any; onUpdate?: () => void }) {
+  const messagesT = useMessagesTranslation()
+  
   const [open, setOpen] = useState(false)
   const [activeTab, setActiveTab] = useState('general')
   const [searchQuery, setSearchQuery] = useState('')
@@ -425,13 +428,13 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
   const getRoleName = (role: string) => {
     switch (role) {
       case MEMBER_ROLE.OWNER:
-        return 'Chủ nhóm'
+        return messagesT('owner')
       case MEMBER_ROLE.ADMIN:
-        return 'Quản trị viên'
+        return messagesT('admin')
       case MEMBER_ROLE.MEMBER:
-        return 'Thành viên'
+        return messagesT('member')
       default:
-        return 'Thành viên'
+        return messagesT('member')
     }
   }
 
@@ -489,10 +492,10 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
         duration
       })
 
-      toast.success('Đã cập nhật cài đặt thành công')
+      toast.success(messagesT('settingsUpdatedSuccess'))
       onUpdate?.()
     } catch (error) {
-      toast.error('Không thể cập nhật cài đặt: ' + (error as Error).message)
+      toast.error(messagesT('settingsUpdateError', { error: (error as Error).message }))
     } finally {
       setIsUpdatingRestriction(false)
     }
@@ -543,11 +546,11 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
 
         // Chỉ hiển thị thông báo cho admin/owner
         if (isAdmin) {
-          toast.info('Chế độ "Chỉ quản trị viên được gửi tin nhắn" đã hết hiệu lực')
+          toast.info(messagesT('adminOnlyModeExpired'))
         }
       }
     }
-  }, [conversation, setValue, isAdmin])
+  }, [conversation, setValue, isAdmin, messagesT])
 
   // Hàm chụp ảnh mã QR sử dụng Canvas API
   const handleCaptureQRCode = () => {
@@ -557,7 +560,7 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
       // Lấy SVG element
       const svgElement = qrCodeRef.current.querySelector('svg')
       if (!svgElement) {
-        toast.error('Không thể tìm thấy mã QR')
+        toast.error(messagesT('qrCodeNotFound'))
         return
       }
 
@@ -565,7 +568,7 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
       const canvas = document.createElement('canvas')
       const ctx = canvas.getContext('2d')
       if (!ctx) {
-        toast.error('Trình duyệt không hỗ trợ canvas')
+        toast.error(messagesT('browserNotSupportCanvas'))
         return
       }
 
@@ -630,29 +633,28 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
         document.body.removeChild(link)
         URL.revokeObjectURL(url)
 
-        toast.success('Đã lưu ảnh mã QR')
+        toast.success(messagesT('qrCodeSaved'))
       }
 
       img.src = url
     } catch (error) {
       console.error('Lỗi khi chụp ảnh QR:', error)
-      toast.error('Có lỗi xảy ra khi lưu ảnh')
+      toast.error(messagesT('errorSavingImage'))
     }
   }
 
   const { mutate: uploadAvatar, isPending: isUploadingAvatar } = useFileUpload({
     onSuccess: (data) => {
       if (data?.urls && data.urls.length > 0) {
-        // Cập nhật giá trị avatar trong form
         groupSettingsForm.setValue('avatar', data.urls[0], {
-          shouldDirty: true, // Đánh dấu field là dirty
-          shouldTouch: true // Đánh dấu field là touched
+          shouldDirty: true,
+          shouldTouch: true
         })
-        toast.success('Ảnh đại diện đã được tải lên')
+        toast.success(messagesT('avatarUploaded'))
       }
     },
     onError: (error) => {
-      toast.error('Lỗi khi tải lên ảnh đại diện: ' + error.message)
+      toast.error(messagesT('avatarUploadError', { error: error.message }))
     }
   })
 
@@ -669,7 +671,7 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
       shouldDirty: true,
       shouldTouch: true
     })
-    toast.success('Đã xóa ảnh đại diện nhóm')
+    toast.success(messagesT('avatarRemoved'))
   }
 
   return (
@@ -680,26 +682,29 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
             <SheetTrigger asChild>
               <Button variant='ghost' size='icon'>
                 <Settings className='h-5 w-5' />
-                <span className='sr-only'>Cài đặt nhóm</span>
+                <span className='sr-only'>{messagesT('groupSettings')}</span>
               </Button>
             </SheetTrigger>
           </TooltipTrigger>
-          <TooltipContent>Cài đặt nhóm</TooltipContent>
+          <TooltipContent>{messagesT('groupSettings')}</TooltipContent>
         </Tooltip>
 
         <SheetContent side='right' className='max-h-screen w-full overflow-y-auto px-4 py-6'>
           <SheetHeader className='px-0 pt-2'>
-            <SheetTitle>Cài đặt nhóm</SheetTitle>
+            <SheetTitle>{messagesT('groupSettings')}</SheetTitle>
             <SheetDescription>
-              Nhóm có {conversation?.participants?.length || 0} thành viên (tối đa {MAX_GROUP_MEMBERS})
+              {messagesT('groupMembersCount', { 
+                count: conversation?.participants?.length || 0, 
+                max: MAX_GROUP_MEMBERS 
+              })}
             </SheetDescription>
           </SheetHeader>
 
           <Tabs defaultValue='general' value={activeTab} onValueChange={setActiveTab} className='mt-4 w-full'>
             <TabsList className='grid w-full grid-cols-3'>
-              <TabsTrigger value='general'>Chung</TabsTrigger>
-              <TabsTrigger value='members'>Thành viên</TabsTrigger>
-              <TabsTrigger value='invite'>Mời</TabsTrigger>
+              <TabsTrigger value='general'>{messagesT('general')}</TabsTrigger>
+              <TabsTrigger value='members'>{messagesT('members')}</TabsTrigger>
+              <TabsTrigger value='invite'>{messagesT('invite')}</TabsTrigger>
             </TabsList>
 
             <TabsContent value='general' className='mt-4'>
@@ -708,23 +713,23 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                 {!isAdmin && (
                   <div className='mb-4 space-y-3'>
                     <div className='flex items-center gap-2'>
-                      <span className='text-sm font-medium'>Loại nhóm:</span>
+                      <span className='text-sm font-medium'>{messagesT('groupType')}:</span>
                       {conversation?.groupType === GROUP_TYPE.PRIVATE ? (
                         <Badge variant='outline' className='border-blue-500/20 bg-blue-500/10 text-blue-500'>
-                          Nhóm riêng tư
+                          {messagesT('privateGroup')}
                         </Badge>
                       ) : (
                         <Badge variant='outline' className='border-green-500/20 bg-green-500/10 text-green-500'>
-                          Nhóm công khai
+                          {messagesT('publicGroup')}
                         </Badge>
                       )}
                     </div>
 
                     {conversation?.requireApproval && (
                       <div className='flex items-center gap-2'>
-                        <span className='text-sm font-medium'>Tham gia:</span>
+                        <span className='text-sm font-medium'>{messagesT('joining')}:</span>
                         <Badge variant='outline' className='border-orange-500/20 bg-orange-500/10 text-orange-500'>
-                          Yêu cầu phê duyệt
+                          {messagesT('requireApproval')}
                         </Badge>
                       </div>
                     )}
@@ -740,7 +745,7 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                         name='name'
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Tên nhóm</FormLabel>
+                            <FormLabel>{messagesT('groupName')}</FormLabel>
                             <FormControl>
                               <Input {...field} disabled={!canChangeGroupInfo} />
                             </FormControl>
@@ -754,11 +759,11 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                         name='avatar'
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Ảnh đại diện nhóm</FormLabel>
+                            <FormLabel>{messagesT('groupAvatar')}</FormLabel>
                             <div className='flex items-center gap-2'>
                               <FormControl>
                                 <Input
-                                  placeholder='URL ảnh đại diện'
+                                  placeholder={messagesT('avatarUrlPlaceholder')}
                                   {...field}
                                   value={field.value || ''}
                                   disabled={isUploadingAvatar || !canChangeGroupInfo}
@@ -772,11 +777,11 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                                     size='icon'
                                     onClick={handleRemoveAvatar}
                                     disabled={isUploadingAvatar || !canChangeGroupInfo}
-                                    aria-label='Remove avatar'
+                                    aria-label={messagesT('removeAvatar')}
                                     className='h-10 w-10 overflow-hidden p-0'
                                   >
                                     <Trash className='h-4 w-4' />
-                                    <span className='sr-only'>Remove avatar</span>
+                                    <span className='sr-only'>{messagesT('removeAvatar')}</span>
                                   </Button>
                                 ) : (
                                   <>
@@ -788,7 +793,7 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                                       onChange={handleAvatarUpload}
                                       disabled={isUploadingAvatar || !canChangeGroupInfo}
                                       multiple={false}
-                                      aria-label='Upload avatar'
+                                      aria-label={messagesT('uploadAvatar')}
                                     />
                                     <Button
                                       type='button'
@@ -804,7 +809,7 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                                       ) : (
                                         <Upload className='h-4 w-4' />
                                       )}
-                                      <span className='sr-only'>Upload avatar</span>
+                                      <span className='sr-only'>{messagesT('uploadAvatar')}</span>
                                     </Button>
                                   </>
                                 )}
@@ -830,7 +835,7 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                         name='groupType'
                         render={({ field }) => (
                           <FormItem className='space-y-2'>
-                            <FormLabel>Loại nhóm</FormLabel>
+                            <FormLabel>{messagesT('groupType')}</FormLabel>
                             <FormControl>
                               <RadioGroup
                                 onValueChange={field.onChange}
@@ -843,10 +848,9 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                                     <RadioGroupItem value={GROUP_TYPE.PUBLIC} disabled={!canChangeGroupInfo} />
                                   </FormControl>
                                   <div>
-                                    <FormLabel className='font-normal'>Công khai</FormLabel>
+                                    <FormLabel className='font-normal'>{messagesT('public')}</FormLabel>
                                     <FormDescription className='text-xs'>
-                                      Nhóm có thể được tìm thấy trong tìm kiếm. Bạn có thể chọn yêu cầu phê duyệt hoặc
-                                      cho phép tham gia tự do.
+                                      {messagesT('publicGroupDescription')}
                                     </FormDescription>
                                   </div>
                                 </FormItem>
@@ -855,10 +859,9 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                                     <RadioGroupItem value={GROUP_TYPE.PRIVATE} disabled={!canChangeGroupInfo} />
                                   </FormControl>
                                   <div>
-                                    <FormLabel className='font-normal'>Riêng tư</FormLabel>
+                                    <FormLabel className='font-normal'>{messagesT('private')}</FormLabel>
                                     <FormDescription className='text-xs'>
-                                      Nhóm không hiển thị trong tìm kiếm. Chỉ những người được mời mới có thể thấy và
-                                      yêu cầu tham gia. Luôn yêu cầu phê duyệt.
+                                      {messagesT('privateGroupDescription')}
                                     </FormDescription>
                                   </div>
                                 </FormItem>
@@ -875,13 +878,13 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                         render={({ field }) => (
                           <FormItem className='flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm'>
                             <div className='space-y-0.5'>
-                              <FormLabel>Yêu cầu phê duyệt khi tham gia</FormLabel>
+                              <FormLabel>{messagesT('requireApprovalToJoin')}</FormLabel>
                               <FormDescription>
                                 {groupSettingsForm.watch('groupType') === GROUP_TYPE.PRIVATE
-                                  ? 'Nhóm riêng tư luôn yêu cầu phê duyệt khi tham gia'
+                                  ? messagesT('privateGroupAlwaysRequiresApproval')
                                   : field.value
-                                    ? 'Người dùng cần được phê duyệt trước khi tham gia nhóm'
-                                    : 'Người dùng có thể tham gia nhóm ngay lập tức qua link mời'}
+                                    ? messagesT('usersNeedApproval')
+                                    : messagesT('usersCanJoinImmediately')}
                               </FormDescription>
                             </div>
                             <FormControl>
@@ -907,7 +910,7 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                         }
                         className='w-full'
                       >
-                        {updateGroupMutation.isPending ? 'Đang cập nhật...' : 'Lưu thay đổi'}
+                        {updateGroupMutation.isPending ? messagesT('updating') : messagesT('saveChanges')}
                       </Button>
                     </form>
                   </Form>
@@ -917,8 +920,8 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                   <div className='mt-6 space-y-4'>
                     <div className='flex items-center justify-between'>
                       <div className='flex flex-col space-y-1.5'>
-                        <h3 className='text-sm font-medium'>Cài đặt tin nhắn</h3>
-                        <p className='text-muted-foreground text-xs'>Quản lý quyền gửi tin nhắn trong nhóm</p>
+                        <h3 className='text-sm font-medium'>{messagesT('messageSettings')}</h3>
+                        <p className='text-muted-foreground text-xs'>{messagesT('messageSettingsDescription')}</p>
                       </div>
                       {/* Thêm nút lưu dạng icon bên cạnh tiêu đề với tooltip */}
                       <Tooltip>
@@ -952,7 +955,7 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                             )}
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent>Lưu cài đặt tin nhắn</TooltipContent>
+                        <TooltipContent>{messagesT('saveMessageSettings')}</TooltipContent>
                       </Tooltip>
                     </div>
 
@@ -964,9 +967,9 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                           render={({ field }) => (
                             <FormItem className='flex items-center justify-between gap-2 rounded-lg border p-4'>
                               <div className='space-y-0.5'>
-                                <FormLabel htmlFor='admin-only-messages'>Chỉ quản trị viên được gửi tin nhắn</FormLabel>
+                                <FormLabel htmlFor='admin-only-messages'>{messagesT('onlyAdminsCanSend')}</FormLabel>
                                 <FormDescription className='text-xs'>
-                                  Khi bật, chỉ chủ nhóm và quản trị viên mới có thể gửi tin nhắn
+                                  {messagesT('onlyAdminsCanSendDescription')}
                                 </FormDescription>
                               </div>
                               <FormControl>
@@ -993,7 +996,7 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                               <div className='mb-0.5 flex items-center gap-1.5'>
                                 <Clock className='h-3.5 w-3.5' />
                                 <p className='font-medium'>
-                                  Còn hiệu lực:{' '}
+                                  {messagesT('remainingTime')}:{' '}
                                   {formatDistanceToNow(new Date(conversation.restrictUntil), {
                                     addSuffix: false,
                                     locale: vi
@@ -1001,7 +1004,7 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                                 </p>
                               </div>
                               <p className='pl-5 text-yellow-500/80 dark:text-yellow-400/80'>
-                                Kết thúc:{' '}
+                                {messagesT('endTime')}:{' '}
                                 {format(new Date(conversation.restrictUntil), 'dd/MM/yyyy HH:mm', { locale: vi })}
                               </p>
                             </div>
@@ -1016,7 +1019,7 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                               name='restrictionType'
                               render={({ field }) => (
                                 <FormItem className='space-y-2'>
-                                  <FormLabel>Thời hạn giới hạn</FormLabel>
+                                  <FormLabel>{messagesT('restrictionType')}</FormLabel>
                                   <FormControl>
                                     <RadioGroup
                                       value={field.value}
@@ -1026,13 +1029,13 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                                       <div className='flex items-center space-x-2'>
                                         <RadioGroupItem value='indefinite' id='r-indefinite' />
                                         <Label htmlFor='r-indefinite' className='text-sm font-normal'>
-                                          Vô thời hạn (cho đến khi tắt)
+                                          {messagesT('indefinite')}
                                         </Label>
                                       </div>
                                       <div className='flex items-center space-x-2'>
                                         <RadioGroupItem value='until' id='r-until' />
                                         <Label htmlFor='r-until' className='text-sm font-normal'>
-                                          Đến thời điểm cụ thể
+                                          {messagesT('until')}
                                         </Label>
                                       </div>
                                     </RadioGroup>
@@ -1047,7 +1050,7 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                                 name='restrictionDuration'
                                 render={({ field }) => (
                                   <FormItem className='space-y-2'>
-                                    <FormLabel>Thời gian giới hạn</FormLabel>
+                                    <FormLabel>{messagesT('restrictionDuration')}</FormLabel>
                                     <FormControl>
                                       <RadioGroup
                                         value={field.value}
@@ -1057,38 +1060,38 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                                         <div className='flex items-center space-x-2'>
                                           <RadioGroupItem value='30' id='d-30' />
                                           <Label htmlFor='d-30' className='text-sm font-normal'>
-                                            30 phút
+                                            {messagesT('30Minutes')}
                                           </Label>
                                         </div>
                                         <div className='flex items-center space-x-2'>
                                           <RadioGroupItem value='60' id='d-60' />
                                           <Label htmlFor='d-60' className='text-sm font-normal'>
-                                            1 giờ
+                                            {messagesT('1Hour')}
                                           </Label>
                                         </div>
                                         <div className='flex items-center space-x-2'>
                                           <RadioGroupItem value='180' id='d-180' />
                                           <Label htmlFor='d-180' className='text-sm font-normal'>
-                                            3 giờ
+                                            {messagesT('3Hours')}
                                           </Label>
                                         </div>
                                         <div className='flex items-center space-x-2'>
                                           <RadioGroupItem value='1440' id='d-1440' />
                                           <Label htmlFor='d-1440' className='text-sm font-normal'>
-                                            1 ngày
+                                            {messagesT('1Day')}
                                           </Label>
                                         </div>
                                         <div className='flex items-center space-x-2'>
                                           <RadioGroupItem value='custom' id='d-custom' />
                                           <Label htmlFor='d-custom' className='text-sm font-normal'>
-                                            Tùy chỉnh
+                                            {messagesT('custom')}
                                           </Label>
                                         </div>
                                       </RadioGroup>
                                     </FormControl>
                                     {field.value !== 'custom' && (
                                       <p className='text-muted-foreground text-xs'>
-                                        Kết thúc vào:{' '}
+                                        {messagesT('endTime')}:{' '}
                                         {format(getRestrictionEndDate() || new Date(), 'dd/MM/yyyy HH:mm', {
                                           locale: vi
                                         })}
@@ -1106,7 +1109,7 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                                 name='customMinutes'
                                 render={({ field }) => (
                                   <FormItem>
-                                    <FormLabel>Số phút</FormLabel>
+                                    <FormLabel>{messagesT('customMinutes')}</FormLabel>
                                     <FormControl>
                                       <div className='flex items-center gap-2'>
                                         <Input
@@ -1125,13 +1128,13 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                                           }}
                                           className='w-20'
                                         />
-                                        <Label className='text-xs'>phút</Label>
+                                        <Label className='text-xs'>{messagesT('minutes')}</Label>
                                       </div>
                                     </FormControl>
-                                    <FormDescription>Nhập số phút (tối đa 10080 phút = 1 tuần)</FormDescription>
+                                    <FormDescription>{messagesT('max10080Minutes')}</FormDescription>
                                     <FormMessage />
                                     <p className='text-muted-foreground mt-1 text-xs'>
-                                      Kết thúc vào:{' '}
+                                      {messagesT('endTime')}:{' '}
                                       {field.value && field.value > 0
                                         ? format(addMinutes(new Date(), field.value), 'dd/MM/yyyy HH:mm', {
                                             locale: vi
@@ -1150,16 +1153,16 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                 )}
 
                 {!canChangeGroupInfo && (
-                  <p className='text-muted-foreground mt-2 text-sm'>Bạn không có quyền thay đổi thông tin nhóm</p>
+                  <p className='text-muted-foreground mt-2 text-sm'>{messagesT('noPermissionToChangeGroupInfo')}</p>
                 )}
 
                 {isOwner && (
                   <>
                     <Separator className='my-4' />
                     <div className='space-y-2'>
-                      <h3 className='text-sm font-medium'>Giải tán nhóm</h3>
+                      <h3 className='text-sm font-medium'>{messagesT('disbandGroup')}</h3>
                       <p className='text-muted-foreground text-sm'>
-                        Giải tán nhóm sẽ xóa vĩnh viễn nhóm và tất cả tin nhắn. Hành động này không thể hoàn tác.
+                        {messagesT('disbandGroupWarning')}
                       </p>
                       <Button
                         variant='destructive'
@@ -1168,7 +1171,7 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                         className='w-full'
                       >
                         <Trash className='mr-2 h-4 w-4' />
-                        {disbandGroupMutation.isPending ? 'Đang xử lý...' : 'Giải tán nhóm'}
+                        {disbandGroupMutation.isPending ? messagesT('processing') : messagesT('disbandGroup')}
                       </Button>
                     </div>
                   </>
@@ -1177,11 +1180,11 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                 <Separator className='my-4' />
 
                 <div className='space-y-2'>
-                  <h3 className='text-sm font-medium'>Rời khỏi nhóm</h3>
+                  <h3 className='text-sm font-medium'>{messagesT('leaveGroup')}</h3>
                   <p className='text-muted-foreground text-sm'>
                     {isOwner
-                      ? 'Bạn là chủ nhóm. Bạn cần chuyển quyền chủ nhóm trước khi rời nhóm.'
-                      : 'Bạn sẽ không nhận được tin nhắn từ nhóm này nữa'}
+                      ? messagesT('ownerLeaveGroupMessage')
+                      : messagesT('memberLeaveGroupMessage')}
                   </p>
                   <Button
                     variant='destructive'
@@ -1190,7 +1193,7 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                     className='w-full'
                   >
                     <LogOut className='mr-2 h-4 w-4' />
-                    {leaveGroupMutation.isPending ? 'Đang xử lý...' : 'Rời khỏi nhóm'}
+                    {leaveGroupMutation.isPending ? messagesT('processing') : messagesT('leaveGroup')}
                   </Button>
                 </div>
               </ScrollArea>
@@ -1199,7 +1202,7 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
             <TabsContent value='members' className='mt-4'>
               <div className='mb-4 flex items-center space-x-2'>
                 <Input
-                  placeholder='Tìm kiếm thành viên...'
+                  placeholder={messagesT('searchMembers')}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className='h-9'
@@ -1208,10 +1211,10 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
 
               <ScrollArea className='h-[400px] pr-4'>
                 {isLoadingMembers ? (
-                  <div className='flex justify-center p-4'>Đang tải...</div>
+                  <div className='flex justify-center p-4'>{messagesT('loading')}</div>
                 ) : filteredMembers.length === 0 ? (
                   <div className='text-muted-foreground p-4 text-center'>
-                    {searchQuery ? 'Không tìm thấy thành viên phù hợp' : 'Không có thành viên nào'}
+                    {searchQuery ? messagesT('noMembersFound') : messagesT('noMembers')}
                   </div>
                 ) : (
                   filteredMembers.map((member: any) => (
@@ -1228,7 +1231,7 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                           <p className='flex items-center gap-1 font-medium'>
                             {member.name}
                             {member._id === currentUserId && (
-                              <span className='text-muted-foreground ml-1 text-xs'>(Bạn)</span>
+                              <span className='text-muted-foreground ml-1 text-xs'>({messagesT('you')})</span>
                             )}
                             {member.customTitle && (
                               <span className='ml-1 text-xs text-blue-500'>- {member.customTitle}</span>
@@ -1285,21 +1288,21 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
             <TabsContent value='invite' className='mt-4'>
               <div className='space-y-6'>
                 <div className='space-y-2'>
-                  <Label>Link mời tham gia nhóm</Label>
+                  <Label>{messagesT('inviteLink')}</Label>
                   <div className='flex items-center space-x-2'>
                     <Input value={`${window.location.origin}/group/join/${inviteLink}`} readOnly />
                     <Button variant='outline' size='icon' onClick={handleCopyInviteLink}>
                       <Copy className='h-4 w-4' />
                     </Button>
                   </div>
-                  <p className='text-muted-foreground text-sm'>Chia sẻ link này để mời người khác tham gia nhóm</p>
+                  <p className='text-muted-foreground text-sm'>{messagesT('inviteLinkDescription')}</p>
                 </div>
 
                 {/* Phần mã QR */}
                 <div className='space-y-2'>
                   <Label className='flex items-center gap-1'>
                     <QrCode className='h-4 w-4' />
-                    Mã QR mời tham gia
+                    {messagesT('qrCode')}
                   </Label>
                   <div className='flex flex-col items-center'>
                     <div
@@ -1328,7 +1331,7 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                         className='flex items-center gap-1'
                       >
                         <Camera className='h-4 w-4' />
-                        Lưu ảnh QR
+                        {messagesT('saveQrCode')}
                       </Button>
                       <Button
                         variant='outline'
@@ -1337,7 +1340,7 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                         className='flex items-center gap-1'
                       >
                         <Copy className='h-4 w-4' />
-                        Sao chép link
+                        {messagesT('copyLink')}
                       </Button>
                     </div>
                   </div>
@@ -1351,7 +1354,7 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                     disabled={generateInviteLinkMutation.isPending}
                   >
                     <RefreshCw className='mr-2 h-4 w-4' />
-                    {generateInviteLinkMutation.isPending ? 'Đang tạo...' : 'Tạo link mới'}
+                    {generateInviteLinkMutation.isPending ? messagesT('generatingNewLink') : messagesT('generateNewLink')}
                   </Button>
                 )}
               </div>
@@ -1364,12 +1367,12 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
       <AlertDialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Xóa thành viên</AlertDialogTitle>
-            <AlertDialogDescription>Bạn có chắc chắn muốn xóa {memberToRemove?.name} khỏi nhóm?</AlertDialogDescription>
+            <AlertDialogTitle>{messagesT('removeMember')}</AlertDialogTitle>
+            <AlertDialogDescription>{messagesT('confirmRemoveMember', { name: memberToRemove?.name })}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Hủy</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmRemoveUser}>Xóa</AlertDialogAction>
+            <AlertDialogCancel>{messagesT('cancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmRemoveUser}>{messagesT('remove')}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -1378,8 +1381,8 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
       <AlertDialog open={memberEditDialogOpen} onOpenChange={setMemberEditDialogOpen}>
         <AlertDialogContent className='max-h-[90vh] max-w-md overflow-y-auto'>
           <AlertDialogHeader>
-            <AlertDialogTitle>Chỉnh sửa thành viên</AlertDialogTitle>
-            <AlertDialogDescription>Cập nhật vai trò và quyền hạn cho {memberToEdit?.name}</AlertDialogDescription>
+            <AlertDialogTitle>{messagesT('editMember')}</AlertDialogTitle>
+            <AlertDialogDescription>{messagesT('updateMemberRoleAndPermissions', { name: memberToEdit?.name })}</AlertDialogDescription>
           </AlertDialogHeader>
           <Form {...memberEditForm}>
             <form onSubmit={memberEditForm.handleSubmit(onSubmitMemberEdit)} className='space-y-4 py-4'>
@@ -1388,7 +1391,7 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                 name='role'
                 render={({ field }) => (
                   <FormItem className='space-y-2'>
-                    <FormLabel>Vai trò</FormLabel>
+                    <FormLabel>{messagesT('role')}</FormLabel>
                     <FormControl>
                       <RadioGroup
                         onValueChange={field.onChange}
@@ -1399,13 +1402,13 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                           <FormControl>
                             <RadioGroupItem value={MEMBER_ROLE.ADMIN} />
                           </FormControl>
-                          <FormLabel className='font-normal'>Quản trị viên</FormLabel>
+                          <FormLabel className='font-normal'>{messagesT('admin')}</FormLabel>
                         </FormItem>
                         <FormItem className='flex items-center space-y-0 space-x-3'>
                           <FormControl>
                             <RadioGroupItem value={MEMBER_ROLE.MEMBER} />
                           </FormControl>
-                          <FormLabel className='font-normal'>Thành viên</FormLabel>
+                          <FormLabel className='font-normal'>{messagesT('member')}</FormLabel>
                         </FormItem>
                       </RadioGroup>
                     </FormControl>
@@ -1419,11 +1422,11 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                 name='customTitle'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Tiêu đề tùy chỉnh</FormLabel>
+                    <FormLabel>{messagesT('customTitle')}</FormLabel>
                     <FormControl>
-                      <Input {...field} value={field.value || ''} placeholder='Ví dụ: Trưởng nhóm, Thành viên mới...' />
+                      <Input {...field} value={field.value || ''} placeholder={messagesT('titleExample')} />
                     </FormControl>
-                    <FormDescription>Tiêu đề sẽ hiển thị bên cạnh tên thành viên</FormDescription>
+                    <FormDescription>{messagesT('titleDescription')}</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -1431,7 +1434,7 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
 
               {memberEditForm.watch('role') === MEMBER_ROLE.ADMIN && (
                 <div className='space-y-3'>
-                  <FormLabel>Quyền hạn</FormLabel>
+                  <FormLabel>{messagesT('permissions')}</FormLabel>
 
                   <ScrollArea className='h-[250px] rounded-md border'>
                     <div className='space-y-3 p-4'>
@@ -1441,7 +1444,7 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                         render={({ field }) => (
                           <FormItem className='flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm'>
                             <div className='space-y-0.5'>
-                              <FormLabel>Thay đổi thông tin nhóm</FormLabel>
+                              <FormLabel>{messagesT('changeGroupInfo')}</FormLabel>
                             </div>
                             <FormControl>
                               <Switch checked={field.value} onCheckedChange={field.onChange} />
@@ -1456,7 +1459,7 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                         render={({ field }) => (
                           <FormItem className='flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm'>
                             <div className='space-y-0.5'>
-                              <FormLabel>Xóa tin nhắn</FormLabel>
+                              <FormLabel>{messagesT('deleteMessages')}</FormLabel>
                             </div>
                             <FormControl>
                               <Switch checked={field.value} onCheckedChange={field.onChange} />
@@ -1471,7 +1474,7 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                         render={({ field }) => (
                           <FormItem className='flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm'>
                             <div className='space-y-0.5'>
-                              <FormLabel>Mời người dùng</FormLabel>
+                              <FormLabel>{messagesT('inviteUsers')}</FormLabel>
                             </div>
                             <FormControl>
                               <Switch checked={field.value} onCheckedChange={field.onChange} />
@@ -1486,7 +1489,7 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                         render={({ field }) => (
                           <FormItem className='flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm'>
                             <div className='space-y-0.5'>
-                              <FormLabel>Ghim tin nhắn</FormLabel>
+                              <FormLabel>{messagesT('pinMessages')}</FormLabel>
                             </div>
                             <FormControl>
                               <Switch checked={field.value} onCheckedChange={field.onChange} />
@@ -1502,10 +1505,10 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                         render={({ field }) => (
                           <FormItem className='flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm'>
                             <div className='space-y-0.5'>
-                              <FormLabel>Thêm quản trị viên mới</FormLabel>
+                              <FormLabel>{messagesT('addNewAdmins')}</FormLabel>
                               {!isOwner && (
                                 <FormDescription className='text-xs'>
-                                  Chỉ chủ nhóm mới có thể cấp quyền này
+                                  {messagesT('onlyOwnerCanGrant')}
                                 </FormDescription>
                               )}
                             </div>
@@ -1527,10 +1530,10 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                         render={({ field }) => (
                           <FormItem className='flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm'>
                             <div className='space-y-0.5'>
-                              <FormLabel>Cấm người dùng</FormLabel>
+                              <FormLabel>{messagesT('banUsers')}</FormLabel>
                               {!isOwner && (
                                 <FormDescription className='text-xs'>
-                                  Chỉ chủ nhóm mới có thể cấp quyền này
+                                  {messagesT('onlyOwnerCanGrant')}
                                 </FormDescription>
                               )}
                             </div>
@@ -1552,10 +1555,10 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
                         render={({ field }) => (
                           <FormItem className='flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm'>
                             <div className='space-y-0.5'>
-                              <FormLabel>Phê duyệt yêu cầu tham gia</FormLabel>
+                              <FormLabel>{messagesT('approveJoinRequests')}</FormLabel>
                               {!isOwner && (
                                 <FormDescription className='text-xs'>
-                                  Chỉ chủ nhóm mới có thể cấp quyền này
+                                  {messagesT('onlyOwnerCanGrant')}
                                 </FormDescription>
                               )}
                             </div>
@@ -1575,8 +1578,8 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
               )}
 
               <AlertDialogFooter>
-                <AlertDialogCancel type='button'>Hủy</AlertDialogCancel>
-                <AlertDialogAction type='submit'>Lưu thay đổi</AlertDialogAction>
+                <AlertDialogCancel type='button'>{messagesT('cancel')}</AlertDialogCancel>
+                <AlertDialogAction type='submit'>{messagesT('saveChanges')}</AlertDialogAction>
               </AlertDialogFooter>
             </form>
           </Form>
@@ -1587,14 +1590,14 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
       <AlertDialog open={confirmNewLinkDialogOpen} onOpenChange={setConfirmNewLinkDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Tạo link mời mới</AlertDialogTitle>
+            <AlertDialogTitle>{messagesT('generateNewLink')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Link mời cũ sẽ không còn hiệu lực. Bạn có chắc chắn muốn tạo link mới?
+              {messagesT('generateNewLinkWarning')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Hủy</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmGenerateNewLink}>Tạo mới</AlertDialogAction>
+            <AlertDialogCancel>{messagesT('cancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmGenerateNewLink}>{messagesT('generate')}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -1603,14 +1606,14 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
       <AlertDialog open={leaveGroupConfirmOpen} onOpenChange={setLeaveGroupConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Rời khỏi nhóm</AlertDialogTitle>
+            <AlertDialogTitle>{messagesT('leaveGroup')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Bạn có chắc chắn muốn rời khỏi nhóm này? Bạn sẽ không nhận được tin nhắn từ nhóm này nữa.
+              {messagesT('confirmLeaveGroup')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Hủy</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmLeaveGroup}>Rời nhóm</AlertDialogAction>
+            <AlertDialogCancel>{messagesT('cancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmLeaveGroup}>{messagesT('leaveGroup')}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -1627,19 +1630,18 @@ export function GroupSettingsDialog({ conversation, onUpdate }: { conversation: 
       <AlertDialog open={disbandGroupConfirmOpen} onOpenChange={setDisbandGroupConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Giải tán nhóm</AlertDialogTitle>
+            <AlertDialogTitle>{messagesT('disbandGroup')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Bạn có chắc chắn muốn giải tán nhóm này? Hành động này sẽ xóa vĩnh viễn nhóm và tất cả tin nhắn. Không thể
-              hoàn tác.
+              {messagesT('confirmDisbandGroup')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Hủy</AlertDialogCancel>
+            <AlertDialogCancel>{messagesT('cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDisbandGroup}
               className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
             >
-              Giải tán nhóm
+              {messagesT('disbandGroup')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

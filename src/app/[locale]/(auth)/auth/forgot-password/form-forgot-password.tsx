@@ -16,6 +16,7 @@ import {
   useResetPasswordMutation
 } from '~/hooks/data/auth.hooks'
 import useCountdown from '~/hooks/use-countdown'
+import { useAuthTranslation } from '~/hooks/use-translations'
 import { handleError } from '~/lib/handlers'
 import { cn } from '~/lib/utils'
 import { formForgotPasswordBaseSchema, FormForgotPasswordValues } from '~/schemas/form.schemas'
@@ -31,6 +32,7 @@ enum ForgotPasswordStep {
 }
 
 function FormForgotPassword({ className }: Props) {
+  const t = useAuthTranslation()
   const [step, setStep] = useState<ForgotPasswordStep>(ForgotPasswordStep.EMAIL)
   const [email, setEmail] = useState<string>('')
   const { isTimeout, setCountdown, time } = useCountdown()
@@ -147,10 +149,10 @@ function FormForgotPassword({ className }: Props) {
                   name='email'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Email</FormLabel>
+                      <FormLabel>{t('email')}</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder='name@example.com'
+                          placeholder={t('emailPlaceholder')}
                           type='email'
                           disabled={requestResetPasswordMutation.isPending}
                           {...field}
@@ -162,7 +164,7 @@ function FormForgotPassword({ className }: Props) {
                 />
                 <Button type='submit' disabled={requestResetPasswordMutation.isPending || !emailForm.formState.isDirty}>
                   {requestResetPasswordMutation.isPending && <Icons.spinner className='mr-2 h-4 w-4 animate-spin' />}
-                  Send Reset Code
+                  {t('sendResetCode')}
                 </Button>
               </div>
             </form>
@@ -175,7 +177,7 @@ function FormForgotPassword({ className }: Props) {
             <form onSubmit={handleOtpSubmit}>
               <div className='grid gap-3'>
                 <p className='text-center text-sm'>
-                  We've sent a verification code to <strong>{email}</strong>
+                  {t('verificationCodeSentTo')} <strong>{email}</strong>
                 </p>
                 <FormField
                   control={otpForm.control}
@@ -191,7 +193,7 @@ function FormForgotPassword({ className }: Props) {
 
                             if (!/^\d*$/.test(value)) {
                               otpForm.setError('otp', {
-                                message: 'Only numbers are allowed'
+                                message: t('onlyNumbersAllowed')
                               })
                               e.currentTarget.value = value.replace(/\D/g, '')
                             } else {
@@ -215,11 +217,11 @@ function FormForgotPassword({ className }: Props) {
                 />
                 <div className='grid grid-cols-2 gap-3'>
                   <Button type='button' variant='outline' onClick={() => setStep(ForgotPasswordStep.EMAIL)}>
-                    Back
+                    {t('back')}
                   </Button>
                   <Button type='submit' disabled={confirmResetPasswordMutation.isPending || !otpForm.formState.isDirty}>
                     {confirmResetPasswordMutation.isPending && <Icons.spinner className='mr-2 h-4 w-4 animate-spin' />}
-                    Verify Code
+                    {t('verifyCode')}
                   </Button>
                 </div>
 
@@ -229,7 +231,7 @@ function FormForgotPassword({ className }: Props) {
                   onClick={handleResendCode}
                   disabled={!isTimeout || requestResetPasswordMutation.isPending}
                 >
-                  Send Code Again{' '}
+                  {t('sendCodeAgain')}{' '}
                   {requestResetPasswordMutation.isPending && <Icons.spinner className='mr-2 h-4 w-4 animate-spin' />}
                 </Button>
                 {!isTimeout && (
@@ -254,7 +256,7 @@ function FormForgotPassword({ className }: Props) {
                   name='password'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>New Password</FormLabel>
+                      <FormLabel>{t('newPassword')}</FormLabel>
                       <FormControl>
                         <Input type='password' disabled={resetPasswordMutation.isPending} {...field} />
                       </FormControl>
@@ -267,7 +269,7 @@ function FormForgotPassword({ className }: Props) {
                   name='confirmPassword'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Confirm Password</FormLabel>
+                      <FormLabel>{t('confirmPassword')}</FormLabel>
                       <FormControl>
                         <Input type='password' disabled={resetPasswordMutation.isPending} {...field} />
                       </FormControl>
@@ -277,11 +279,11 @@ function FormForgotPassword({ className }: Props) {
                 />
                 <div className='grid grid-cols-2 gap-3'>
                   <Button type='button' variant='outline' onClick={() => setStep(ForgotPasswordStep.OTP)}>
-                    Back
+                    {t('back')}
                   </Button>
                   <Button type='submit' disabled={resetPasswordMutation.isPending || !passwordForm.formState.isDirty}>
                     {resetPasswordMutation.isPending && <Icons.spinner className='mr-2 h-4 w-4 animate-spin' />}
-                    Reset Password
+                    {t('resetPassword')}
                   </Button>
                 </div>
               </div>
@@ -294,3 +296,5 @@ function FormForgotPassword({ className }: Props) {
 }
 
 export default FormForgotPassword
+
+

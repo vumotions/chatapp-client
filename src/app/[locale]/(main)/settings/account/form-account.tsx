@@ -32,66 +32,68 @@ import {
 } from '~/hooks/data/auth.hooks'
 import { useUpdateSettingsMutation, useUserSettings } from '~/hooks/data/user.hooks'
 import useCountdown from '~/hooks/use-countdown'
+import { useCommonTranslation, useSettingsTranslation } from '~/hooks/use-translations'
 import { usePathname, useRouter } from '~/i18n/navigation'
 import { handleError } from '~/lib/handlers'
 import AccountSkeleton from './account-skeleton'
 
 const languages = [
   { label: 'Vietnamese', value: 'vi' },
-  { label: 'English', value: 'en' },
-  { label: 'Russian', value: 'ru' },
-  { label: 'Chinese', value: 'zh' }
+  { label: 'English', value: 'en' }
 ] as const
 
-const accountFormSchema = z
-  .object({
-    newPassword: z
-      .string()
-      .min(6, {
-        message: 'Password must be at least 6 characters.'
-      })
-      .optional()
-      .or(z.literal('')),
-    confirmPassword: z.string().optional().or(z.literal('')),
-    language: z.string({
-      required_error: 'Please select a language.'
-    }),
-    theme: z.enum(['light', 'dark', 'system'], {
-      required_error: 'Please select a theme.'
-    }),
-    otp: z
-      .string()
-      .regex(/^\d{6}$/, { message: 'OTP must be exactly 6 digits' })
-      .optional()
-      .or(z.literal(''))
-  })
-  .refine(
-    (data) => {
-      if (data.newPassword && data.confirmPassword && data.newPassword !== data.confirmPassword) {
-        return false
+// Create a function that returns the schema with translations
+function getAccountFormSchema(t: (key: string) => string) {
+  return z
+    .object({
+      newPassword: z
+        .string()
+        .min(6, {
+          message: t('account.passwordMinLength')
+        })
+        .optional()
+        .or(z.literal('')),
+      confirmPassword: z.string().optional().or(z.literal('')),
+      language: z.string({
+        required_error: t('account.selectLanguage')
+      }),
+      theme: z.enum(['light', 'dark', 'system'], {
+        required_error: t('account.selectTheme')
+      }),
+      otp: z
+        .string()
+        .regex(/^\d{6}$/, { message: t('account.otpFormat') })
+        .optional()
+        .or(z.literal(''))
+    })
+    .refine(
+      (data) => {
+        if (data.newPassword && data.confirmPassword && data.newPassword !== data.confirmPassword) {
+          return false
+        }
+        return true
+      },
+      {
+        message: t('account.passwordsDontMatch'),
+        path: ['confirmPassword']
       }
-      return true
-    },
-    {
-      message: "Passwords don't match",
-      path: ['confirmPassword']
-    }
-  )
-  .refine(
-    (data) => {
-      // Nếu đã nhập một trong hai trường mật khẩu, thì cả hai đều phải được nhập
-      if ((data.newPassword && !data.confirmPassword) || (!data.newPassword && data.confirmPassword)) {
-        return false
+    )
+    .refine(
+      (data) => {
+        // Nếu đã nhập một trong hai trường mật khẩu, thì cả hai đều phải được nhập
+        if ((data.newPassword && !data.confirmPassword) || (!data.newPassword && data.confirmPassword)) {
+          return false
+        }
+        return true
+      },
+      {
+        message: 'Both password fields must be filled',
+        path: ['confirmPassword']
       }
-      return true
-    },
-    {
-      message: 'Both password fields must be filled',
-      path: ['confirmPassword']
-    }
-  )
+    )
+}
 
-type AccountFormValues = z.infer<typeof accountFormSchema>
+type AccountFormValues = z.infer<ReturnType<typeof getAccountFormSchema>>
 
 function FormAccount() {
   const locale = useLocale()
@@ -105,7 +107,10 @@ function FormAccount() {
   const [passwordVerified, setPasswordVerified] = useState(false)
   const [showOtpInput, setShowOtpInput] = useState(false)
   const { isTimeout, setCountdown, time } = useCountdown()
-
+  
+  const t = useSettingsTranslation()
+  const commonT = useCommonTranslation()
+  
   const requestResetPasswordMutation = useRequestResetPasswordMutation()
   const confirmResetPasswordMutation = useConfirmResetPasswordMutation()
   const resetPasswordMutation = useResetPasswordMutation()
@@ -115,6 +120,9 @@ function FormAccount() {
   const { data: session } = useSession()
   const email = session?.user?.email || ''
   const verify = session?.user?.verify || USER_VERIFY_STATUS.UNVERIFIED
+
+  // Create the schema using the translation function
+  const accountFormSchema = getAccountFormSchema(t)
 
   const form = useForm<AccountFormValues>({
     resolver: zodResolver(accountFormSchema),
@@ -256,17 +264,17 @@ function FormAccount() {
               {verify === USER_VERIFY_STATUS.VERIFIED ? (
                 <Badge variant='outline' className='border-green-500/20 bg-green-500/10 text-green-500'>
                   <Check className='mr-1 h-3 w-3' />
-                  Verified
+                  {t('account.verified')}
                 </Badge>
               ) : (
                 <Badge variant='outline' className='border-yellow-500/20 bg-yellow-500/10 text-yellow-500'>
-                  Unverified
+                  {t('account.unverified')}
                 </Badge>
               )}
             </div>
             <div className='mt-1 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
               <p className='text-muted-foreground text-sm'>
-                This is your email address used for login and notifications.
+                {t('account.emailDescription')}
               </p>
               {!passwordVerified && !showOtpInput && (
                 <Button
@@ -282,7 +290,7 @@ function FormAccount() {
                   ) : (
                     <Send className='mr-2 h-4 w-4' />
                   )}
-                  Verify to change password
+                  {t('account.verifyToChangePassword')}
                 </Button>
               )}
             </div>
@@ -290,9 +298,9 @@ function FormAccount() {
 
           {showOtpInput && (
             <>
-              <FormLabel>Verification Code</FormLabel>
+              <FormLabel>{t('account.verificationCode')}</FormLabel>
               <p className='text-muted-foreground mb-4 text-sm'>
-                We've sent a verification code to <strong>{email}</strong>
+                {t('account.verificationCodeSentTo')} <strong>{email}</strong>
               </p>
               <div className='flex flex-col items-center space-y-4'>
                 <FormField
@@ -358,7 +366,7 @@ function FormAccount() {
                       setShowOtpInput(false)
                     }}
                   >
-                    Cancel Password Change
+                    {t('account.cancelPasswordChange')}
                   </Button>
                 </div>
 
@@ -369,7 +377,7 @@ function FormAccount() {
                   disabled={!isTimeout || requestResetPasswordMutation.isPending}
                 >
                   {requestResetPasswordMutation.isPending && <Icons.spinner className='mr-2 h-4 w-4 animate-spin' />}
-                  Send Code Again
+                  {t('account.sendCodeAgain')}
                 </Button>
 
                 {!isTimeout && (
@@ -386,7 +394,7 @@ function FormAccount() {
           {passwordVerified && (
             <>
               <div className='mb-4 flex items-center justify-between'>
-                <FormLabel className='text-lg'>New Password</FormLabel>
+                <FormLabel className='text-lg'>{t('account.newPassword')}</FormLabel>
                 <Button
                   type='button'
                   variant='outline'
@@ -403,7 +411,7 @@ function FormAccount() {
                     })
                   }}
                 >
-                  Cancel Password Change
+                  {t('account.cancelPasswordChange')}
                 </Button>
               </div>
               <FormField
@@ -470,9 +478,9 @@ function FormAccount() {
         </div>
 
         <Separator />
-        <h3 className='text-lg font-medium'>Language</h3>
+        <h3 className='text-lg font-medium'>{t('account.language')}</h3>
         <p className='text-muted-foreground text-sm'>
-          Choose the language that will be used throughout the dashboard interface.
+          {t('account.languageDescription')}
         </p>
 
         <div className='space-y-8'>
@@ -481,7 +489,7 @@ function FormAccount() {
             name='language'
             render={({ field }) => (
               <FormItem className='flex flex-col'>
-                <FormLabel>Language</FormLabel>
+                <FormLabel>{t('account.language')}</FormLabel>
                 <Popover>
                   <PopoverTrigger asChild>
                     <FormControl>
@@ -492,16 +500,16 @@ function FormAccount() {
                       >
                         {field.value
                           ? languages.find((language) => language.value === field.value)?.label
-                          : 'Select language'}
+                          : t('account.selectLanguage')}
                         <ChevronsUpDown className='opacity-50' />
                       </Button>
                     </FormControl>
                   </PopoverTrigger>
                   <PopoverContent className='w-[200px] p-0'>
                     <Command>
-                      <CommandInput placeholder='Search language...' />
+                      <CommandInput placeholder={t('account.selectLanguage')} />
                       <CommandList>
-                        <CommandEmpty>No language found.</CommandEmpty>
+                        <CommandEmpty>{commonT('noResultsFound')}</CommandEmpty>
                         <CommandGroup>
                           {languages.map((language) => (
                             <CommandItem
@@ -523,7 +531,7 @@ function FormAccount() {
                     </Command>
                   </PopoverContent>
                 </Popover>
-                <FormDescription>This is the language that will be used in the dashboard.</FormDescription>
+                <FormDescription>{t('account.languageSubDescription')}</FormDescription>
                 <FormMessage />
               </FormItem>
             )}
@@ -531,9 +539,9 @@ function FormAccount() {
         </div>
 
         <Separator />
-        <h3 className='text-lg font-medium'>Appearance</h3>
+        <h3 className='text-lg font-medium'>{t('account.appearance')}</h3>
         <p className='text-muted-foreground text-sm'>
-          Customize the appearance of the application. Automatically switch between day and night themes.
+          {t('account.appearanceDescription')}
         </p>
 
         <div className='space-y-8'>
@@ -542,8 +550,8 @@ function FormAccount() {
             name='theme'
             render={({ field }) => (
               <FormItem className='space-y-1'>
-                <FormLabel>Theme</FormLabel>
-                <FormDescription>Select the theme for the dashboard.</FormDescription>
+                <FormLabel>{t('account.theme')}</FormLabel>
+                <FormDescription>{t('account.themeDescription')}</FormDescription>
                 <FormMessage />
                 <RadioGroup
                   onValueChange={field.onChange}
@@ -576,7 +584,7 @@ function FormAccount() {
                           </div>
                         </div>
                       </div>
-                      <span className='block w-full p-2 text-center font-normal'>Light</span>
+                      <span className='block w-full p-2 text-center font-normal'>{t('account.light')}</span>
                     </FormLabel>
                   </FormItem>
                   <FormItem>
@@ -605,7 +613,7 @@ function FormAccount() {
                           </div>
                         </div>
                       </div>
-                      <span className='block w-full p-2 text-center font-normal'>Dark</span>
+                      <span className='block w-full p-2 text-center font-normal'>{t('account.dark')}</span>
                     </FormLabel>
                   </FormItem>
                   <FormItem>
@@ -621,7 +629,7 @@ function FormAccount() {
                         )}
                         <SystemThemeCard />
                       </div>
-                      <span className='block w-full p-2 text-center font-normal'>System</span>
+                      <span className='block w-full p-2 text-center font-normal'>{t('account.system')}</span>
                     </FormLabel>
                   </FormItem>
                 </RadioGroup>
@@ -634,7 +642,7 @@ function FormAccount() {
           {(updateSettingsMutation.isPending || resetPasswordMutation.isPending) && (
             <Loader className='size-3 animate-spin' />
           )}
-          Update settings
+          {t('account.updateSettings')}
         </Button>
       </form>
     </Form>

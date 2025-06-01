@@ -2,6 +2,7 @@ import { X } from 'lucide-react'
 import Image from 'next/image'
 import React, { useEffect, useRef } from 'react'
 import { Button } from '~/components/ui/button'
+import { createPortal } from 'react-dom'
 
 interface MediaLightboxProps {
   url: string
@@ -26,12 +27,27 @@ const MediaLightbox: React.FC<MediaLightboxProps> = ({ url, isOpen, onClose }) =
         })
       }
     }
+
+    // Khi lightbox mở, ngăn cuộn trang
+    if (isOpen) {
+      document.body.style.overflow = 'hidden'
+    }
+
+    return () => {
+      // Khôi phục cuộn trang khi đóng lightbox
+      document.body.style.overflow = ''
+    }
   }, [isOpen, url, isVideo])
 
   if (!isOpen || !url) return null
 
-  return (
-    <div className='fixed inset-0 z-[9999] flex items-center justify-center bg-black/80' onClick={onClose}>
+  // Sử dụng createPortal để render lightbox trực tiếp vào body
+  return createPortal(
+    <div 
+      className='fixed inset-0 z-[999999] flex items-center justify-center bg-black/80' 
+      onClick={onClose}
+      style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
+    >
       <div className='relative max-h-[90vh] max-w-[90vw]'>
         {isVideo ? (
           <video
@@ -74,8 +90,12 @@ const MediaLightbox: React.FC<MediaLightboxProps> = ({ url, isOpen, onClose }) =
           <span className='sr-only'>Đóng</span>
         </Button>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
 
 export default MediaLightbox
+
+
+

@@ -23,6 +23,7 @@ import { Label } from '~/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '~/components/ui/select'
 import { Textarea } from '~/components/ui/textarea'
 import postService from '~/services/post.service'
+import { useHomeTranslation } from '~/hooks/use-translations'
 
 interface PostEditorV2Props {
   getPosts?: () => any
@@ -56,6 +57,7 @@ export default function PostEditorV2({
   const queryClient = useQueryClient()
   const router = useRouter()
   const { data: session } = useSession()
+  const t = useHomeTranslation()
   const [isOpen, setIsOpen] = useState(false)
   const [content, setContent] = useState(initialData?.content || '')
   const [files, setFiles] = useState<File[]>([])
@@ -290,87 +292,6 @@ export default function PostEditorV2({
     )
   }
 
-  // Nếu là chế độ chỉnh sửa, hiển thị form chỉnh sửa trực tiếp
-  if (isEditMode) {
-    return (
-      <div className='p-4'>
-        <div className='grid gap-4'>
-          <div className='flex items-center gap-2'>
-            <Users className='text-muted-foreground h-4 w-4' />
-            <Select value={postType} onValueChange={setPostType}>
-              <SelectTrigger className='w-[180px]'>
-                <SelectValue placeholder='Chọn quyền riêng tư' />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value='public'>Công khai</SelectItem>
-                <SelectItem value='friends'>Bạn bè</SelectItem>
-                <SelectItem value='private'>Chỉ mình tôi</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <Textarea
-            placeholder={`${session?.user?.name} ơi, bạn đang nghĩ gì thế?`}
-            className='min-h-[200px] resize-none'
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-          />
-
-          <div className='grid gap-4'>
-            <div className='flex items-center justify-between'>
-              <Label htmlFor='picture'>Media</Label>
-              <div
-                className='hover:bg-muted/50 cursor-pointer rounded-lg border p-2 text-center transition-colors'
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <Images className='text-muted-foreground h-5 w-5' />
-              </div>
-            </div>
-
-            <Input
-              id='picture'
-              type='file'
-              accept='image/*,video/*'
-              multiple
-              onChange={handleFileChange}
-              className='hidden'
-              ref={fileInputRef}
-            />
-
-            {/* Hiển thị media hiện có */}
-            {existingMedia.length > 0 && (
-              <div className='grid grid-cols-2 gap-2 sm:grid-cols-4'>
-                {existingMedia.map((media, index) => renderExistingMediaPreview(media, index))}
-              </div>
-            )}
-
-            {/* Hiển thị file mới được chọn */}
-            {files.length > 0 && (
-              <div className='grid grid-cols-2 gap-2 sm:grid-cols-4'>
-                {files.map((file, index) => renderFilePreview(file, index))}
-              </div>
-            )}
-          </div>
-
-          <div className='flex justify-end gap-2'>
-            <Button
-              variant='outline'
-              onClick={() => {
-                resetForm()
-                if (onSuccess) onSuccess()
-              }}
-            >
-              Hủy
-            </Button>
-            <Button onClick={handleSubmit} disabled={isSubmitting}>
-              {isSubmitting ? 'Đang cập nhật...' : 'Cập nhật'}
-            </Button>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   // Chế độ tạo bài viết mới
   return (
     <Card>
@@ -382,7 +303,7 @@ export default function PostEditorV2({
               <AvatarFallback>{session?.user?.name?.[0] || 'U'}</AvatarFallback>
             </Avatar>
             <Input
-              placeholder={`${session?.user?.name} ơi, bạn đang nghĩ gì thế?`}
+              placeholder={`${session?.user?.name} ${t('whatAreYouThinking')}`}
               className='rounded-full'
               onFocus={() => {
                 setIsOpen(true)
@@ -396,44 +317,44 @@ export default function PostEditorV2({
                 setIsOpen(true)
               }}
             >
-              <Images className='mr-2 h-4 w-4' /> Ảnh/video
+              <Images className='mr-2 h-4 w-4' /> {t('photoVideo')}
             </Button>
 
             <DialogTrigger asChild>
-              <Button variant='default'>{buttonText}</Button>
+              <Button variant='default'>{t('friends')}</Button>
             </DialogTrigger>
           </div>
         </CardContent>
 
         <DialogContent className='flex max-h-[90vh] flex-col sm:max-w-[600px]'>
           <DialogHeader className='flex-none'>
-            <DialogTitle>{dialogTitle}</DialogTitle>
-            <DialogDescription>{dialogDescription}</DialogDescription>
+            <DialogTitle>{t('createNewPost')}</DialogTitle>
+            <DialogDescription>{t('shareYourThoughts')}</DialogDescription>
             <div className='grid gap-2'>
               <div className='flex items-center gap-2'>
                 <Users className='text-muted-foreground h-4 w-4' />
                 <Select value={postType} onValueChange={setPostType}>
                   <SelectTrigger className='w-[180px]'>
-                    <SelectValue placeholder='Chọn quyền riêng tư' />
+                    <SelectValue placeholder={t('selectPrivacy')} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value='public'>Công khai</SelectItem>
-                    <SelectItem value='friends'>Bạn bè</SelectItem>
-                    <SelectItem value='private'>Chỉ mình tôi</SelectItem>
+                    <SelectItem value='public'>{t('public')}</SelectItem>
+                    <SelectItem value='friends'>{t('friendsOnly')}</SelectItem>
+                    <SelectItem value='private'>{t('onlyMe')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
           </DialogHeader>
-          <div className='scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent hover:scrollbar-thumb-muted-foreground/30 flex-1 overflow-y-auto'>
+          <div className='scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent hover:scrollbar-thumb-muted-foreground/30 -mr-2 flex-1 overflow-y-auto pr-3'>
             <div className='grid gap-4'>
               <Textarea
-                placeholder={`${session?.user?.name} ơi, bạn đang nghĩ gì thế?`}
+                placeholder={`${session?.user?.name} ${t('whatAreYouThinking')}`}
                 className='min-h-[200px] resize-none'
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
               />
-              <Label htmlFor='picture'>Upload photos</Label>
+              <Label htmlFor='picture'>{t('uploadPhotos')}</Label>
               <div className='grid gap-4'>
                 <div
                   className='hover:bg-muted/50 w-full cursor-pointer rounded-lg border-2 border-dashed p-4 text-center transition-colors'
@@ -455,7 +376,7 @@ export default function PostEditorV2({
                   <Label htmlFor='picture' className='flex cursor-pointer items-center justify-center'>
                     <div className='flex flex-col items-center gap-2'>
                       <Images className='text-muted-foreground h-8 w-8' />
-                      <p className='text-muted-foreground text-sm'>Drag and drop your images here or click to browse</p>
+                      <p className='text-muted-foreground text-sm'>{t('dragAndDropImages')}</p>
                     </div>
                   </Label>
                 </div>
@@ -468,12 +389,20 @@ export default function PostEditorV2({
               </div>
             </div>
           </div>
-          <div className='grid flex-none gap-4 py-4'>
-            <div className='flex justify-end gap-2'>
-              <Button onClick={handleSubmit} disabled={isSubmitting}>
-                {isSubmitting ? 'Đang đăng...' : buttonText}
-              </Button>
-            </div>
+          <div className='flex-none pt-4'>
+            <Button
+              className='w-full'
+              disabled={isSubmitting || (!content.trim() && files.length === 0)}
+              onClick={handleSubmit}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className='mr-2 h-4 w-4 animate-spin' /> {t('posting')}
+                </>
+              ) : (
+                t('post')
+              )}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

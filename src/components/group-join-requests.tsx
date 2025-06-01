@@ -27,6 +27,7 @@ import conversationsService from '~/services/conversations.service'
 import FriendHoverCard from './friend-hover-card'
 import { Badge } from './ui/badge'
 import { ScrollArea } from './ui/scroll-area'
+import { useGroupsTranslation } from '~/hooks/use-translations'
 
 // Định nghĩa kiểu dữ liệu cho request
 type JoinRequest = {
@@ -626,10 +627,18 @@ const RequestItem = ({
 
   // Hàm lấy thời gian hiển thị dựa trên trạng thái
   const getDisplayTime = () => {
+    const groupsT = useGroupsTranslation()
+    
     if ((status === 'APPROVED' || status === 'REJECTED') && request.processedAt) {
-      return formatDistanceToNow(new Date(request.processedAt), { addSuffix: true, locale: vi })
+      return formatDistanceToNow(new Date(request.processedAt), { 
+        addSuffix: true, 
+        locale: vi 
+      })
     } else {
-      return formatDistanceToNow(new Date(request.requestedAt), { addSuffix: true, locale: vi })
+      return formatDistanceToNow(new Date(request.requestedAt), { 
+        addSuffix: true, 
+        locale: vi 
+      })
     }
   }
 

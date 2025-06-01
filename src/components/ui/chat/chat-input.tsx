@@ -9,6 +9,7 @@ import { Input } from '~/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '~/components/ui/popover'
 import { MEDIA_TYPE } from '~/constants/enums'
 import { useFileUpload } from '~/hooks/data/upload.hooks'
+import { useMessagesTranslation, useTooltipsTranslation } from '~/hooks/use-translations'
 import { cn } from '~/lib/utils'
 
 interface ChatInputProps {
@@ -44,6 +45,8 @@ export function ChatInput({
   chatId
 }: ChatInputProps) {
   const [attachmentPopoverOpen, setAttachmentPopoverOpen] = React.useState(false)
+  const messagesT = useMessagesTranslation()
+  const tooltipsT = useTooltipsTranslation()
 
   const fileInputRef = React.useRef<HTMLInputElement>(null)
   const videoInputRef = React.useRef<HTMLInputElement>(null)
@@ -57,14 +60,14 @@ export function ChatInput({
 
         // Đóng popover sau khi upload thành công
         setAttachmentPopoverOpen(false)
-        toast.success('Tệp đã được tải lên thành công')
+        toast.success(messagesT('fileUploadSuccess'))
       } else {
         setAttachmentPopoverOpen(false)
       }
     },
     onError: (error) => {
       console.error('Upload error:', error)
-      toast.error('Lỗi khi tải lên tệp')
+      toast.error(messagesT('fileUploadError'))
       setAttachmentPopoverOpen(false)
     }
   })
@@ -106,7 +109,7 @@ export function ChatInput({
                 disabled={isUploading}
               >
                 <Image className='mr-2 h-4 w-4' />
-                {isUploading ? 'Đang tải lên...' : 'Hình ảnh'}
+                {isUploading ? messagesT('uploading') : messagesT('image')}
               </Button>
               <Button
                 variant='outline'
@@ -115,7 +118,7 @@ export function ChatInput({
                 disabled={isUploading}
               >
                 <Video className='mr-2 h-4 w-4' />
-                {isUploading ? 'Đang tải lên...' : 'Video'}
+                {isUploading ? messagesT('uploading') : messagesT('video')}
               </Button>
 
               {/* Hidden file inputs */}
@@ -144,22 +147,22 @@ export function ChatInput({
           className='flex-1 resize-none rounded-full p-4'
           placeholder={
             isBlockedByUser
-              ? 'Bạn không thể gửi tin nhắn cho người dùng này vì họ đã chặn bạn'
+              ? messagesT('cannotSendToBlockedUser')
               : !canSendMessages
                 ? sendPermission?.isMuted
-                  ? `Bị cấm chat${
+                  ? `${messagesT('mutedUntil')}${
                       sendPermission.mutedUntil
-                        ? ` đến ${format(new Date(sendPermission.mutedUntil), 'dd/MM/yyyy')}`
+                        ? ` ${format(new Date(sendPermission.mutedUntil), 'dd/MM/yyyy')}`
                         : ''
                     }`
                   : sendPermission?.restrictedByGroupSettings
-                    ? `Chỉ admin được gửi tin nhắn${
+                    ? `${messagesT('onlyAdminsCanSend')}${
                         sendPermission.restrictUntil
-                          ? ` đến ${format(new Date(sendPermission.restrictUntil), 'dd/MM/yyyy')}`
+                          ? ` ${format(new Date(sendPermission.restrictUntil), 'dd/MM/yyyy')}`
                           : ''
                       }`
-                    : 'Không có quyền gửi tin nhắn'
-                : 'Nhập tin nhắn...'
+                    : messagesT('noPermissionToSend')
+                : messagesT('typeMessage')
           }
           value={message}
           onChange={onMessageChange}

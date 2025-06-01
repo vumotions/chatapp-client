@@ -42,19 +42,14 @@ import ChatSkeleton from '~/components/ui/chat/chat-skeleton'
 import { MessageActions } from '~/components/ui/chat/message-actions'
 import MessageLoading from '~/components/ui/chat/message-loading'
 import httpRequest from '~/config/http-request'
-import {
-  CALL_TYPE,
-  CHAT_TYPE,
-  FRIEND_REQUEST_STATUS,
-  MESSAGE_STATUS,
-  MESSAGE_TYPE
-} from '~/constants/enums'
+import { CALL_TYPE, CHAT_TYPE, MESSAGE_STATUS, MESSAGE_TYPE } from '~/constants/enums'
 import SOCKET_EVENTS from '~/constants/socket-events'
 import { useFriendStatus } from '~/hooks/data/friends.hook'
 import { useCheckSendMessagePermissionQuery } from '~/hooks/data/group-chat.hooks'
 import { useIsBlockedByUser } from '~/hooks/data/user.hooks'
 import useMediaQuery from '~/hooks/use-media-query'
 import { useProtectedChat } from '~/hooks/use-protected-chat'
+import { useMessagesTranslation } from '~/hooks/use-translations'
 import { useRouter } from '~/i18n/navigation'
 import { startCall } from '~/lib/call-helper'
 import { cn } from '~/lib/utils'
@@ -69,7 +64,7 @@ type Props = {
 }
 
 function ChatDetail({ params }: Props) {
-  // 1. Tất cả các state và ref
+  const t = useMessagesTranslation()
   const { chatId } = use(params)
   const router = useRouter()
   const [message, setMessage] = useState('')
@@ -702,7 +697,6 @@ function ChatDetail({ params }: Props) {
 
   // Lấy trạng thái từ data của hook
   const friendStatus = friendStatusData?.status || null
-  const isFriend = friendStatus === FRIEND_REQUEST_STATUS.ACCEPTED
 
   // Thêm useEffect để đồng bộ tin nhắn khi mở cuộc trò chuyện
   useEffect(() => {
@@ -865,12 +859,12 @@ function ChatDetail({ params }: Props) {
         if (data.updatedBy !== session?.user?._id) {
           if (data.onlyAdminsCanSend) {
             const restrictUntilText = data.restrictUntil
-              ? `đến ${new Date(data.restrictUntil).toLocaleString('vi-VN')}`
-              : 'cho đến khi có thay đổi'
+              ? `${t('messages.until')} ${new Date(data.restrictUntil).toLocaleString('vi-VN')}`
+              : t('messages.untilChanged')
 
-            toast.info(`Chế độ "Chỉ quản trị viên được gửi tin nhắn" đã được bật ${restrictUntilText}`)
+            toast.info(`${t('messages.onlyAdminsCanSendEnabled')} ${restrictUntilText}`)
           } else {
-            toast.info('Chế độ "Chỉ quản trị viên được gửi tin nhắn" đã được tắt')
+            toast.info(t('messages.onlyAdminsCanSendDisabled'))
           }
         }
 
@@ -922,16 +916,16 @@ function ChatDetail({ params }: Props) {
       // Hiển thị thông báo lỗi tương tự như trên
       if (sendPermission?.isMuted) {
         const mutedUntilText = sendPermission.mutedUntil
-          ? `đến ${format(new Date(sendPermission.mutedUntil), 'PPP HH:mm', { locale: vi })}`
-          : 'vô thời hạn'
-        toast.error(`Bạn đã bị cấm chat ${mutedUntilText}`)
+          ? `${t('messages.until')} ${format(new Date(sendPermission.mutedUntil), 'PPP HH:mm', { locale: vi })}`
+          : t('messages.indefinitely')
+        toast.error(`${t('messages.youAreMuted')} ${mutedUntilText}`)
       } else if (sendPermission?.restrictedByGroupSettings) {
         const restrictUntilText = sendPermission.restrictUntil
-          ? `đến ${format(new Date(sendPermission.restrictUntil), 'PPP HH:mm', { locale: vi })}`
+          ? `${t('messages.until')} ${format(new Date(sendPermission.restrictUntil), 'PPP HH:mm', { locale: vi })}`
           : ''
-        toast.error(`Chỉ quản trị viên mới có thể gửi tin nhắn ${restrictUntilText}`)
+        toast.error(`${t('messages.onlyAdminsCanSend')} ${restrictUntilText}`)
       } else {
-        toast.error('Bạn không có quyền gửi tin nhắn trong nhóm này')
+        toast.error(t('messages.noPermissionToSend'))
       }
       return
     }
@@ -1711,7 +1705,7 @@ function ChatDetail({ params }: Props) {
     // Nếu là group chat, sử dụng tên và avatar của nhóm
     if (conversation.type === 'GROUP') {
       return {
-        name: conversation.name || 'Nhóm chat',
+        name: conversation.name || t('messages.groupChat'),
         avatar: conversation.avatar || undefined
       }
     }
@@ -1721,7 +1715,7 @@ function ChatDetail({ params }: Props) {
     const otherParticipant = conversation.participants?.find((p: any) => p._id !== currentUserId)
 
     return {
-      name: otherParticipant?.name || 'Unknown',
+      name: otherParticipant?.name || t('messages.unknown'),
       avatar: otherParticipant?.avatar || undefined
     }
   }, [data?.pages, session?.user?._id])
@@ -1848,9 +1842,9 @@ function ChatDetail({ params }: Props) {
           <>
             <Button variant='ghost' size='icon' onClick={() => router.push('/messages')} className='mr-2'>
               <ArrowLeft className='h-5 w-5' />
-              <span className='sr-only'>Back</span>
+              <span className='sr-only'>{t('back')}</span>
             </Button>
-            <h2 className='text-lg font-semibold'>Tin nhắn</h2>
+            <h2 className='text-lg font-semibold'>{t('messages')}</h2>
           </>
         )}
         <div className='flex-1'></div>
@@ -1859,23 +1853,23 @@ function ChatDetail({ params }: Props) {
             <DialogTrigger asChild>
               <Button variant='ghost' size='icon' disabled={!chatId}>
                 <Archive className='h-4 w-4' />
-                <span className='sr-only'>{data?.pages[0]?.conversation?.isArchived ? 'Unarchive' : 'Archive'}</span>
+                <span className='sr-only'>
+                  {data?.pages[0]?.conversation?.isArchived ? t('unarchive') : t('archiveChat')}
+                </span>
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>
-                  {data?.pages[0]?.conversation?.isArchived ? 'Bỏ lưu trữ' : 'Lưu trữ'} cuộc trò chuyện
+                  {data?.pages[0]?.conversation?.isArchived ? t('unarchiveChat') : t('archiveChat')}
                 </DialogTitle>
                 <DialogDescription>
-                  {data?.pages[0]?.conversation?.isArchived
-                    ? 'Bạn có chắc chắn muốn bỏ lưu trữ cuộc trò chuyện này?'
-                    : 'Bạn có chắc chắn muốn lưu trữ cuộc trò chuyện này?'}
+                  {data?.pages[0]?.conversation?.isArchived ? t('confirmUnarchive') : t('confirmArchive')}
                 </DialogDescription>
               </DialogHeader>
               <DialogFooter>
                 <DialogClose asChild>
-                  <Button variant='outline'>Hủy</Button>
+                  <Button variant='outline'>{t('cancel')}</Button>
                 </DialogClose>
                 <Button
                   onClick={() => {
@@ -1883,7 +1877,7 @@ function ChatDetail({ params }: Props) {
                     setIsArchiveDialogOpen(false)
                   }}
                 >
-                  {data?.pages[0]?.conversation?.isArchived ? 'Bỏ lưu trữ' : 'Lưu trữ'}
+                  {data?.pages[0]?.conversation?.isArchived ? t('unarchive') : t('archiveChat')}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -1971,15 +1965,13 @@ function ChatDetail({ params }: Props) {
                               size='icon'
                               onClick={handleStartAudioCall}
                               // disabled={!userStatus.isOnline}
-                              title={userStatus.isOnline ? 'Gọi thoại' : 'Người dùng đang offline'}
+                              title={userStatus.isOnline ? t('voiceCall') : t('userOffline')}
                             >
                               <Phone className='h-5 w-5' />
-                              <span className='sr-only'>Gọi thoại</span>
+                              <span className='sr-only'>{t('voiceCall')}</span>
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent>
-                            {userStatus.isOnline ? 'Gọi thoại' : 'Người dùng đang offline'}
-                          </TooltipContent>
+                          <TooltipContent>{userStatus.isOnline ? t('voiceCall') : t('userOffline')}</TooltipContent>
                         </Tooltip>
 
                         {/* Nút gọi video */}
@@ -1990,15 +1982,13 @@ function ChatDetail({ params }: Props) {
                               size='icon'
                               onClick={handleStartVideoCall}
                               // disabled={!userStatus.isOnline}
-                              title={userStatus.isOnline ? 'Gọi video' : 'Người dùng đang offline'}
+                              title={userStatus.isOnline ? t('videoCall') : t('userOffline')}
                             >
                               <Video className='h-5 w-5' />
-                              <span className='sr-only'>Gọi video</span>
+                              <span className='sr-only'>{t('videoCall')}</span>
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent>
-                            {userStatus.isOnline ? 'Gọi video' : 'Người dùng đang offline'}
-                          </TooltipContent>
+                          <TooltipContent>{userStatus.isOnline ? t('videoCall') : t('userOffline')}</TooltipContent>
                         </Tooltip>
 
                         {otherUserId && (
@@ -2030,8 +2020,8 @@ function ChatDetail({ params }: Props) {
           )}
           <div className='relative'>
             <div
-              className={cn('max-h-[calc(100dvh-262px)] flex-1 overflow-y-auto', {
-                'max-h-[calc(100dvh-300px)]': pinnedMessage && pinnedMessage?.length > 0
+              className={cn('h-[calc(100dvh-262px)] overflow-y-auto', {
+                'h-[calc(100dvh-300px)]': pinnedMessage && pinnedMessage?.length > 0
               })}
               id='messageScrollableDiv'
               ref={scrollContainerRef}
@@ -2051,7 +2041,7 @@ function ChatDetail({ params }: Props) {
                 )}
 
                 {!hasNextPage && (
-                  <div className='text-muted-foreground p-2 text-center text-xs'>Không còn tin nhắn cũ nào nữa</div>
+                  <div className='text-muted-foreground p-2 text-center text-xs'>{t('noOlderMessages')}</div>
                 )}
 
                 {/* Danh sách tin nhắn */}

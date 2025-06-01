@@ -13,6 +13,7 @@ import { Skeleton } from '~/components/ui/skeleton'
 import SOCKET_EVENTS from '~/constants/socket-events'
 import { useArchiveChat, useChatList } from '~/hooks/data/chat.hooks'
 import { useSocket } from '~/hooks/use-socket'
+import { useMessagesTranslation } from '~/hooks/use-translations'
 import conversationsService from '~/services/conversations.service'
 
 // Tạo component MemoizedConversationItem
@@ -70,6 +71,7 @@ export function ChatList() {
   const queryClient = useQueryClient()
   const { socket } = useSocket()
   const { unarchiveChat } = useArchiveChat()
+  const messagesT = useMessagesTranslation()
 
   const activeView = (searchParams.get('view') as 'inbox' | 'archived') || 'inbox'
   const filter = (searchParams.get('filter') as 'all' | 'unread') || 'all'
@@ -176,7 +178,12 @@ export function ChatList() {
       <div className='flex items-center gap-2 p-4'>
         <div className='relative flex-1'>
           <Search className='text-muted-foreground absolute top-2.5 left-2 h-4 w-4' />
-          <Input placeholder='Tìm kiếm tin nhắn' value={searchQuery} onChange={handleSearchChange} className='pl-8' />
+          <Input
+            placeholder={messagesT('searchPlaceholder')}
+            value={searchQuery}
+            onChange={handleSearchChange}
+            className='pl-8'
+          />
         </div>
         <CreateGroupChatDialog />
       </div>
@@ -192,7 +199,7 @@ export function ChatList() {
             scrollableTarget='chatListScrollableDiv'
             endMessage={
               <div className='text-muted-foreground p-2 text-center text-xs'>
-                {items.length > 0 ? 'Không còn cuộc trò chuyện nào nữa' : ''}
+                {items.length > 0 ? messagesT('noMoreChats') : ''}
               </div>
             }
           >
@@ -200,10 +207,10 @@ export function ChatList() {
               {isLoading ? (
                 renderChatSkeletons()
               ) : isError ? (
-                <div className='text-muted-foreground p-4 text-center'>Không thể tải tin nhắn.</div>
+                <div className='text-muted-foreground p-4 text-center'>{messagesT('loadError')}</div>
               ) : items.length === 0 ? (
                 <div className='text-muted-foreground p-4 text-center'>
-                  {searchQuery ? 'Không tìm thấy kết quả phù hợp.' : 'Không có cuộc trò chuyện nào.'}
+                  {searchQuery ? messagesT('noSearchResults') : messagesT('noChats')}
                 </div>
               ) : (
                 <AnimatePresence initial={false}>
@@ -225,10 +232,10 @@ export function ChatList() {
             {archivedChats.isLoading ? (
               renderChatSkeletons()
             ) : archivedChats.isError ? (
-              <div className='text-muted-foreground p-4 text-center'>Không thể tải tin nhắn đã lưu trữ.</div>
+              <div className='text-muted-foreground p-4 text-center'>{messagesT('cannotLoadArchivedChats')}</div>
             ) : uniqueArchivedItems.length === 0 ? (
               <div className='text-muted-foreground p-4 text-center'>
-                {searchQuery ? 'Không tìm thấy kết quả phù hợp.' : 'Không có cuộc trò chuyện nào đã lưu trữ.'}
+                {searchQuery ? messagesT('noSearchResults') : messagesT('noArchivedChats')}
               </div>
             ) : (
               <AnimatePresence initial={false}>

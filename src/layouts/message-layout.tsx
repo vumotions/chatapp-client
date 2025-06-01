@@ -18,8 +18,12 @@ import { usePathname } from '~/i18n/navigation'
 import { cn } from '~/lib/utils'
 import { LayoutProps } from '~/types/props.types'
 import BlockedUsersList from '~/components/ui/chat/blocked-users-list'
+import { useMessagesTranslation } from '~/hooks/use-translations'
 
 export default function MessageLayout({ children }: LayoutProps) {
+  // Sử dụng hook đa ngôn ngữ có sẵn
+  const t = useMessagesTranslation()
+  
   const searchParams = useSearchParams()
   const pathname = usePathname()
   const router = useRouter()
@@ -82,15 +86,15 @@ export default function MessageLayout({ children }: LayoutProps) {
   const getViewTitle = () => {
     switch (currentView) {
       case 'inbox':
-        return 'Inbox'
+        return t('inbox')
       case 'archived':
-        return 'Archive'
+        return t('archive')
       case 'blocked-users':
-        return 'Blocked Users'
+        return t('blockedUsers')
       case 'drafts':
-        return 'Drafts'
+        return t('drafts')
       default:
-        return 'Inbox'
+        return t('inbox')
     }
   }
 
@@ -129,21 +133,21 @@ export default function MessageLayout({ children }: LayoutProps) {
                   isCollapsed={true}
                   links={[
                     {
-                      title: 'Inbox',
+                      title: t('inbox'),
                       label: '',
                       icon: Inbox,
                       variant: currentView === 'inbox' ? 'default' : 'ghost',
                       onClick: () => handleNavClick('inbox')
                     },
                     {
-                      title: 'Blocked Users',
+                      title: t('blockedUsers'),
                       label: '',
                       icon: UserX,
                       variant: currentView === 'blocked-users' ? 'default' : 'ghost',
                       onClick: () => handleNavClick('blocked-users')
                     },
                     {
-                      title: 'Archive',
+                      title: t('archive'),
                       label: '',
                       icon: Archive,
                       variant: currentView === 'archived' ? 'default' : 'ghost',
@@ -156,14 +160,14 @@ export default function MessageLayout({ children }: LayoutProps) {
                   isCollapsed={true}
                   links={[
                     {
-                      title: 'Home',
+                      title: t('home'),
                       label: '',
                       icon: Home,
                       variant: 'ghost',
                       href: '/'
                     },
                     {
-                      title: 'Settings',
+                      title: t('settings'),
                       label: '',
                       icon: Settings,
                       variant: 'ghost',
@@ -217,13 +221,13 @@ export default function MessageLayout({ children }: LayoutProps) {
                               value='all'
                               className='dark:data-[state=active]:bg-background text-zinc-600 dark:text-zinc-200'
                             >
-                              All messages
+                              {t('allMessages')}
                             </TabsTrigger>
                             <TabsTrigger
                               value='unread'
                               className='dark:data-[state=active]:bg-background text-zinc-600 dark:text-zinc-200'
                             >
-                              Unread
+                              {t('unread')}
                             </TabsTrigger>
                           </TabsList>
                         </div>
@@ -277,21 +281,21 @@ export default function MessageLayout({ children }: LayoutProps) {
               isCollapsed={isCollapsed}
               links={[
                 {
-                  title: 'Inbox',
+                  title: t('inbox'),
                   label: '',
                   icon: Inbox,
                   variant: currentView === 'inbox' ? 'default' : 'ghost',
                   onClick: () => handleNavClick('inbox')
                 },
                 {
-                  title: 'Blocked Users',
+                  title: t('blockedUsers'),
                   label: '',
                   icon: UserX,
                   variant: currentView === 'blocked-users' ? 'default' : 'ghost',
                   onClick: () => handleNavClick('blocked-users')
                 },
                 {
-                  title: 'Archive',
+                  title: t('archive'),
                   label: '',
                   icon: Archive,
                   variant: currentView === 'archived' ? 'default' : 'ghost',
@@ -304,14 +308,14 @@ export default function MessageLayout({ children }: LayoutProps) {
               isCollapsed={isCollapsed}
               links={[
                 {
-                  title: 'Home',
+                  title: t('home'),
                   label: '',
                   icon: Home,
                   variant: 'ghost',
                   href: '/'
                 },
                 {
-                  title: 'Settings',
+                  title: t('settings'),
                   label: '',
                   icon: Settings,
                   variant: 'ghost',
@@ -342,13 +346,13 @@ export default function MessageLayout({ children }: LayoutProps) {
                     value='all'
                     className='dark:data-[state=active]:bg-background text-zinc-600 dark:text-zinc-200'
                   >
-                    All messages
+                    {t('allMessages')}
                   </TabsTrigger>
                   <TabsTrigger
                     value='unread'
                     className='dark:data-[state=active]:bg-background text-zinc-600 dark:text-zinc-200'
                   >
-                    Unread
+                    {t('unread')}
                   </TabsTrigger>
                 </TabsList>
               </div>

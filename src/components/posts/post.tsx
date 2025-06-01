@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { formatDistanceToNow } from 'date-fns'
 import { vi } from 'date-fns/locale'
-import { Flag, Heart, MessageCircle, MoreHorizontal, Share2, Trash, UserCheck, UserPlus, UserX } from 'lucide-react'
+import { Flag, Heart, Loader2, MessageCircle, MoreHorizontal, Share2, Trash, UserCheck, UserPlus, UserX } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
@@ -41,6 +41,7 @@ import {
   useSendFriendRequestMutation
 } from '~/hooks/data/friends.hook'
 import { useDeletePostMutation } from '~/hooks/data/post.hooks'
+import { usePostsTranslation, usePostTranslation } from '~/hooks/use-translations'
 import postService from '~/services/post.service'
 
 interface MediaItem {
@@ -78,9 +79,10 @@ interface PostProps {
 }
 
 export const Post: React.FC<PostProps> = ({ post }) => {
+  const t = usePostTranslation()
+  const router = useRouter()
   const { data: session } = useSession()
   const queryClient = useQueryClient()
-  const router = useRouter()
   const [liked, setLiked] = useState(post.userLiked || post.isLiked || false)
   const [likesCount, setLikesCount] = useState(post.likesCount || 0)
   const [commentCount, setCommentCount] = useState(post.commentsCount || 0)
@@ -172,6 +174,8 @@ export const Post: React.FC<PostProps> = ({ post }) => {
   const cancelFriendRequest = useCancelFriendRequestMutation()
   const acceptFriendRequest = useAcceptFriendRequestMutation()
   const removeFriend = useRemoveFriendMutation()
+
+  const postsT = usePostsTranslation()
 
   const timeAgo = formatDistanceToNow(new Date(post.createdAt || post.created_at || new Date()), {
     addSuffix: true,
@@ -801,7 +805,7 @@ export const Post: React.FC<PostProps> = ({ post }) => {
                 }}
                 className='text-muted-foreground mt-1 text-xs font-medium hover:underline'
               >
-                {isExpanded ? 'Ẩn bớt' : 'Xem thêm'}
+                {isExpanded ? t('seeLess') : t('seeMore')}
               </button>
             )}
           </div>
@@ -850,7 +854,7 @@ export const Post: React.FC<PostProps> = ({ post }) => {
             }}
             className='text-muted-foreground mt-1 text-sm font-medium hover:underline'
           >
-            {isExpanded ? 'Ẩn bớt' : 'Xem thêm'}
+            {isExpanded ? t('seeLess') : t('seeMore')}
           </button>
         )}
         {!post.media?.length && linkVideo && <IframeVideo linkVideo={linkVideo} width='100%' height='385' />}
@@ -972,10 +976,10 @@ export const Post: React.FC<PostProps> = ({ post }) => {
               <DropdownMenuContent align='end'>
                 <DropdownMenuItem
                   onClick={() => setShowDeleteDialog(true)}
-                  className='text-destructive focus:text-destructive'
+                  className='text-destructive focus:text-destructive text-xs'
                 >
                   <Trash className='mr-2 h-4 w-4' />
-                  Xóa bài viết
+                  {t('delete')}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -1034,18 +1038,18 @@ export const Post: React.FC<PostProps> = ({ post }) => {
           {renderLikedUsers()}
 
           <div className='flex items-center justify-between border-t border-b py-2'>
-            <Button variant='ghost' size='sm' className='flex-1' onClick={handleLike}>
-              <Heart className={`mr-2 h-4 w-4 ${liked ? 'fill-red-500 text-red-500' : ''}`} />
-              Thích
+            <Button variant='ghost' size='sm' className='flex-1 text-xs' onClick={handleLike}>
+              <Heart className={`mr-1 h-4 w-4 ${liked ? 'fill-red-500 text-red-500' : ''}`} />
+              {t('like')}
             </Button>
-            <Button variant='ghost' size='sm' className='flex-1' onClick={handleToggleComments}>
-              <MessageCircle className='mr-2 h-4 w-4' />
-              Bình luận
+            <Button variant='ghost' size='sm' className='flex-1 text-xs' onClick={handleToggleComments}>
+              <MessageCircle className='mr-1 h-4 w-4' />
+              {t('comment')}
             </Button>
             <SharePopover postId={post._id} post={post}>
-              <Button variant='ghost' size='sm' className='flex-1'>
-                <Share2 className='mr-2 h-4 w-4' />
-                Chia sẻ
+              <Button variant='ghost' size='sm' className='flex-1 text-xs'>
+                <Share2 className='mr-1 h-4 w-4' />
+                {t('share')}
               </Button>
             </SharePopover>
           </div>
@@ -1082,19 +1086,20 @@ export const Post: React.FC<PostProps> = ({ post }) => {
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Xóa bài viết</AlertDialogTitle>
+            <AlertDialogTitle>{t('deleteConfirmation')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Bạn có chắc chắn muốn xóa bài viết này? Hành động này không thể hoàn tác.
+              {t('deleteWarning')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Hủy</AlertDialogCancel>
+            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeletePost}
               className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
               disabled={deletePostMutation.isPending}
             >
-              {deletePostMutation.isPending ? 'Đang xóa...' : 'Xóa'}
+              {deletePostMutation.isPending ? <Loader2 className='mr-1 h-3 w-3 animate-spin' /> : null}
+              {t('confirm')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

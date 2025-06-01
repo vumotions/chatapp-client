@@ -1,4 +1,5 @@
 import { Metadata } from 'next'
+import { useTranslations } from 'next-intl'
 
 import { SidebarNav } from '~/components/sidebar-nav'
 import { Separator } from '~/components/ui/separator'
@@ -9,30 +10,32 @@ export const metadata: Metadata = {
   description: 'Manage your account settings and preferences.'
 }
 
-const sidebarNavItems = [
-  {
-    title: 'Profile',
-    href: '/settings'
-  },
-  {
-    title: 'Account',
-    href: '/settings/account',
-    description: 'Update account settings and appearance preferences'
-  },
-  {
-    title: 'Notifications',
-    href: '/settings/notifications',
-    disabled: true,
-    badge: 'Coming soon'
-  }
-]
-
 function SettingsLayout({ children }: LayoutProps) {
+  const t = useTranslations('settings')
+
+  const sidebarNavItems = [
+    {
+      title: t('sidebar.profile'),
+      href: '/settings'
+    },
+    {
+      title: t('sidebar.account'),
+      href: '/settings/account',
+      description: t('sidebar.accountDescription')
+    },
+    {
+      title: t('sidebar.notifications'),
+      href: '/settings/notifications',
+      disabled: true,
+      badge: t('sidebar.comingSoon')
+    }
+  ]
+
   return (
-    <div className='space-y-6 p-10 pb-16'>
+    <div className='space-y-4 p-4 pt-8 pb-16 lg:space-y-6 lg:p-10'>
       <div className='space-y-0.5'>
-        <h2 className='text-2xl font-bold tracking-tight'>Settings</h2>
-        <p className='text-muted-foreground'>Manage your account settings and preferences.</p>
+        <h2 className='text-2xl font-bold tracking-tight'>{t('title')}</h2>
+        <p className='text-muted-foreground'>{t('description')}</p>
       </div>
       <Separator className='my-6' />
       <div className='flex flex-col justify-center space-y-8 lg:flex-row lg:space-y-0 lg:space-x-12'>

@@ -8,11 +8,13 @@ import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
 import { Button } from '~/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '~/components/ui/popover'
 import { Link, useRouter } from '~/i18n/navigation'
+import { useUserTranslation } from '~/hooks/use-translations'
 
 function UserPopover() {
   const { data: session } = useSession()
   const [open, setOpen] = useState(false)
   const router = useRouter()
+  const t = useUserTranslation()
 
   const handleLogout = () => {
     setOpen(false)
@@ -55,7 +57,7 @@ function UserPopover() {
           <Link href='/settings' onClick={() => setOpen(false)}>
             <button className='hover:bg-accent flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm'>
               <Settings className='size-4' />
-              Settings
+              {t('settings')}
             </button>
           </Link>
           <button
@@ -63,7 +65,7 @@ function UserPopover() {
             className='hover:bg-accent flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm'
           >
             <LogOut className='size-4' />
-            Log out
+            {t('logout')}
           </button>
         </div>
       </PopoverContent>

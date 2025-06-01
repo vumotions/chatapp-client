@@ -2,23 +2,24 @@
 
 import { format, formatDistanceToNow } from 'date-fns'
 import { vi } from 'date-fns/locale'
+import { debounce } from 'lodash'
 import { MessageCircle } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { debounce } from 'lodash'
 import InfiniteScroll from 'react-infinite-scroll-component'
 
+import { useQueryClient } from '@tanstack/react-query'
 import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
 import { Popover, PopoverContent, PopoverTrigger } from '~/components/ui/popover'
+import SOCKET_EVENTS from '~/constants/socket-events'
 import { useChatList } from '~/hooks/data/chat.hooks'
+import { useSocket } from '~/hooks/use-socket'
+import { useMessagesTranslation } from '~/hooks/use-translations'
 import { Link } from '~/i18n/navigation'
+import { cn } from '~/lib/utils'
+import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Skeleton } from './ui/skeleton'
-import { Button } from './ui/button'
-import { cn } from '~/lib/utils'
-import SOCKET_EVENTS from '~/constants/socket-events'
-import { useQueryClient } from '@tanstack/react-query'
-import { useSocket } from '~/hooks/use-socket'
 
 function MessagePopover() {
   const [open, setOpen] = useState(false)
@@ -27,9 +28,10 @@ function MessagePopover() {
   const { data: session } = useSession()
   const queryClient = useQueryClient()
   const { socket } = useSocket()
+  const messagesT = useMessagesTranslation()
 
   // Fetch chats using the existing hook with search query
-  const { data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage } = useChatList(
+  const { data, isLoading, isError, fetchNextPage, hasNextPage } = useChatList(
     'all',
     searchQuery,
     true // Đảm bảo hook luôn được kích hoạt
@@ -39,15 +41,6 @@ function MessagePopover() {
   const chats = useMemo(() => {
     return data?.pages.flatMap((page) => page?.conversations) || []
   }, [data])
-
-  // Kiểm tra console.log để debug - Đặt useEffect này SAU khi khai báo chats
-  useEffect(() => {
-    if (data) {
-      console.log('Chat data:', data)
-      console.log('Has next page:', hasNextPage)
-      console.log('Current chats count:', chats.length)
-    }
-  }, [data, hasNextPage, chats.length])
 
   // Create debounced search function
   const debouncedSearch = useCallback(
@@ -145,8 +138,13 @@ function MessagePopover() {
       </PopoverTrigger>
       <PopoverContent className='w-96 p-0' align='end'>
         <div className='border-b p-3'>
-          <h3 className='py-2 text-base font-medium'>Đoạn chat</h3>
-          <Input placeholder='Tìm kiếm tin nhắn' className='mt-2' value={inputValue} onChange={handleInputChange} />
+          <h3 className='py-2 text-base font-medium'>{messagesT('title')}</h3>
+          <Input
+            placeholder={messagesT('searchPlaceholder')}
+            className='mt-2'
+            value={inputValue}
+            onChange={handleInputChange}
+          />
         </div>
 
         <div id='messageScrollableDiv' className='h-[50vh] overflow-auto'>
@@ -166,10 +164,10 @@ function MessagePopover() {
               ))
           ) : isError ? (
             // Error state
-            <div className='text-muted-foreground p-4 text-center'>Không thể tải tin nhắn. Vui lòng thử lại sau.</div>
+            <div className='text-muted-foreground p-4 text-center'>{messagesT('loadError')}</div>
           ) : chats?.length === 0 ? (
             // Empty state
-            <div className='text-muted-foreground p-4 text-center'>Bạn chưa có cuộc trò chuyện nào.</div>
+            <div className='text-muted-foreground p-4 text-center'>{messagesT('noChats')}</div>
           ) : (
             // Chats list with infinite scroll
             <InfiniteScroll
@@ -184,7 +182,7 @@ function MessagePopover() {
               scrollableTarget='messageScrollableDiv'
               endMessage={
                 <div className='text-muted-foreground p-2 text-center text-xs'>
-                  {chats.length > 0 ? 'Không còn cuộc trò chuyện nào nữa' : ''}
+                  {chats.length > 0 ? messagesT('noMoreChats') : ''}
                 </div>
               }
               scrollThreshold={0.8}

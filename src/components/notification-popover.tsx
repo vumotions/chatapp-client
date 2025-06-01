@@ -25,6 +25,7 @@ import { useRouter } from '~/i18n/navigation'
 import { cn } from '~/lib/utils'
 import { Button } from './ui/button'
 import { Skeleton } from './ui/skeleton'
+import { useNotificationsTranslation } from '~/hooks/use-translations'
 
 function NotificationPopover() {
   const [open, setOpen] = useState(false)
@@ -35,6 +36,7 @@ function NotificationPopover() {
   const [processedIds, setProcessedIds] = useState<string[]>([])
   const router = useRouter()
   const queryClient = useQueryClient()
+  const notificationsT = useNotificationsTranslation()
 
   // Thêm useEffect để lấy processedIds từ localStorage khi component mount
   useEffect(() => {
@@ -341,7 +343,7 @@ function NotificationPopover() {
       </PopoverTrigger>
       <PopoverContent className='w-96 p-0' align='end'>
         <div className='flex items-center justify-between border-b px-4 py-3'>
-          <h3 className='text-sm font-medium'>Thông báo</h3>
+          <h3 className='text-sm font-medium'>{notificationsT('title')}</h3>
           <div className='flex items-center space-x-2'>
             <div className='space-x-2 text-sm'>
               <Button
@@ -351,7 +353,7 @@ function NotificationPopover() {
                   '!bg-muted': tab === 'all'
                 })}
               >
-                Tất cả
+                {notificationsT('all')}
               </Button>
               <Button
                 variant='outline'
@@ -360,7 +362,7 @@ function NotificationPopover() {
                   '!bg-muted': tab === 'unread'
                 })}
               >
-                Chưa đọc
+                {notificationsT('unread')}
               </Button>
             </div>
 
@@ -378,7 +380,7 @@ function NotificationPopover() {
                     onClick={handleMarkAllAsRead}
                   >
                     <Check className='h-4 w-4' />
-                    Đánh dấu tất cả đã đọc
+                    {notificationsT('markAllAsRead')}
                   </Button>
                   <Button
                     variant='ghost'
@@ -386,7 +388,7 @@ function NotificationPopover() {
                     onClick={handleDeleteAllNotifications}
                   >
                     <Trash className='h-4 w-4' />
-                    Xóa tất cả thông báo
+                    {notificationsT('deleteAll')}
                   </Button>
                 </div>
               </PopoverContent>
@@ -410,11 +412,11 @@ function NotificationPopover() {
               ))
           ) : isError ? (
             // Error state
-            <div className='text-muted-foreground p-4 text-center'>Không thể tải thông báo. Vui lòng thử lại sau.</div>
+            <div className='text-muted-foreground p-4 text-center'>{notificationsT('loadError')}</div>
           ) : filteredNotifications?.length === 0 ? (
             // Empty state
             <div className='text-muted-foreground p-4 text-center'>
-              {tab === 'all' ? 'Bạn chưa có thông báo nào.' : 'Không có thông báo chưa đọc.'}
+              {tab === 'all' ? notificationsT('noNotifications') : notificationsT('noUnreadNotifications')}
             </div>
           ) : (
             // Notifications list with infinite scroll
@@ -429,7 +431,7 @@ function NotificationPopover() {
               }
               scrollableTarget='notificationScrollableDiv'
               endMessage={
-                <div className='text-muted-foreground p-2 text-center text-xs'>Không còn thông báo nào nữa</div>
+                <div className='text-muted-foreground p-2 text-center text-xs'>{notificationsT('noMoreNotifications')}</div>
               }
             >
               {filteredNotifications?.map((item: any) => {

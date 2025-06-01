@@ -16,10 +16,13 @@ import {
   useSendFriendRequestMutation
 } from '~/hooks/data/friends.hook'
 import FriendSuggestionItemSkeleton from './friend-suggestion-item-skeleton'
+import { useHomeTranslation } from '~/hooks/use-translations'
+import { Link } from '~/i18n/navigation'
 
 // Skeleton component cho item gợi ý kết bạn
 
 export default function FriendSuggestions() {
+  const t = useHomeTranslation()
   const { status } = useSession()
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(6) // Mặc định 6 items mỗi trang
@@ -192,7 +195,7 @@ export default function FriendSuggestions() {
     <Card className='mb-6'>
       <CardContent className='p-4'>
         <div className='mb-4 flex items-center justify-between'>
-          <h3 className='text-lg font-semibold'>Gợi ý kết bạn</h3>
+          <h3 className='text-lg font-semibold'>{t('friendSuggestions')}</h3>
           {pagination && pagination.totalPages > 1 && (
             <div className='flex gap-2'>
               <Button variant='outline' size='icon' onClick={prevPage} disabled={page === 1} className='h-8 w-8'>
@@ -219,7 +222,7 @@ export default function FriendSuggestions() {
               ))}
             </div>
           ) : suggestions.length === 0 ? (
-            <div className='text-muted-foreground py-8 text-center'>Không có gợi ý kết bạn nào</div>
+            <div className='text-muted-foreground py-8 text-center'>{t('noSuggestions')}</div>
           ) : (
             <AnimatePresence mode='wait'>
               <motion.div
@@ -255,8 +258,8 @@ export default function FriendSuggestions() {
                         </div>
 
                         <div className='flex flex-grow items-end justify-center'>
-                          {isPending && <div className='truncate text-xs text-amber-500'>Đã gửi lời mời</div>}
-                          {isReceived && <div className='truncate text-xs text-blue-500'>Đã gửi lời mời cho bạn</div>}
+                          {isPending && <div className='truncate text-xs text-amber-500'>{t('friendRequestSent')}</div>}
+                          {isReceived && <div className='truncate text-xs text-blue-500'>{t('friendRequestReceived')}</div>}
                         </div>
 
                         <div className='mt-2 flex w-full flex-col gap-2'>
@@ -270,8 +273,8 @@ export default function FriendSuggestions() {
                                 disabled={selectedCancel === user._id || cancelFriendRequest.isPending}
                               >
                                 {selectedCancel === user._id && cancelFriendRequest.isPending
-                                  ? 'Đang hủy...'
-                                  : 'Hủy lời mời'}
+                                  ? t('cancelingRequest')
+                                  : t('cancelRequest')}
                               </Button>
                               <div className='flex w-full gap-2'>
                                 <Button
@@ -281,7 +284,7 @@ export default function FriendSuggestions() {
                                   onClick={() => handleStartConversation(user._id)}
                                   disabled={selectedMsg === user._id || startConversation.isPending}
                                 >
-                                  {selectedMsg === user._id && startConversation.isPending ? 'Đang tạo...' : 'Nhắn tin'}
+                                  {selectedMsg === user._id && startConversation.isPending ? t('creatingMessage') : t('sendMessage')}
                                 </Button>
                                 <Button
                                   size='sm'
@@ -295,7 +298,7 @@ export default function FriendSuggestions() {
                                   ) : (
                                     <User className='mr-1 h-4 w-4' />
                                   )}{' '}
-                                  Hồ sơ
+                                  {t('viewProfile')}
                                 </Button>
                               </div>
                             </>
@@ -309,8 +312,8 @@ export default function FriendSuggestions() {
                                 disabled={selectedAccept === user._id || acceptFriendRequest.isPending}
                               >
                                 {selectedAccept === user._id && acceptFriendRequest.isPending
-                                  ? 'Đang xử lý...'
-                                  : 'Chấp nhận'}
+                                  ? t('acceptingRequest')
+                                  : t('acceptRequest')}
                               </Button>
                               <div className='flex w-full gap-2'>
                                 <Button
@@ -320,7 +323,7 @@ export default function FriendSuggestions() {
                                   onClick={() => handleStartConversation(user._id)}
                                   disabled={selectedMsg === user._id || startConversation.isPending}
                                 >
-                                  {selectedMsg === user._id && startConversation.isPending ? 'Đang tạo...' : 'Nhắn tin'}
+                                  {selectedMsg === user._id && startConversation.isPending ? t('creatingMessage') : t('sendMessage')}
                                 </Button>
                                 <Button
                                   size='sm'
@@ -334,7 +337,7 @@ export default function FriendSuggestions() {
                                   ) : (
                                     <User className='mr-1 h-4 w-4' />
                                   )}{' '}
-                                  Hồ sơ
+                                  {t('viewProfile')}
                                 </Button>
                               </div>
                             </>
@@ -347,7 +350,7 @@ export default function FriendSuggestions() {
                                   onClick={() => handleAddFriend(user._id)}
                                   disabled={selectedAdd === user._id || sendFriendRequest.isPending}
                                 >
-                                  {selectedAdd === user._id && sendFriendRequest.isPending ? 'Đang gửi...' : 'Kết bạn'}
+                                  {selectedAdd === user._id && sendFriendRequest.isPending ? t('sendingRequest') : t('addFriend')}
                                 </Button>
                                 <Button
                                   size='sm'
@@ -356,7 +359,7 @@ export default function FriendSuggestions() {
                                   onClick={() => handleStartConversation(user._id)}
                                   disabled={selectedMsg === user._id || startConversation.isPending}
                                 >
-                                  {selectedMsg === user._id && startConversation.isPending ? 'Đang tạo...' : 'Nhắn tin'}
+                                  {selectedMsg === user._id && startConversation.isPending ? t('creatingMessage') : t('sendMessage')}
                                 </Button>
                               </div>
                               <Button
@@ -371,7 +374,7 @@ export default function FriendSuggestions() {
                                 ) : (
                                   <User className='mr-1 h-4 w-4' />
                                 )}{' '}
-                                Xem hồ sơ
+                                {t('viewProfile')}
                               </Button>
                             </>
                           )}

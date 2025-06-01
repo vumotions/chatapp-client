@@ -9,11 +9,12 @@ import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import CustomFormMessage from '~/components/custom-form-message'
 import { Button, buttonVariants } from '~/components/ui/button'
-import { Form, FormControl, FormField, FormItem } from '~/components/ui/form'
+import { Form, FormControl, FormField, FormItem, FormMessage } from '~/components/ui/form'
 import { Icons } from '~/components/ui/icons'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '~/components/ui/input-otp'
 import { useSendEmailVerificationMutation, useVerifyAccountMutation } from '~/hooks/data/auth.hooks'
 import useCountdown from '~/hooks/use-countdown'
+import { useAuthTranslation } from '~/hooks/use-translations'
 import { Link, useRouter } from '~/i18n/navigation'
 import { handleError } from '~/lib/handlers'
 import { formCodeSchema, FormCodeValues } from '~/schemas/form.schemas'
@@ -23,6 +24,7 @@ type Props = {
 }
 
 function FormCode({ className }: Props) {
+  const t = useAuthTranslation()
   const form = useForm<Pick<FormCodeValues, 'otp'>>({
     defaultValues: {
       otp: ''
@@ -82,16 +84,13 @@ function FormCode({ className }: Props) {
   return (
     <>
       <div className='flex flex-col space-y-2 text-center'>
-        <h1 className='text-2xl font-semibold tracking-tight'>Enter the code from your email</h1>
-        <p className='space-x-1 text-sm'>
-          <span className='text-muted-foreground'>
-            Let us know that this email address belongs to you. Enter the code from the email sent to
-          </span>
-          <strong className='underline'>{email}</strong>.
+        <h1 className='text-2xl font-semibold tracking-tight'>{t('verifyYourAccount')}</h1>
+        <p className='text-muted-foreground text-sm'>
+          {t('verificationCodeSent')} <strong>{email}</strong>
         </p>
       </div>
       <div className={cn('mx-auto flex w-full flex-col justify-center gap-0 space-y-6', className)}>
-        <div className={'grid gap-6'}>
+        <div className='grid gap-6'>
           <Form {...form}>
             <form onSubmit={handleAccountVerification}>
               <div className='grid gap-3'>
@@ -109,7 +108,7 @@ function FormCode({ className }: Props) {
 
                             if (!/^\d*$/.test(value)) {
                               form.setError('otp', {
-                                message: 'Only numbers are allowed'
+                                message: t('onlyNumbersAllowed')
                               })
                               e.currentTarget.value = value.replace(/\D/g, '')
                             } else {
@@ -140,14 +139,14 @@ function FormCode({ className }: Props) {
                       })
                     )}
                   >
-                    Cancel
+                    {t('cancel')}
                   </Link>
                   <Button
                     onClick={handleAccountVerification}
                     disabled={verifyAccountMutation.isPending || !form.formState.isDirty}
                   >
                     {verifyAccountMutation.isPending && <Icons.spinner className='mr-2 h-4 w-4 animate-spin' />}
-                    Continue
+                    {t('continue')}
                   </Button>
                 </div>
 
@@ -157,7 +156,7 @@ function FormCode({ className }: Props) {
                   onClick={handleResendCode}
                   disabled={!isTimeout || sendEmailVerificationMutation.isPending}
                 >
-                  Send Email Again{' '}
+                  {t('sendEmailAgain')}{' '}
                   {sendEmailVerificationMutation.isPending && <Icons.spinner className='mr-2 h-4 w-4 animate-spin' />}
                 </Button>
                 {!isTimeout && (

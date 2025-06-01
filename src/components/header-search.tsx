@@ -13,12 +13,14 @@ import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState, useTransition } from 'react'
 import useMediaQuery from '~/hooks/use-media-query'
+import { useCommonTranslation } from '~/hooks/use-translations'
 import { cn } from '~/lib/utils'
 import searchService from '~/services/search.service'
 
 type SearchTab = 'all' | 'users' | 'posts' | 'chats'
 
 function HeaderSearch() {
+  const commonT = useCommonTranslation()
   const [isOpen, setIsOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
   const { data: session } = useSession()
@@ -124,7 +126,7 @@ function HeaderSearch() {
           disabled={isPending}
         >
           <Search className='h-5 w-5' />
-          <span className='sr-only'>Search</span>
+          <span className='sr-only'>{commonT('search')}</span>
         </Button>
 
         {isOpen && (
@@ -148,7 +150,7 @@ function HeaderSearch() {
                     ref={inputRef}
                     value={searchQuery}
                     onChange={handleSearchChange}
-                    placeholder='Search...'
+                    placeholder={`${commonT('search')}...`}
                     className='bg-accent/30 w-full border-0 pl-9'
                     autoFocus
                   />
@@ -174,40 +176,44 @@ function HeaderSearch() {
               {!debouncedQuery.trim() ? (
                 <div className='text-muted-foreground flex h-32 flex-col items-center justify-center'>
                   <Search className='mb-2 h-8 w-8 opacity-20' />
-                  <p className='text-sm'>Type to search...</p>
+                  <p className='text-sm'>{commonT('typeToSearch')}</p>
                 </div>
               ) : isSearching ? (
                 <div className='flex h-32 flex-col items-center justify-center'>
                   <Loader2 className='text-primary mb-2 h-8 w-8 animate-spin' />
-                  <p className='text-sm'>Searching...</p>
+                  <p className='text-sm'>{commonT('loading')}</p>
                 </div>
               ) : (
-                <Tabs defaultValue={activeTab} onValueChange={(value) => setActiveTab(value as SearchTab)}>
+                <Tabs
+                  defaultValue={activeTab}
+                  value={activeTab}
+                  onValueChange={(value) => setActiveTab(value as SearchTab)}
+                >
                   <div className='bg-background sticky top-0 border-b shadow-sm'>
                     <TabsList className='h-12 w-full justify-start bg-transparent px-2 pb-2'>
                       <TabsTrigger
                         value='all'
                         className='data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-full'
                       >
-                        All
+                        {commonT('all')}
                       </TabsTrigger>
                       <TabsTrigger
                         value='users'
                         className='data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-full'
                       >
-                        Users
+                        {commonT('users')}
                       </TabsTrigger>
                       <TabsTrigger
                         value='posts'
                         className='data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-full'
                       >
-                        Posts
+                        {commonT('posts')}
                       </TabsTrigger>
                       <TabsTrigger
                         value='chats'
                         className='data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-full'
                       >
-                        Chats
+                        {commonT('chats')}
                       </TabsTrigger>
                     </TabsList>
                   </div>
@@ -218,7 +224,7 @@ function HeaderSearch() {
                     searchResults.conversations.length === 0 ? (
                       <div className='text-muted-foreground flex h-32 flex-col items-center justify-center'>
                         <Search className='mb-2 h-8 w-8 opacity-20' />
-                        <p className='text-sm'>No results found</p>
+                        <p className='text-sm'>{commonT('noResultsFound')}</p>
                       </div>
                     ) : (
                       <div>
@@ -226,7 +232,7 @@ function HeaderSearch() {
                         {searchResults.users.length > 0 && (
                           <div className='py-2'>
                             <div className='flex items-center justify-between px-4 pb-1'>
-                              <h3 className='text-muted-foreground text-xs font-medium'>Users</h3>
+                              <h3 className='text-muted-foreground text-xs font-medium'>{commonT('users')}</h3>
                               {searchResults.users.length > 3 && (
                                 <Button
                                   variant='ghost'
@@ -236,7 +242,7 @@ function HeaderSearch() {
                                     setActiveTab('users')
                                   }}
                                 >
-                                  See all
+                                  {commonT('seeAll')}
                                 </Button>
                               )}
                             </div>
@@ -265,7 +271,7 @@ function HeaderSearch() {
                         {searchResults.posts.length > 0 && (
                           <div className='border-t py-2'>
                             <div className='flex items-center justify-between px-4 pb-1'>
-                              <h3 className='text-muted-foreground text-xs font-medium'>Posts</h3>
+                              <h3 className='text-muted-foreground text-xs font-medium'>{commonT('posts')}</h3>
                               {searchResults.posts.length > 3 && (
                                 <Button
                                   variant='ghost'
@@ -275,7 +281,7 @@ function HeaderSearch() {
                                     setActiveTab('posts')
                                   }}
                                 >
-                                  See all
+                                  {commonT('seeAll')}
                                 </Button>
                               )}
                             </div>
@@ -308,7 +314,7 @@ function HeaderSearch() {
                         {searchResults.conversations.length > 0 && (
                           <div className='border-t py-2'>
                             <div className='flex items-center justify-between px-4 pb-1'>
-                              <h3 className='text-muted-foreground text-xs font-medium'>Chats</h3>
+                              <h3 className='text-muted-foreground text-xs font-medium'>{commonT('chats')}</h3>
                               {searchResults.conversations.length > 3 && (
                                 <Button
                                   variant='ghost'
@@ -318,7 +324,7 @@ function HeaderSearch() {
                                     setActiveTab('chats')
                                   }}
                                 >
-                                  See all
+                                  {commonT('seeAll')}
                                 </Button>
                               )}
                             </div>
@@ -361,7 +367,7 @@ function HeaderSearch() {
                     {searchResults.users.length === 0 ? (
                       <div className='text-muted-foreground flex flex-col items-center justify-center py-8'>
                         <User className='mb-2 h-8 w-8 opacity-20' />
-                        <p className='text-sm'>No users found</p>
+                        <p className='text-sm'>{commonT('no_users_found')}</p>
                       </div>
                     ) : (
                       <div>
@@ -389,7 +395,7 @@ function HeaderSearch() {
                     {searchResults.posts.length === 0 ? (
                       <div className='text-muted-foreground flex flex-col items-center justify-center py-8'>
                         <FileText className='mb-2 h-8 w-8 opacity-20' />
-                        <p className='text-sm'>No posts found</p>
+                        <p className='text-sm'>{commonT('no_posts_found')}</p>
                       </div>
                     ) : (
                       <div>
@@ -421,7 +427,7 @@ function HeaderSearch() {
                     {searchResults.conversations.length === 0 ? (
                       <div className='text-muted-foreground flex flex-col items-center justify-center py-8'>
                         <MessageCircle className='mb-2 h-8 w-8 opacity-20' />
-                        <p className='text-sm'>No chats found</p>
+                        <p className='text-sm'>{commonT('noChatsFound')}</p>
                       </div>
                     ) : (
                       <div>
@@ -482,7 +488,7 @@ function HeaderSearch() {
           <Input
             ref={inputRef}
             type='text'
-            placeholder='Search users, posts, or chats...'
+            placeholder={commonT('searchUsersPostsChats')}
             className='bg-background w-full rounded-full border px-9 py-2 text-sm focus-visible:outline-none'
             value={searchQuery}
             onChange={handleSearchChange}
@@ -506,29 +512,41 @@ function HeaderSearch() {
         </form>
 
         {isOpen && searchQuery.length > 0 && !isPending && (
-          <div className='bg-background absolute top-full right-0 left-0 z-50 mt-1 overflow-hidden rounded-md border shadow-md'>
+          <div className='bg-background absolute top-full right-0 left-0 z-50 mt-1 w-[500px] overflow-hidden rounded-md border shadow-md'>
             {isSearching ? (
               <div className='flex items-center justify-center py-4'>
                 <Loader2 className='mr-2 h-5 w-5 animate-spin' />
-                <span>Searching...</span>
+                <span>{commonT('searching')}</span>
               </div>
             ) : !debouncedQuery.trim() ? (
-              <div className='text-muted-foreground py-6 text-center text-sm'>Type to search...</div>
+              <div className='text-muted-foreground py-6 text-center text-sm'>{commonT('typeToSearch')}</div>
             ) : (
               <Tabs defaultValue={activeTab} onValueChange={(value) => setActiveTab(value as SearchTab)}>
-                <div className='border-b'>
-                  <TabsList className='h-10 w-full justify-start px-2 pb-3'>
-                    <TabsTrigger value='all' className='text-xs'>
-                      All
+                <div className='bg-background sticky top-0 border-b shadow-sm'>
+                  <TabsList className='h-14 w-full justify-start bg-transparent px-2 py-2'>
+                    <TabsTrigger
+                      value='all'
+                      className='data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-full text-xs'
+                    >
+                      {commonT('all')}
                     </TabsTrigger>
-                    <TabsTrigger value='users' className='text-xs'>
-                      Users
+                    <TabsTrigger
+                      value='users'
+                      className='data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-full text-xs'
+                    >
+                      {commonT('users')}
                     </TabsTrigger>
-                    <TabsTrigger value='posts' className='text-xs'>
-                      Posts
+                    <TabsTrigger
+                      value='posts'
+                      className='data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-full text-xs'
+                    >
+                      {commonT('posts')}
                     </TabsTrigger>
-                    <TabsTrigger value='chats' className='text-xs'>
-                      Chats
+                    <TabsTrigger
+                      value='chats'
+                      className='data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-full text-xs'
+                    >
+                      {commonT('chats')}
                     </TabsTrigger>
                   </TabsList>
                 </div>
@@ -539,14 +557,14 @@ function HeaderSearch() {
                     searchResults.posts.length === 0 &&
                     searchResults.conversations.length === 0 ? (
                       <div className='text-muted-foreground flex h-32 items-center justify-center'>
-                        No results found
+                        {commonT('noResultsFound')}
                       </div>
                     ) : (
                       <div className='divide-y'>
                         {/* Users */}
                         {searchResults.users.length > 0 && (
                           <div className='py-2'>
-                            <h3 className='text-muted-foreground mb-2 px-4 text-sm font-medium'>Users</h3>
+                            <h3 className='text-muted-foreground mb-2 px-4 text-sm font-medium'>{commonT('users')}</h3>
                             <div className='space-y-1'>
                               {searchResults.users.map((user) => (
                                 <div
@@ -571,7 +589,7 @@ function HeaderSearch() {
                         {/* Posts */}
                         {searchResults.posts.length > 0 && (
                           <div className='py-2'>
-                            <h3 className='text-muted-foreground mb-2 px-4 text-sm font-medium'>Posts</h3>
+                            <h3 className='text-muted-foreground mb-2 px-4 text-sm font-medium'>{commonT('posts')}</h3>
                             <div className='space-y-1'>
                               {searchResults.posts.map((post) => (
                                 <div
@@ -588,8 +606,10 @@ function HeaderSearch() {
                                       <FileText className='h-5 w-5' />
                                     </div>
                                   )}
-                                  <div>
-                                    <p className='line-clamp-2'>{post.content}</p>
+                                  <div className='min-w-0 flex-1 overflow-hidden'>
+                                    <p className='overflow-hidden text-ellipsis whitespace-nowrap text-sm'>
+                                      {post.content}
+                                    </p>
                                   </div>
                                 </div>
                               ))}
@@ -600,7 +620,7 @@ function HeaderSearch() {
                         {/* Chats */}
                         {searchResults.conversations.length > 0 && (
                           <div className='py-2'>
-                            <h3 className='text-muted-foreground mb-2 px-4 text-sm font-medium'>Chats</h3>
+                            <h3 className='text-muted-foreground mb-2 px-4 text-sm font-medium'>{commonT('chats')}</h3>
                             <div className='space-y-1'>
                               {searchResults.conversations.map((chat) => (
                                 <div
@@ -621,8 +641,13 @@ function HeaderSearch() {
                                       <AvatarFallback>{chat.participants?.[0]?.name?.[0]}</AvatarFallback>
                                     </Avatar>
                                   )}
-                                  <div>
-                                    <p className='font-medium'>{getChatDisplayName(chat)}</p>
+                                  <div className='min-w-0 overflow-hidden'>
+                                    <p className='overflow-hidden text-ellipsis whitespace-nowrap font-medium'>
+                                      {getChatDisplayName(chat)}
+                                    </p>
+                                    <p className='overflow-hidden text-ellipsis whitespace-nowrap text-muted-foreground text-xs'>
+                                      {chat.type === CHAT_TYPE.GROUP ? `${chat.participants?.length || 0} members` : 'Direct message'}
+                                    </p>
                                   </div>
                                 </div>
                               ))}
@@ -635,7 +660,9 @@ function HeaderSearch() {
 
                   <TabsContent value='users' className='mt-0 p-0'>
                     {searchResults.users.length === 0 ? (
-                      <div className='text-muted-foreground flex h-32 items-center justify-center'>No users found</div>
+                      <div className='text-muted-foreground flex h-32 items-center justify-center'>
+                        {commonT('noUsersFound')}
+                      </div>
                     ) : (
                       <div className='space-y-1'>
                         {searchResults.users.map((user) => (
@@ -660,7 +687,9 @@ function HeaderSearch() {
 
                   <TabsContent value='posts' className='mt-0 p-0'>
                     {searchResults.posts.length === 0 ? (
-                      <div className='text-muted-foreground flex h-32 items-center justify-center'>No posts found</div>
+                      <div className='text-muted-foreground flex h-32 items-center justify-center'>
+                        {commonT('noPostsFound')}
+                      </div>
                     ) : (
                       <div className='space-y-1'>
                         {searchResults.posts.map((post) => (
@@ -678,8 +707,10 @@ function HeaderSearch() {
                                 <FileText className='h-5 w-5' />
                               </div>
                             )}
-                            <div>
-                              <p className='line-clamp-2'>{post.content}</p>
+                            <div className='min-w-0 flex-1 overflow-hidden'>
+                              <p className='line-clamp-2 overflow-hidden text-xs text-ellipsis whitespace-nowrap'>
+                                {post.content}
+                              </p>
                             </div>
                           </div>
                         ))}
@@ -689,7 +720,9 @@ function HeaderSearch() {
 
                   <TabsContent value='chats' className='mt-0 p-0'>
                     {searchResults.conversations.length === 0 ? (
-                      <div className='text-muted-foreground flex h-32 items-center justify-center'>No chats found</div>
+                      <div className='text-muted-foreground flex h-32 items-center justify-center'>
+                        {commonT('noChatsFound')}
+                      </div>
                     ) : (
                       <div className='space-y-1'>
                         {searchResults.conversations.map((chat) => (
@@ -708,8 +741,13 @@ function HeaderSearch() {
                                 <AvatarFallback>{chat.participants?.[0]?.name?.[0]}</AvatarFallback>
                               </Avatar>
                             )}
-                            <div>
-                              <p className='font-medium'>{getChatDisplayName(chat)}</p>
+                            <div className='min-w-0 overflow-hidden'>
+                              <p className='overflow-hidden text-ellipsis whitespace-nowrap font-medium'>
+                                {getChatDisplayName(chat)}
+                              </p>
+                              <p className='overflow-hidden text-ellipsis whitespace-nowrap text-muted-foreground text-xs'>
+                                {chat.type === CHAT_TYPE.GROUP ? `${chat.participants?.length || 0} members` : 'Direct message'}
+                              </p>
                             </div>
                           </div>
                         ))}

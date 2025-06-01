@@ -20,6 +20,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '~/components/ui/dialog'
+import { useFriendsTranslation } from '~/hooks/use-translations'
 
 interface FriendActionButtonProps {
   friendStatus: string | null
@@ -36,6 +37,7 @@ export function FriendActionButton({
 }: FriendActionButtonProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
+  const friendsT = useFriendsTranslation()
 
   const sendFriendRequest = useSendFriendRequestMutation()
   const cancelFriendRequest = useCancelFriendRequestMutation()
@@ -71,7 +73,7 @@ export function FriendActionButton({
       }
     } catch (error) {
       console.error('Friend action error:', error)
-      toast.error('Có lỗi xảy ra. Vui lòng thử lại sau.')
+      toast.error(friendsT('actionError'))
     } finally {
       setIsLoading(false)
     }
@@ -83,10 +85,10 @@ export function FriendActionButton({
     try {
       await removeFriend.mutateAsync(otherUserId)
       onStatusChange(null)
-      toast.success('Đã hủy kết bạn')
+      toast.success(friendsT('friendRemoved'))
     } catch (error) {
       console.error('Remove friend error:', error)
-      toast.error('Có lỗi xảy ra khi hủy kết bạn. Vui lòng thử lại sau.')
+      toast.error(friendsT('removeFriendError'))
     } finally {
       setIsLoading(false)
       setShowConfirmDialog(false)
@@ -95,17 +97,17 @@ export function FriendActionButton({
 
   // Determine button appearance based on status
   let icon = <UserPlus className='h-4 w-4' />
-  let tooltipText = 'Gửi lời mời kết bạn'
+  let tooltipText = friendsT('sendFriendRequest')
 
   if (friendStatus === FRIEND_REQUEST_STATUS.PENDING) {
     icon = <UserX className='h-4 w-4' />
-    tooltipText = 'Hủy lời mời kết bạn'
+    tooltipText = friendsT('cancelFriendRequest')
   } else if (friendStatus === FRIEND_REQUEST_STATUS.RECEIVED) {
     icon = <UserCheck className='h-4 w-4' />
-    tooltipText = 'Chấp nhận lời mời kết bạn'
+    tooltipText = friendsT('acceptFriendRequest')
   } else if (friendStatus === FRIEND_REQUEST_STATUS.ACCEPTED) {
     icon = <UserCheck className='h-4 w-4' />
-    tooltipText = 'Đã là bạn bè'
+    tooltipText = friendsT('alreadyFriends')
   }
 
   return (
@@ -124,18 +126,18 @@ export function FriendActionButton({
       <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Xác nhận hủy kết bạn</DialogTitle>
+            <DialogTitle>{friendsT('confirmRemoveFriend')}</DialogTitle>
             <DialogDescription>
-              Bạn có chắc chắn muốn hủy kết bạn? Hành động này sẽ xóa tất cả các kết nối bạn bè giữa hai người.
+              {friendsT('removeFriendConfirmation')}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant='outline' onClick={() => setShowConfirmDialog(false)}>
-              Hủy
+              {friendsT('cancel')}
             </Button>
             <Button variant='destructive' onClick={handleConfirmRemoveFriend} disabled={isLoading}>
               {isLoading ? <Loader2 className='mr-2 h-4 w-4 animate-spin' /> : null}
-              Xác nhận
+              {friendsT('confirm')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -143,3 +145,5 @@ export function FriendActionButton({
     </>
   )
 }
+
+

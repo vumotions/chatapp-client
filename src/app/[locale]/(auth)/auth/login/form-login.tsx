@@ -22,12 +22,14 @@ import {
   setRememberedAccountToCookie
 } from '~/lib/utils'
 import { formLoginSchema, FormLoginValues } from '~/schemas/form.schemas'
+import { useAuthTranslation } from '~/hooks/use-translations'
 
 type Props = {
   className?: string
 }
 
 function FormLogin({ className }: Props) {
+  const t = useAuthTranslation()
   const sendEmailVerificationMutation = useSendEmailVerificationMutation()
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -72,7 +74,7 @@ function FormLogin({ className }: Props) {
       try {
         errorData = JSON.parse(response.error)
       } catch (error) {
-        toast.error('Đã xảy ra lỗi khi đăng nhập')
+        toast.error(t('loginError'))
         setLoadingState((prev) => ({ ...prev, credentials: false }))
         return
       }
@@ -119,7 +121,7 @@ function FormLogin({ className }: Props) {
         removeRememberedAccountFromCookie()
       }
 
-      toast.success('Đăng nhập thành công!')
+      toast.success(t('loginSuccess'))
 
       // Chuyển hướng đến trang chủ - hook sẽ tự động xử lý locale và theme
       startTransition(() => {
@@ -157,9 +159,9 @@ function FormLogin({ className }: Props) {
                 name='email'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Email</FormLabel>
+                    <FormLabel>{t('email')}</FormLabel>
                     <FormControl>
-                      <Input placeholder='name@example.com' disabled={isLoading} {...field} />
+                      <Input placeholder={t('emailPlaceholder')} disabled={isLoading} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -171,7 +173,7 @@ function FormLogin({ className }: Props) {
                 name='password'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Password</FormLabel>
+                    <FormLabel>{t('password')}</FormLabel>
                     <FormControl>
                       <Input id='password' type='password' disabled={isLoading} {...field} />
                     </FormControl>
@@ -194,7 +196,7 @@ function FormLogin({ className }: Props) {
                           checked={field.value}
                         />
                       </FormControl>
-                      <FormLabel htmlFor='remember'>Remember me</FormLabel>
+                      <FormLabel htmlFor='remember'>{t('rememberMe')}</FormLabel>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -203,19 +205,19 @@ function FormLogin({ className }: Props) {
                   href='/auth/forgot-password'
                   className='hover:text-primary text-muted-foreground text-sm underline underline-offset-4'
                 >
-                  Forgot password?
+                  {t('forgotPassword')}
                 </Link>
               </div>
               <Button disabled={isLoading}>
                 {(loadingState.credentials || isPending) && <Icons.spinner className='mr-2 h-4 w-4 animate-spin' />}
-                Login
+                {t('login')}
               </Button>
             </div>
           </form>
         </Form>
         <div className='flex items-center'>
           <span className='w-full border-t' />
-          <span className='text-muted-foreground px-2 text-xs text-nowrap uppercase'>Or continue with</span>
+          <span className='text-muted-foreground px-2 text-xs text-nowrap uppercase'>{t('orContinueWith')}</span>
           <span className='w-full border-t' />
         </div>
         <div className='flex gap-5 px-0'>
@@ -237,9 +239,9 @@ function FormLogin({ className }: Props) {
           </Button>
         </div>
         <div className='flex items-center justify-center space-x-1'>
-          <p>Don't have an account?</p>
+          <p>{t('dontHaveAccount')}</p>
           <Link className='underline' href={'/auth/register'}>
-            Register
+            {t('register')}
           </Link>
         </div>
       </div>

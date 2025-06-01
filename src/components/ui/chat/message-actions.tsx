@@ -11,6 +11,7 @@ import { Textarea } from '~/components/ui/textarea'
 import httpRequest from '~/config/http-request'
 import { MEMBER_ROLE, MESSAGE_TYPE } from '~/constants/enums'
 import { useDeleteMessage, useEditMessage, usePinMessage } from '~/hooks/data/chat.hooks'
+import { useMessagesTranslation, useTooltipsTranslation } from '~/hooks/use-translations'
 import { Message } from '~/types/common.types'
 
 interface MessageActionsProps {
@@ -25,6 +26,8 @@ export function MessageActions({ message, chatId, isSentByMe, onEditStart }: Mes
   const [editedContent, setEditedContent] = useState(message.content)
   const [isPopoverOpen, setIsPopoverOpen] = useState(false)
   const { data: session } = useSession()
+  const messagesT = useMessagesTranslation()
+  const tooltipsT = useTooltipsTranslation()
   const currentUserId = session?.user?._id
 
   // Sử dụng hook đã cập nhật
@@ -32,7 +35,7 @@ export function MessageActions({ message, chatId, isSentByMe, onEditStart }: Mes
   const editMessage = useEditMessage(chatId)
   const { mutate: pinMessage } = usePinMessage(chatId)
 
-  // Kiểm tra quyền của người dùng hiện tại trong nhóm chat
+  // Lấy thông tin cuộc trò chuyện để kiểm tra quyền
   const { data: conversation } = useQuery({
     queryKey: ['GROUP_DETAILS', chatId],
     queryFn: async () => {
@@ -130,7 +133,7 @@ export function MessageActions({ message, chatId, isSentByMe, onEditStart }: Mes
       <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
         <PopoverTrigger asChild>
           <Button variant='ghost' className='h-8 w-8 p-0'>
-            <span className='sr-only'>Mở menu</span>
+            <span className='sr-only'>{messagesT('openMenu')}</span>
             <MenuIcon />
           </Button>
         </PopoverTrigger>
@@ -147,7 +150,7 @@ export function MessageActions({ message, chatId, isSentByMe, onEditStart }: Mes
                 }}
               >
                 <Pencil className='h-4 w-4' />
-                <span>Chỉnh sửa</span>
+                <span>{messagesT('edit')}</span>
               </Button>
             )}
 
@@ -160,12 +163,12 @@ export function MessageActions({ message, chatId, isSentByMe, onEditStart }: Mes
                 {message.isPinned ? (
                   <>
                     <PinOff className='h-4 w-4' />
-                    <span>Bỏ ghim</span>
+                    <span>{messagesT('unpin')}</span>
                   </>
                 ) : (
                   <>
                     <Pin className='h-4 w-4' />
-                    <span>Ghim tin nhắn</span>
+                    <span>{messagesT('pinMessage')}</span>
                   </>
                 )}
               </Button>
@@ -178,7 +181,7 @@ export function MessageActions({ message, chatId, isSentByMe, onEditStart }: Mes
                 onClick={handleDelete}
               >
                 <Trash className='h-4 w-4' />
-                <span>Xóa</span>
+                <span>{messagesT('delete')}</span>
               </Button>
             )}
           </div>
@@ -190,8 +193,8 @@ export function MessageActions({ message, chatId, isSentByMe, onEditStart }: Mes
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
           <DialogContent className='sm:max-w-md'>
             <DialogHeader>
-              <DialogTitle>Chỉnh sửa tin nhắn</DialogTitle>
-              <p className='text-muted-foreground text-sm'>Chỉnh sửa nội dung tin nhắn của bạn</p>
+              <DialogTitle>{messagesT('editMessage')}</DialogTitle>
+              <p className='text-muted-foreground text-sm'>{messagesT('editMessageDescription')}</p>
             </DialogHeader>
             <div className='flex items-center space-x-2'>
               <div className='grid flex-1 gap-2'>
@@ -205,7 +208,7 @@ export function MessageActions({ message, chatId, isSentByMe, onEditStart }: Mes
             <DialogFooter className='sm:justify-end'>
               <DialogClose asChild>
                 <Button type='button' variant='secondary'>
-                  Hủy
+                  {messagesT('cancel')}
                 </Button>
               </DialogClose>
               <Button
@@ -213,7 +216,7 @@ export function MessageActions({ message, chatId, isSentByMe, onEditStart }: Mes
                 onClick={handleEdit}
                 disabled={editedContent.trim() === message.content || editedContent.trim() === ''}
               >
-                Lưu thay đổi
+                {messagesT('saveChanges')}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -243,3 +246,8 @@ const MenuIcon = () => {
     </svg>
   )
 }
+
+
+
+
+

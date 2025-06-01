@@ -14,6 +14,7 @@ import { RadioGroup, RadioGroupItem } from '~/components/ui/radio-group'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '~/components/ui/select'
 import { USER_VERIFY_STATUS } from '~/constants/enums'
 import { useRegisterMutation } from '~/hooks/data/auth.hooks'
+import { useAuthTranslation } from '~/hooks/use-translations'
 import { Link, useRouter } from '~/i18n/navigation'
 import { handleError } from '~/lib/handlers'
 import { cn } from '~/lib/utils'
@@ -24,6 +25,7 @@ type Props = {
 }
 
 function FormRegister({ className }: Props) {
+  const t = useAuthTranslation()
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const registerMutation = useRegisterMutation()
@@ -90,9 +92,9 @@ function FormRegister({ className }: Props) {
                 name='name'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Name</FormLabel>
+                    <FormLabel>{t('name')}</FormLabel>
                     <FormControl>
-                      <Input disabled={isLoading} placeholder='Vu Motions' {...field} />
+                      <Input disabled={isLoading} placeholder={t('namePlaceholder')} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -103,54 +105,42 @@ function FormRegister({ className }: Props) {
                 name='email'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Email</FormLabel>
+                    <FormLabel>{t('email')}</FormLabel>
                     <FormControl>
-                      <Input placeholder='name@example.com' disabled={isLoading} type='email' {...field} />
+                      <Input placeholder={t('emailPlaceholder')} disabled={isLoading} type='email' {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <div className='space-y-1.5'>
-                <FormLabel>Date of birth</FormLabel>
-                <div className='grid grid-cols-3 gap-3'>
-                  {/* Date */}
+              <div className='grid gap-2'>
+                <FormLabel>{t('dateOfBirth')}</FormLabel>
+                <div className='grid grid-cols-3 gap-2'>
                   <FormField
                     control={form.control}
                     name='day'
                     render={({ field }) => (
-                      <FormItem className='w-full'>
-                        <div className='relative w-full'>
+                      <FormItem>
+                        <Select disabled={isLoading} onValueChange={field.onChange} defaultValue={field.value}>
                           <FormControl>
-                            <Select
-                              {...field}
-                              disabled={isLoading}
-                              onValueChange={(value) => {
-                                field.onChange(value)
-                                form.trigger('dob')
-                              }}
-                            >
-                              <SelectTrigger className='w-full font-normal'>
-                                <SelectValue placeholder='Date' />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectGroup>
-                                  {[...Array(31)].map((_, i) => (
-                                    <SelectItem key={i + 1} value={(i + 1).toString()}>
-                                      {i + 1}
-                                    </SelectItem>
-                                  ))}
-                                </SelectGroup>
-                              </SelectContent>
-                            </Select>
+                            <SelectTrigger className='w-full font-normal'>
+                              <SelectValue placeholder={t('day')} />
+                            </SelectTrigger>
                           </FormControl>
-                          <ChevronDown className='absolute top-2.5 right-3 h-4 w-4 opacity-50' />
-                        </div>
+                          <SelectContent>
+                            <SelectGroup>
+                              {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
+                                <SelectItem key={day} value={String(day)}>
+                                  {day}
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
                       </FormItem>
                     )}
                   />
-
-                  {/* Month */}
                   <FormField
                     control={form.control}
                     name='month'
@@ -166,8 +156,8 @@ function FormRegister({ className }: Props) {
                                 form.trigger('dob')
                               }}
                             >
-                              <SelectTrigger className='w-full truncate font-normal'>
-                                <SelectValue placeholder='Month' />
+                              <SelectTrigger className='w-full font-normal'>
+                                <SelectValue placeholder={t('month')} />
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectGroup>
@@ -198,8 +188,6 @@ function FormRegister({ className }: Props) {
                       </FormItem>
                     )}
                   />
-
-                  {/* Year */}
                   <FormField
                     control={form.control}
                     name='year'
@@ -216,7 +204,7 @@ function FormRegister({ className }: Props) {
                               }}
                             >
                               <SelectTrigger className='w-full font-normal'>
-                                <SelectValue placeholder='Year' />
+                                <SelectValue placeholder={t('year')} />
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectGroup>
@@ -235,10 +223,8 @@ function FormRegister({ className }: Props) {
                     )}
                   />
                 </div>
-
-                {/* Hiển thị lỗi DOB */}
-                {form.formState.errors.dob?.message && (
-                  <span className='text-destructive text-sm'>{form.formState.errors.dob.message}</span>
+                {form.formState.errors.dob && (
+                  <p className='text-destructive text-sm font-medium'>{form.formState.errors.dob.message}</p>
                 )}
               </div>
 
@@ -247,7 +233,7 @@ function FormRegister({ className }: Props) {
                 name='gender'
                 render={({ field }) => (
                   <FormItem className='gap-0 space-y-1.5'>
-                    <FormLabel>Gender</FormLabel>
+                    <FormLabel>{t('gender')}</FormLabel>
                     <FormControl>
                       <RadioGroup
                         onValueChange={field.onChange}
@@ -264,7 +250,7 @@ function FormRegister({ className }: Props) {
                               'w-full justify-around font-normal'
                             )}
                           >
-                            Male
+                            {t('male')}
                             <FormControl>
                               <RadioGroupItem value='male' />
                             </FormControl>
@@ -279,7 +265,7 @@ function FormRegister({ className }: Props) {
                               'w-full justify-around font-normal'
                             )}
                           >
-                            Female
+                            {t('female')}
                             <FormControl>
                               <RadioGroupItem value='female' />
                             </FormControl>
@@ -297,7 +283,7 @@ function FormRegister({ className }: Props) {
                 name='password'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Password</FormLabel>
+                    <FormLabel>{t('password')}</FormLabel>
                     <FormControl>
                       <Input id='password' type='password' disabled={isLoading} {...field} />
                     </FormControl>
@@ -310,7 +296,7 @@ function FormRegister({ className }: Props) {
                 name='confirmPassword'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Confirm Password</FormLabel>
+                    <FormLabel>{t('confirmPassword')}</FormLabel>
                     <FormControl>
                       <Input id='confirmPassword' type='password' disabled={isLoading} {...field} />
                     </FormControl>
@@ -320,14 +306,14 @@ function FormRegister({ className }: Props) {
               />
               <Button disabled={isLoading}>
                 {(registerMutation.isPending || isPending) && <Icons.spinner className='mr-2 h-4 w-4 animate-spin' />}
-                Create account
+                {t('createAccount')}
               </Button>
             </div>
           </form>
         </Form>
         <div className='flex items-center'>
           <span className='w-full border-t' />
-          <span className='text-muted-foreground px-2 text-xs text-nowrap uppercase'>Or continue with</span>
+          <span className='text-muted-foreground px-2 text-xs text-nowrap uppercase'>{t('orContinueWith')}</span>
           <span className='w-full border-t' />
         </div>
         <div className='flex gap-5 px-0'>
@@ -349,9 +335,9 @@ function FormRegister({ className }: Props) {
           </Button>
         </div>
         <div className='flex items-center justify-center space-x-1'>
-          <p>Already have an account?</p>
+          <p>{t('alreadyHaveAccount')}</p>
           <Link className='underline' href={'/auth/login'}>
-            Login
+            {t('login')}
           </Link>
         </div>
       </div>

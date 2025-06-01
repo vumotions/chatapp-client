@@ -9,9 +9,11 @@ import Post from '~/components/posts/post'
 import { Button } from '~/components/ui/button'
 import { Card, CardContent } from '~/components/ui/card'
 import { Container } from '~/components/ui/container'
+import { usePostTranslation } from '~/hooks/use-translations'
 import postService from '~/services/post.service'
 
 export default function PostDetailPage() {
+  const t = usePostTranslation()
   const params = useParams()
   const id = params.id as string
   const [post, setPost] = useState<any>(null)
@@ -53,10 +55,10 @@ export default function PostDetailPage() {
       <Container className='py-8'>
         <Card>
           <CardContent className='flex flex-col items-center justify-center py-12 text-center'>
-            <h1 className='mb-4 text-2xl font-bold'>Bài viết không tồn tại</h1>
-            <p className='text-muted-foreground mb-6'>{error || 'Bài viết có thể đã bị xóa hoặc không tồn tại.'}</p>
+            <h1 className='mb-4 text-2xl font-bold'>{t('posts.postNotExist')}</h1>
+            <p className='text-muted-foreground mb-6'>{error || t('posts.postMayBeDeleted')}</p>
             <Button asChild>
-              <Link href='/feed'>Quay lại trang chủ</Link>
+              <Link href='/feed'>{t('posts.backToHome')}</Link>
             </Button>
           </CardContent>
         </Card>

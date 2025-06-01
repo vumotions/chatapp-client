@@ -30,6 +30,7 @@ import { useQuery } from '@tanstack/react-query'
 import httpRequest from '~/config/http-request'
 import { useSession } from 'next-auth/react'
 import { toast } from 'sonner'
+import { useMessagesTranslation } from '~/hooks/use-translations'
 
 type ConversationActionsProps = {
   conversationId: string
@@ -42,6 +43,7 @@ export function ConversationActions({ conversationId, isArchived = false, otherU
   const [isBlockDialogOpen, setIsBlockDialogOpen] = useState(false)
   const [isPopoverOpen, setIsPopoverOpen] = useState(false)
   const { data: session } = useSession()
+  const messagesT = useMessagesTranslation()
 
   // Sử dụng hook đã tạo
   const { archiveChat, unarchiveChat } = useArchiveChat()
@@ -82,7 +84,7 @@ export function ConversationActions({ conversationId, isArchived = false, otherU
     setIsPopoverOpen(false)
 
     if (!otherUserId) {
-      toast.error('Không thể xác định người dùng để chặn')
+      toast.error(messagesT('cannotIdentifyUser'))
       return
     }
 
@@ -135,7 +137,7 @@ export function ConversationActions({ conversationId, isArchived = false, otherU
               }}
             >
               <Archive className='mr-2 h-4 w-4' />
-              {isArchived ? 'Bỏ lưu trữ' : 'Lưu trữ'}
+              {isArchived ? messagesT('unarchive') : messagesT('archive')}
             </Button>
 
             {/* Nút xóa lịch sử chat */}
@@ -143,39 +145,46 @@ export function ConversationActions({ conversationId, isArchived = false, otherU
               <DialogTrigger asChild>
                 <Button variant='ghost' className='text-foreground w-full justify-start' onClick={handleButtonClick}>
                   <History className='mr-2 h-4 w-4' />
-                  Xóa lịch sử chat
+                  {messagesT('clearChatHistory')}
                 </Button>
               </DialogTrigger>
               <DialogContent onClick={handleButtonClick}>
                 <DialogHeader>
-                  <DialogTitle>Xóa lịch sử chat</DialogTitle>
+                  <DialogTitle>{messagesT('clearChatHistory')}</DialogTitle>
                   <DialogDescription>
-                    Bạn có chắc chắn muốn xóa lịch sử chat? Hành động này sẽ xóa tất cả tin nhắn cũ và không thể hoàn
-                    tác.
+                    {messagesT('clearChatHistoryConfirmation')}
                   </DialogDescription>
                 </DialogHeader>
                 <DialogFooter>
                   <DialogClose asChild>
-                    <Button variant='outline'>Hủy</Button>
+                    <Button variant='outline'>{messagesT('cancel')}</Button>
                   </DialogClose>
                   <Button variant='destructive' onClick={handleClearHistory}>
-                    Xóa lịch sử
+                    {messagesT('clearHistory')}
                   </Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
 
+            {/* Nút block/unblock người dùng */}
             {showBlockOption && (
-              <Button variant='ghost' className='text-foreground w-full justify-start' onClick={handleBlockToggle}>
+              <Button
+                variant='ghost'
+                className='text-foreground w-full justify-start'
+                onClick={() => {
+                  handleButtonClick
+                  handleBlockToggle()
+                }}
+              >
                 {isUserBlocked ? (
                   <>
                     <UserCheck className='mr-2 h-4 w-4' />
-                    Hủy chặn
+                    {messagesT('unblockUser')}
                   </>
                 ) : (
                   <>
                     <UserX className='mr-2 h-4 w-4' />
-                    Chặn
+                    {messagesT('blockUser')}
                   </>
                 )}
               </Button>
@@ -188,18 +197,18 @@ export function ConversationActions({ conversationId, isArchived = false, otherU
         <AlertDialog open={isBlockDialogOpen} onOpenChange={setIsBlockDialogOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Chặn người dùng</AlertDialogTitle>
+              <AlertDialogTitle>{messagesT('blockUser')}</AlertDialogTitle>
               <AlertDialogDescription>
-                Bạn có chắc chắn muốn chặn người dùng này không? Người dùng này sẽ không thể gửi tin nhắn cho bạn nữa.
+                {messagesT('blockUserConfirmation')}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel asChild>
-                <Button variant='outline'>Hủy</Button>
+                <Button variant='outline'>{messagesT('cancel')}</Button>
               </AlertDialogCancel>
               <AlertDialogAction asChild>
                 <Button variant='destructive' onClick={confirmBlockUser}>
-                  Chặn
+                  {messagesT('block')}
                 </Button>
               </AlertDialogAction>
             </AlertDialogFooter>

@@ -7,6 +7,7 @@ import { Button } from '~/components/ui/button'
 import SOCKET_EVENTS from '~/constants/socket-events'
 import { usePinMessage, usePinnedMessages } from '~/hooks/data/chat.hooks'
 import { useSocket } from '~/hooks/use-socket'
+import { useMessagesTranslation } from '~/hooks/use-translations'
 import { formatMessageContent } from '~/lib/utils'
 
 const SUCCESS_RGB = '34, 197, 94' // Giá trị RGB của màu green-500
@@ -26,6 +27,7 @@ export function PinnedMessages({
   hasMoreMessages,
   isFetchingOlderMessages
 }: PinnedMessagesProps) {
+  const t = useMessagesTranslation()
   const queryClient = useQueryClient()
   const { socket } = useSocket()
   const { data: pinnedMessages = [] } = usePinnedMessages(chatId)
@@ -100,7 +102,7 @@ export function PinnedMessages({
       setIsScrolling(false)
     } else if (fetchOlderMessages && hasMoreMessages && !isFetchingOlderMessages) {
       // Nếu tin nhắn chưa tồn tại và có thể tải thêm tin nhắn cũ
-      toast.info('Đang tìm tin nhắn...')
+      toast.info(t('pinnedMessages.searchingForMessage'))
 
       // Tạo một hàm đệ quy để tải tin nhắn cũ cho đến khi tìm thấy tin nhắn cần tìm
       const findMessage = async (attempts = 0): Promise<boolean> => {
@@ -136,7 +138,7 @@ export function PinnedMessages({
       if (found) {
         // Nếu tìm thấy tin nhắn, cuộn đến nó
         onScrollToMessage(messageId)
-        toast.success('Đã tìm thấy tin nhắn')
+        toast.success(t('pinnedMessages.messageFound'))
 
         // Thêm hiệu ứng highlight với màu xanh lá cây
         const messageElement = document.getElementById(`message-${messageId}`)
@@ -150,14 +152,14 @@ export function PinnedMessages({
         }
       } else {
         // Nếu không tìm thấy tin nhắn sau nhiều lần thử
-        toast.error('Không thể tìm thấy tin nhắn')
+        toast.error(t('pinnedMessages.messageNotFound'))
       }
 
       setIsOpen(false)
       setIsScrolling(false)
     } else {
       // Nếu không thể tải thêm tin nhắn cũ
-      toast.error('Không thể tìm thấy tin nhắn')
+      toast.error(t('pinnedMessages.messageNotFound'))
       setIsOpen(false)
       setIsScrolling(false)
     }
@@ -216,7 +218,11 @@ export function PinnedMessages({
         <div className='flex items-center justify-between'>
           <div className='flex items-center gap-2'>
             <Pin className='h-4 w-4' />
-            <span className='text-sm font-medium'>{pinnedMessages.length} tin nhắn đã ghim</span>
+            <span className='text-sm font-medium'>
+              {pinnedMessages.length === 1
+                ? t('pinnedMessages.pinnedMessage')
+                : t('pinnedMessages.pinnedMessages', { count: pinnedMessages.length })}
+            </span>
           </div>
         </div>
       </div>
@@ -235,9 +241,9 @@ export function PinnedMessages({
             <div className='flex items-center gap-3 border-b p-4'>
               <Button variant='ghost' size='icon' onClick={() => setIsOpen(false)}>
                 <ArrowLeft className='h-5 w-5' />
-                <span className='sr-only'>Quay lại</span>
+                <span className='sr-only'>{t('pinnedMessages.backToChat')}</span>
               </Button>
-              <h2 className='text-lg font-semibold'>Tin nhắn đã ghim</h2>
+              <h2 className='text-lg font-semibold'>{t('pinnedMessages.title')}</h2>
             </div>
 
             <div className='flex-1 space-y-4 overflow-y-auto p-4'>
@@ -249,7 +255,7 @@ export function PinnedMessages({
                     onClick={() => !isScrolling && handleMessageClick(message._id)}
                   >
                     <div className='mb-2 flex items-center gap-2'>
-                      <div className='font-medium'>{message.senderId.name || 'Unknown'}</div>
+                      <div className='font-medium'>{message.senderId.name || t('messages.unknown')}</div>
                       <div className='text-muted-foreground text-xs'>
                         {new Date(message.createdAt).toLocaleString()}
                       </div>
@@ -265,7 +271,7 @@ export function PinnedMessages({
                         onClick={(e) => handleUnpin(e, message._id)}
                         disabled={isScrolling}
                       >
-                        Bỏ ghim
+                        {t('pinnedMessages.unpin')}
                       </Button>
                     </div>
                   </div>
