@@ -247,40 +247,6 @@ export default function PostEditorV2({
     )
   }
 
-  const renderExistingMediaPreview = (media: any, index: number) => {
-    const isVideo = media.type?.startsWith('video/')
-
-    return (
-      <div key={index} className={`relative aspect-square ${media.isDeleted ? 'opacity-50' : ''}`}>
-        {isVideo ? (
-          <div className='h-full w-full overflow-hidden rounded-lg'>
-            <video src={media.url} className='h-full w-full object-cover' controls />
-          </div>
-        ) : (
-          <Image
-            src={media.url}
-            alt={`Media ${index + 1}`}
-            className='h-full w-full rounded-lg object-cover'
-            layout='fill'
-            objectFit='cover'
-          />
-        )}
-
-        <button
-          type='button'
-          onClick={() => toggleExistingMedia(index)}
-          className={`absolute top-2 right-2 rounded-full p-1.5 transition-colors ${
-            media.isDeleted
-              ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-              : 'bg-foreground text-background hover:bg-foreground/60'
-          }`}
-        >
-          {media.isDeleted ? <span className='text-xs font-medium'>Khôi phục</span> : <X className='h-4 w-4' />}
-        </button>
-      </div>
-    )
-  }
-
   // Nếu đang tải dữ liệu bài viết, hiển thị loading
   if (isLoading) {
     return (
@@ -321,7 +287,7 @@ export default function PostEditorV2({
             </Button>
 
             <DialogTrigger asChild>
-              <Button variant='default'>{t('friends')}</Button>
+              <Button variant='default'>{t('post')}</Button>
             </DialogTrigger>
           </div>
         </CardContent>
