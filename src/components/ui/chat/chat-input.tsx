@@ -150,16 +150,16 @@ export function ChatInput({
               ? messagesT('cannotSendToBlockedUser')
               : !canSendMessages
                 ? sendPermission?.isMuted
-                  ? `${messagesT('mutedUntil')}${
+                  ? `${messagesT('youAreMuted')} ${
                       sendPermission.mutedUntil
-                        ? ` ${format(new Date(sendPermission.mutedUntil), 'dd/MM/yyyy')}`
-                        : ''
+                        ? ` ${messagesT('until')} ${format(new Date(sendPermission.mutedUntil), 'HH:mm dd/MM/yyyy')}`
+                        : ` ${messagesT('indefinitely')}`
                     }`
                   : sendPermission?.restrictedByGroupSettings
-                    ? `${messagesT('onlyAdminsCanSend')}${
+                    ? `${messagesT('onlyAdminsCanSend')} ${
                         sendPermission.restrictUntil
-                          ? ` ${format(new Date(sendPermission.restrictUntil), 'dd/MM/yyyy')}`
-                          : ''
+                          ? ` ${messagesT('until')} ${format(new Date(sendPermission.restrictUntil), 'HH:mm dd/MM/yyyy')}`
+                          : ` ${messagesT('indefinitely')}`
                       }`
                     : messagesT('noPermissionToSend')
                 : messagesT('typeMessage')

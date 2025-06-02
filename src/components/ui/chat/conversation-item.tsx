@@ -5,12 +5,11 @@ import { formatDistanceToNow } from 'date-fns'
 import { vi } from 'date-fns/locale'
 import { Archive } from 'lucide-react'
 import { useSession } from 'next-auth/react'
-import { usePathname, useRouter } from 'next/navigation'
-import { useEffect, useState, useMemo } from 'react'
+import { usePathname } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
 import { ConversationActions } from '~/components/ui/chat/conversation-actions'
 import SOCKET_EVENTS from '~/constants/socket-events'
-import { useArchiveChat } from '~/hooks/data/chat.hooks'
 import { useSocket } from '~/hooks/use-socket'
 import { cn } from '~/lib/utils'
 
@@ -27,14 +26,10 @@ export default function ConversationItem({
   conversation,
   isActive = false,
   onClick,
-  isArchived = false,
-  onArchive,
-  onDelete
+  isArchived = false
 }: ConversationItemProps) {
-  const router = useRouter()
   const pathname = usePathname()
   const { data: session } = useSession()
-  const { archiveChat, unarchiveChat } = useArchiveChat()
   const { socket } = useSocket()
   const [isOnline, setIsOnline] = useState(false)
   const [otherUserId, setOtherUserId] = useState<string | null>(null)
@@ -171,40 +166,17 @@ export default function ConversationItem({
           .getQueryCache()
           .findAll({ queryKey: ['CHAT_LIST'] })
           .forEach((query) => {
-            console.log('Found query with key:', query.queryKey)
-
             queryClient.setQueryData(query.queryKey, (oldData: any) => {
-              console.log('Query data for key', query.queryKey, ':', oldData)
               if (!oldData) {
-                console.log('No existing data found for query key:', query.queryKey)
                 return oldData
               }
 
-              console.log('Updating cache with new message for query key:', query.queryKey)
-              console.log({
-                ...oldData,
-                pages: oldData.pages.map((page: any) => ({
-                  ...page,
-                  conversations: page.conversations.map((conv: any) => {
-                    if (conv._id === conversation._id) {
-                      console.log('Found conversation to update:', conv._id)
-                      return {
-                        ...conv,
-                        lastMessage: message,
-                        updatedAt: message.createdAt
-                      }
-                    }
-                    return conv
-                  })
-                }))
-              })
               return {
                 ...oldData,
                 pages: oldData.pages.map((page: any) => ({
                   ...page,
                   conversations: page.conversations.map((conv: any) => {
                     if (conv._id === conversation._id) {
-                      console.log('Found conversation to update:', conv._id)
                       return {
                         ...conv,
                         lastMessage: message,
@@ -228,12 +200,8 @@ export default function ConversationItem({
 
     socket.on(SOCKET_EVENTS.RECEIVE_MESSAGE, handleNewMessage)
 
-    // Thêm log để xác nhận đã đăng ký lắng nghe sự kiện
-    console.log('Registered RECEIVE_MESSAGE listener for conversation:', conversation._id)
-
     return () => {
       socket.off(SOCKET_EVENTS.RECEIVE_MESSAGE, handleNewMessage)
-      console.log('Unregistered RECEIVE_MESSAGE listener for conversation:', conversation._id)
     }
   }, [socket, conversation._id, queryClient])
 
@@ -312,10 +280,12 @@ export default function ConversationItem({
       <div className='ml-3 flex-1 overflow-hidden'>
         <div className='flex items-center justify-between'>
           <div className='flex items-center'>
-            <h3 className={cn('text-sm', isUnread ? 'font-bold text-white' : 'text-foreground font-medium')}>{name}</h3>
+            <h3 className={cn('text-sm', isUnread ? 'text-primary font-bold' : 'text-foreground font-medium')}>
+              {name}
+            </h3>
             {isArchived && <Archive className='text-muted-foreground ml-1 h-3 w-3' />}
           </div>
-          <p className={cn('text-xs', isUnread ? 'font-medium text-white' : 'text-muted-foreground')}>
+          <p className={cn('text-xs', isUnread ? 'text-primary font-medium' : 'text-muted-foreground')}>
             {formatTime(conversation.lastMessage?.createdAt || conversation.updatedAt)}
           </p>
         </div>
@@ -331,7 +301,7 @@ export default function ConversationItem({
           {isUnread && <div className='bg-primary ml-1 h-2 w-2 rounded-full'></div>}
         </div>
       </div>
-      <div className='ml-2 opacity-0 group-hover:opacity-100'>
+      <div className='ml-2 opacity-100 lg:opacity-0 lg:group-hover:opacity-100'>
         <ConversationActions
           conversationId={conversation._id}
           isArchived={isArchived}

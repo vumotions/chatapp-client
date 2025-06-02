@@ -188,6 +188,7 @@ function ChatDetail({ params }: Props) {
   )
 
   const isMobile = useMediaQuery('(max-width: 768px)')
+  const [activeMessagePopover, setActiveMessagePopover] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const typingDebounceRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -778,26 +779,13 @@ function ChatDetail({ params }: Props) {
     })
   }, [allMessages, deletedMessageIds])
 
-  // 4. Tất cả các hàm xử lý sự kiện
   // Hàm kiểm tra xem tin nhắn có phải do người dùng hiện tại gửi không
   const isMessageFromCurrentUser = useCallback(
     (message: any) => {
       if (!message || !session?.user?._id) return false
 
-      const currentUserId = session.user._id.toString()
-
-      // Luôn chuyển đổi senderId về dạng string để so sánh
-      let senderId: string
-
-      if (typeof message.senderId === 'object' && message.senderId?._id) {
-        senderId = message.senderId._id.toString()
-      } else if (typeof message.senderId === 'string') {
-        senderId = message.senderId
-      } else {
-        return false // Không thể xác định senderId
-      }
-
-      return senderId === currentUserId
+      const senderId = message.senderId?._id
+      return String(senderId) === String(session?.user?._id)
     },
     [session?.user?._id]
   )
@@ -859,12 +847,12 @@ function ChatDetail({ params }: Props) {
         if (data.updatedBy !== session?.user?._id) {
           if (data.onlyAdminsCanSend) {
             const restrictUntilText = data.restrictUntil
-              ? `${t('messages.until')} ${new Date(data.restrictUntil).toLocaleString('vi-VN')}`
-              : t('messages.untilChanged')
+              ? `${t('until')} ${new Date(data.restrictUntil).toLocaleString('vi-VN')}`
+              : t('untilChanged')
 
-            toast.info(`${t('messages.onlyAdminsCanSendEnabled')} ${restrictUntilText}`)
+            toast.info(`${t('onlyAdminsCanSendEnabled')} ${restrictUntilText}`)
           } else {
-            toast.info(t('messages.onlyAdminsCanSendDisabled'))
+            toast.info(t('onlyAdminsCanSendDisabled'))
           }
         }
 
@@ -916,16 +904,16 @@ function ChatDetail({ params }: Props) {
       // Hiển thị thông báo lỗi tương tự như trên
       if (sendPermission?.isMuted) {
         const mutedUntilText = sendPermission.mutedUntil
-          ? `${t('messages.until')} ${format(new Date(sendPermission.mutedUntil), 'PPP HH:mm', { locale: vi })}`
-          : t('messages.indefinitely')
-        toast.error(`${t('messages.youAreMuted')} ${mutedUntilText}`)
+          ? `${t('until')} ${format(new Date(sendPermission.mutedUntil), 'PPP HH:mm', { locale: vi })}`
+          : t('indefinitely')
+        toast.error(`${t('youAreMuted')} ${mutedUntilText}`)
       } else if (sendPermission?.restrictedByGroupSettings) {
         const restrictUntilText = sendPermission.restrictUntil
-          ? `${t('messages.until')} ${format(new Date(sendPermission.restrictUntil), 'PPP HH:mm', { locale: vi })}`
+          ? `${t('until')} ${format(new Date(sendPermission.restrictUntil), 'PPP HH:mm', { locale: vi })}`
           : ''
-        toast.error(`${t('messages.onlyAdminsCanSend')} ${restrictUntilText}`)
+        toast.error(`${t('onlyAdminsCanSend')} ${restrictUntilText}`)
       } else {
-        toast.error(t('messages.noPermissionToSend'))
+        toast.error(t('noPermissionToSend'))
       }
       return
     }
@@ -1705,7 +1693,7 @@ function ChatDetail({ params }: Props) {
     // Nếu là group chat, sử dụng tên và avatar của nhóm
     if (conversation.type === 'GROUP') {
       return {
-        name: conversation.name || t('messages.groupChat'),
+        name: conversation.name || t('groupChat'),
         avatar: conversation.avatar || undefined
       }
     }
@@ -1715,7 +1703,7 @@ function ChatDetail({ params }: Props) {
     const otherParticipant = conversation.participants?.find((p: any) => p._id !== currentUserId)
 
     return {
-      name: otherParticipant?.name || t('messages.unknown'),
+      name: otherParticipant?.name || t('unknown'),
       avatar: otherParticipant?.avatar || undefined
     }
   }, [data?.pages, session?.user?._id])
@@ -2060,16 +2048,18 @@ function ChatDetail({ params }: Props) {
 
                   // Kiểm tra xem tin nhắn có phải là tin nhắn đầu tiên trong nhóm không
                   const isFirstMessageInGroup =
-                    index === 0 || isMessageFromCurrentUser(filteredMessages[index - 1]) !== isSentByMe
+                    index === 0 ||
+                    // Thay vì chỉ kiểm tra người gửi hiện tại và trước đó có phải cùng một người không
+                    // Chúng ta cần kiểm tra ID người gửi để phân biệt giữa các người gửi khác nhau
+                    String(filteredMessages[index - 1]?.senderId?._id || filteredMessages[index - 1]?.senderId) !==
+                      String(msg.senderId?._id || msg.senderId)
 
                   // Kiểm tra xem tin nhắn có phải là tin nhắn cuối cùng trong nhóm không
                   const isLastMessageInGroup =
                     index === filteredMessages.length - 1 ||
-                    isMessageFromCurrentUser(filteredMessages[index + 1]) !== isSentByMe
-
-                  // Thêm margin bottom cho tin nhắn cuối cùng trong nhóm
+                    String(filteredMessages[index + 1]?.senderId?._id || filteredMessages[index + 1]?.senderId) !==
+                      String(msg.senderId?._id || msg.senderId)
                   const marginBottom = isLastMessageInGroup ? 'mb-4' : 'mb-1'
-
                   return (
                     <div
                       key={msg._id}
@@ -2082,10 +2072,8 @@ function ChatDetail({ params }: Props) {
                           {isFirstMessageInGroup && !isSentByMe ? (
                             <FriendHoverCard friend={msg.senderId}>
                               <Avatar className='h-8 w-8 flex-shrink-0'>
-                                <AvatarImage src={msg.senderId.avatar} alt={msg.senderId.name || 'User'} />
-                                <AvatarFallback>
-                                  {msg.senderId.name?.[0] || (msg.senderId.name ? msg.senderId.name.charAt(0) : 'U')}
-                                </AvatarFallback>
+                                <AvatarImage src={msg.senderId?.avatar} alt={msg.senderId?.name} />
+                                <AvatarFallback>{msg.senderId?.name?.[0] || 'U'}</AvatarFallback>
                               </Avatar>
                             </FriendHoverCard>
                           ) : (
@@ -2094,81 +2082,131 @@ function ChatDetail({ params }: Props) {
                           )}
 
                           <div
-                            className={`relative rounded-xl px-3 py-2 text-sm ${
+                            className={`relative rounded-xl text-sm ${
                               isSentByMe ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground'
                             }`}
                           >
-                            <HoverCard openDelay={100} closeDelay={100}>
-                              <HoverCardTrigger asChild>
-                                <div>
-                                  {/* Nội dung tin nhắn */}
-                                  {msg.content && (
-                                    <div style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{msg.content}</div>
-                                  )}
-
-                                  {/* Media nếu có */}
-                                  {msg.type === 'MEDIA' && renderMessageMedia(msg)}
-                                </div>
-                              </HoverCardTrigger>
-                              <HoverCardContent
-                                className={`pointer-events-auto w-auto border-none bg-transparent p-0 shadow-none ${isSentByMe ? 'data-[side=top]:translate-x-1/2' : 'data-[side=top]:-translate-x-1/2'}`}
-                                side={isSentByMe ? 'left' : 'right'}
-                              >
-                                <div className='flex gap-2'>
-                                  <Button
-                                    variant='ghost'
-                                    size='icon'
-                                    className='h-8 w-8 rounded-full bg-transparent hover:bg-black/10 dark:hover:bg-white/10'
-                                    onClick={() => {
-                                      // Kiểm tra nếu là tin nhắn media
-                                      if (msg.type === 'MEDIA' && msg.attachments && msg.attachments.length > 0) {
-                                        // Copy URL của media đầu tiên
-                                        const mediaUrl = msg.attachments[0].mediaUrl
-                                        navigator.clipboard.writeText(mediaUrl)
-                                        toast.success('Đã sao chép đường dẫn media', {
-                                          duration: 2000
-                                        })
-                                      } else {
-                                        // Copy nội dung tin nhắn văn bản như bình thường
-                                        navigator.clipboard.writeText(msg.content || '')
-                                        toast.success('Đã sao chép tin nhắn', {
-                                          duration: 2000
-                                        })
-                                      }
-                                    }}
-                                  >
-                                    <Copy className='h-4 w-4' />
-                                    <span className='sr-only'>Copy</span>
-                                  </Button>
-
-                                  {/* Thêm nút reaction */}
-                                  {hasUserReacted(msg) ? (
+                            {isMobile ? (
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <div className='px-3 py-2'>
+                                    {msg.content && (
+                                      <div style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{msg.content}</div>
+                                    )}
+                                    {msg.type === 'MEDIA' && renderMessageMedia(msg)}
+                                  </div>
+                                </PopoverTrigger>
+                                <PopoverContent 
+                                  className={`pointer-events-auto w-auto border-none bg-transparent p-0 shadow-none ${isSentByMe ? 'data-[side=top]:translate-x-1/2' : 'data-[side=top]:-translate-x-1/2'}`}
+                                  side={isSentByMe ? 'left' : 'right'}
+                                >
+                                  <div className='flex gap-2'>
                                     <Button
                                       variant='ghost'
                                       size='icon'
                                       className='h-8 w-8 rounded-full bg-transparent hover:bg-black/10 dark:hover:bg-white/10'
-                                      onClick={() => handleRemoveReaction(msg._id)}
+                                      onClick={() => {
+                                        if (msg.type === 'MEDIA' && msg.attachments && msg.attachments.length > 0) {
+                                          const mediaUrl = msg.attachments[0].mediaUrl
+                                          navigator.clipboard.writeText(mediaUrl)
+                                          toast.success('Đã sao chép đường dẫn media', { duration: 2000 })
+                                        } else {
+                                          navigator.clipboard.writeText(msg.content || '')
+                                          toast.success('Đã sao chép tin nhắn', { duration: 2000 })
+                                        }
+                                      }}
                                     >
-                                      <Heart className='h-4 w-4 fill-red-500 text-red-500' />
-                                      <span className='sr-only'>Unlike</span>
+                                      <Copy className='h-4 w-4' />
+                                      <span className='sr-only'>Copy</span>
                                     </Button>
-                                  ) : (
+
+                                    {hasUserReacted(msg) ? (
+                                      <Button
+                                        variant='ghost'
+                                        size='icon'
+                                        className='h-8 w-8 rounded-full bg-transparent hover:bg-black/10 dark:hover:bg-white/10'
+                                        onClick={() => handleRemoveReaction(msg._id)}
+                                      >
+                                        <Heart className='h-4 w-4 fill-red-500 text-red-500' />
+                                        <span className='sr-only'>Unlike</span>
+                                      </Button>
+                                    ) : (
+                                      <Button
+                                        variant='ghost'
+                                        size='icon'
+                                        className='h-8 w-8 rounded-full bg-transparent hover:bg-black/10 dark:hover:bg-white/10'
+                                        onClick={() => handleAddReaction(msg._id)}
+                                      >
+                                        <Heart className='h-4 w-4' />
+                                        <span className='sr-only'>Like</span>
+                                      </Button>
+                                    )}
+
+                                    <MessageActions message={msg} chatId={chatId} isSentByMe={isSentByMe} />
+                                  </div>
+                                </PopoverContent>
+                              </Popover>
+                            ) : (
+                              <HoverCard openDelay={100} closeDelay={100}>
+                                <HoverCardTrigger asChild>
+                                  <div className='px-3 py-2'>
+                                    {msg.content && (
+                                      <div style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{msg.content}</div>
+                                    )}
+                                    {msg.type === 'MEDIA' && renderMessageMedia(msg)}
+                                  </div>
+                                </HoverCardTrigger>
+                                <HoverCardContent
+                                  className={`pointer-events-auto w-auto border-none bg-transparent p-0 shadow-none ${isSentByMe ? 'data-[side=top]:translate-x-1/2' : 'data-[side=top]:-translate-x-1/2'}`}
+                                  side={isSentByMe ? 'left' : 'right'}
+                                >
+                                  <div className='flex gap-2'>
                                     <Button
                                       variant='ghost'
                                       size='icon'
                                       className='h-8 w-8 rounded-full bg-transparent hover:bg-black/10 dark:hover:bg-white/10'
-                                      onClick={() => handleAddReaction(msg._id)}
+                                      onClick={() => {
+                                        if (msg.type === 'MEDIA' && msg.attachments && msg.attachments.length > 0) {
+                                          const mediaUrl = msg.attachments[0].mediaUrl
+                                          navigator.clipboard.writeText(mediaUrl)
+                                          toast.success('Đã sao chép đường dẫn media', { duration: 2000 })
+                                        } else {
+                                          navigator.clipboard.writeText(msg.content || '')
+                                          toast.success('Đã sao chép tin nhắn', { duration: 2000 })
+                                        }
+                                      }}
                                     >
-                                      <Heart className='h-4 w-4' />
-                                      <span className='sr-only'>Like</span>
+                                      <Copy className='h-4 w-4' />
+                                      <span className='sr-only'>Copy</span>
                                     </Button>
-                                  )}
 
-                                  {/* Thêm MessageActions component */}
-                                  <MessageActions message={msg} chatId={chatId} isSentByMe={isSentByMe} />
-                                </div>
-                              </HoverCardContent>
-                            </HoverCard>
+                                    {hasUserReacted(msg) ? (
+                                      <Button
+                                        variant='ghost'
+                                        size='icon'
+                                        className='h-8 w-8 rounded-full bg-transparent hover:bg-black/10 dark:hover:bg-white/10'
+                                        onClick={() => handleRemoveReaction(msg._id)}
+                                      >
+                                        <Heart className='h-4 w-4 fill-red-500 text-red-500' />
+                                        <span className='sr-only'>Unlike</span>
+                                      </Button>
+                                    ) : (
+                                      <Button
+                                        variant='ghost'
+                                        size='icon'
+                                        className='h-8 w-8 rounded-full bg-transparent hover:bg-black/10 dark:hover:bg-white/10'
+                                        onClick={() => handleAddReaction(msg._id)}
+                                      >
+                                        <Heart className='h-4 w-4' />
+                                        <span className='sr-only'>Like</span>
+                                      </Button>
+                                    )}
+
+                                    <MessageActions message={msg} chatId={chatId} isSentByMe={isSentByMe} />
+                                  </div>
+                                </HoverCardContent>
+                              </HoverCard>
+                            )}
                             {/* Hiển thị reactions kiểu Instagram */}
                             {msg.reactions && msg.reactions.length > 0 && (
                               <div className='absolute right-0 bottom-0 translate-x-1/3 translate-y-1/2 transform'>
