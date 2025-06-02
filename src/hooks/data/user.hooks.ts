@@ -127,11 +127,9 @@ export const useUnblockUserMutation = () => {
     mutationFn: (userId: string) => userService.unblockUser(userId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['BLOCKED_USERS'] })
-      toast.success('Đã bỏ chặn người dùng thành công')
     },
     onError: (error) => {
       toast.error('Không thể bỏ chặn người dùng. Vui lòng thử lại sau.')
-      console.error('Unblock user error:', error)
     }
   })
 }
