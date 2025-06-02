@@ -104,8 +104,6 @@ export default function FriendSuggestions() {
       // Thêm vào danh sách vừa gửi
       setJustSentIds((prev) => [...prev, userId])
       setPendingIds((prev) => [...prev, userId])
-
-      toast.success('Đã gửi lời mời kết bạn')
     } catch (e) {
       // error handled by hook
     } finally {
@@ -259,7 +257,9 @@ export default function FriendSuggestions() {
 
                         <div className='flex flex-grow items-end justify-center'>
                           {isPending && <div className='truncate text-xs text-amber-500'>{t('friendRequestSent')}</div>}
-                          {isReceived && <div className='truncate text-xs text-blue-500'>{t('friendRequestReceived')}</div>}
+                          {isReceived && (
+                            <div className='truncate text-xs text-blue-500'>{t('friendRequestReceived')}</div>
+                          )}
                         </div>
 
                         <div className='mt-2 flex w-full flex-col gap-2'>
@@ -284,7 +284,9 @@ export default function FriendSuggestions() {
                                   onClick={() => handleStartConversation(user._id)}
                                   disabled={selectedMsg === user._id || startConversation.isPending}
                                 >
-                                  {selectedMsg === user._id && startConversation.isPending ? t('creatingMessage') : t('sendMessage')}
+                                  {selectedMsg === user._id && startConversation.isPending
+                                    ? t('creatingMessage')
+                                    : t('sendMessage')}
                                 </Button>
                                 <Button
                                   size='sm'
@@ -323,7 +325,9 @@ export default function FriendSuggestions() {
                                   onClick={() => handleStartConversation(user._id)}
                                   disabled={selectedMsg === user._id || startConversation.isPending}
                                 >
-                                  {selectedMsg === user._id && startConversation.isPending ? t('creatingMessage') : t('sendMessage')}
+                                  {selectedMsg === user._id && startConversation.isPending
+                                    ? t('creatingMessage')
+                                    : t('sendMessage')}
                                 </Button>
                                 <Button
                                   size='sm'
@@ -350,7 +354,9 @@ export default function FriendSuggestions() {
                                   onClick={() => handleAddFriend(user._id)}
                                   disabled={selectedAdd === user._id || sendFriendRequest.isPending}
                                 >
-                                  {selectedAdd === user._id && sendFriendRequest.isPending ? t('sendingRequest') : t('addFriend')}
+                                  {selectedAdd === user._id && sendFriendRequest.isPending
+                                    ? t('sendingRequest')
+                                    : t('addFriend')}
                                 </Button>
                                 <Button
                                   size='sm'
@@ -359,7 +365,9 @@ export default function FriendSuggestions() {
                                   onClick={() => handleStartConversation(user._id)}
                                   disabled={selectedMsg === user._id || startConversation.isPending}
                                 >
-                                  {selectedMsg === user._id && startConversation.isPending ? t('creatingMessage') : t('sendMessage')}
+                                  {selectedMsg === user._id && startConversation.isPending
+                                    ? t('creatingMessage')
+                                    : t('sendMessage')}
                                 </Button>
                               </div>
                               <Button
