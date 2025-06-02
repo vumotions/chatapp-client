@@ -507,7 +507,7 @@
     "addFriend": "Add friend",
     "daysAgo": "days ago",
     "watchOnYoutube": "Watch on YouTube",
-    "sendingRequest": "Sending request...",
+    "sendingRequest": "Loading...",
     "requestSent": "Request sent",
     "requestFailed": "Request failed",
     "tryAgainLater": "Please try again later",
