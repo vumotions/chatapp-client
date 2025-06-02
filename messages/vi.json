@@ -515,7 +515,8 @@
     "acceptRequest": "Chấp nhận yêu cầu",
     "rejectRequest": "Từ chối yêu cầu",
     "acceptingRequest": "Loading...",
-    "rejectingRequest": "Loading..."
+    "rejectingRequest": "Loading...",
+    "friendRequestReceived": "Đã nhận lời mời kết bạn"
   },
   "post": {
     "like": "Thích",

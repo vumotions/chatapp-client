@@ -520,7 +520,8 @@
     "acceptingRequest": "Accepting...",
     "rejectingRequest": "Rejecting...",
     "cancelingRequest": "Canceling request...",
-    "creatingMessage": "Creating message..."
+    "creatingMessage": "Creating message...",
+    "friendRequestReceived": "Friend request received"
   },
   "post": {
     "like": "Like",
