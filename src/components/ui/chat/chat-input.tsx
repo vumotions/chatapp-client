@@ -152,14 +152,14 @@ export function ChatInput({
                 ? sendPermission?.isMuted
                   ? `${messagesT('youAreMuted')} ${
                       sendPermission.mutedUntil
-                        ? ` ${messagesT('until')} ${format(new Date(sendPermission.mutedUntil), 'HH:mm dd/MM/yyyy')}`
-                        : ` ${messagesT('indefinitely')}`
+                        ? `${messagesT('until')} ${format(new Date(sendPermission.mutedUntil), 'HH:mm dd/MM/yyyy')}`
+                        : `${messagesT('indefinitely')}`
                     }`
                   : sendPermission?.restrictedByGroupSettings
                     ? `${messagesT('onlyAdminsCanSend')} ${
                         sendPermission.restrictUntil
-                          ? ` ${messagesT('until')} ${format(new Date(sendPermission.restrictUntil), 'HH:mm dd/MM/yyyy')}`
-                          : ` ${messagesT('indefinitely')}`
+                          ? `${messagesT('until')} ${format(new Date(sendPermission.restrictUntil), 'HH:mm dd/MM/yyyy')}`
+                          : `${messagesT('indefinitely')}`
                       }`
                     : messagesT('noPermissionToSend')
                 : messagesT('typeMessage')

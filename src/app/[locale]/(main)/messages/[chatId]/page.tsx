@@ -1270,7 +1270,6 @@ function ChatDetail({ params }: Props) {
   // Thêm useEffect để xử lý sự kiện MESSAGE_UPDATED
   useEffect(() => {
     if (!socket) return
-
     const handleMessageUpdated = (data: {
       messageId: string
       content: string
@@ -1278,8 +1277,16 @@ function ChatDetail({ params }: Props) {
       chatId: string
       updatedBy?: string
     }) => {
+      console.log('Received MESSAGE_UPDATED event:', data) // Thêm log để debug
+
       // Chỉ xử lý nếu tin nhắn thuộc về chat hiện tại
       if (data.chatId === chatId) {
+        console.log('Processing MESSAGE_UPDATED for current chat:', chatId)
+
+        // Kiểm tra cấu trúc dữ liệu hiện tại trong cache
+        const currentData = queryClient.getQueryData(['MESSAGES', chatId])
+        console.log('Current cache structure:', currentData ? 'exists' : 'not found')
+
         // Cập nhật cache để cập nhật tin nhắn
         queryClient.setQueryData(['MESSAGES', chatId], (oldData: any) => {
           if (!oldData) return oldData
@@ -1313,6 +1320,9 @@ function ChatDetail({ params }: Props) {
 
         // Cập nhật danh sách chat nếu tin nhắn được cập nhật là tin nhắn cuối cùng
         queryClient.invalidateQueries({ queryKey: ['CHAT_LIST'] })
+
+        // Thêm invalidate cho archived chat list nếu cần
+        queryClient.invalidateQueries({ queryKey: ['ARCHIVED_CHAT_LIST'] })
 
         // Hiển thị thông báo - CHỈ HIỂN THỊ KHI KHÔNG PHẢI NGƯỜI CẬP NHẬT
         const currentUserId = session?.user?._id
@@ -1720,10 +1730,10 @@ function ChatDetail({ params }: Props) {
       const senderId =
         typeof message.senderId === 'object' ? message.senderId._id.toString() : message.senderId.toString()
 
-      // Lọc danh sách readBy để loại bỏ người gửi tin nhắn
-      const filteredReadBy = readBy.filter((userId) => {
+      // Khi lấy danh sách người đọc tin nhắn
+      const filteredReadBy = [...new Set(readBy.filter((userId) => {
         return userId.toString() !== senderId
-      })
+      }))]
 
       if (filteredReadBy.length === 0) {
         setMessageReaders((prev) => ({
@@ -1733,7 +1743,9 @@ function ChatDetail({ params }: Props) {
         return
       }
 
-      const promises = filteredReadBy.map(async (userId) => {
+      // Lấy thông tin người dùng duy nhất
+      const uniqueUserIds = [...new Set(filteredReadBy)]
+      const promises = uniqueUserIds.map(async (userId) => {
         try {
           const response = await httpRequest.get(`/user/${userId}`)
           return response.data.data
@@ -2096,7 +2108,7 @@ function ChatDetail({ params }: Props) {
                                     {msg.type === 'MEDIA' && renderMessageMedia(msg)}
                                   </div>
                                 </PopoverTrigger>
-                                <PopoverContent 
+                                <PopoverContent
                                   className={`pointer-events-auto w-auto border-none bg-transparent p-0 shadow-none ${isSentByMe ? 'data-[side=top]:translate-x-1/2' : 'data-[side=top]:-translate-x-1/2'}`}
                                   side={isSentByMe ? 'left' : 'right'}
                                 >

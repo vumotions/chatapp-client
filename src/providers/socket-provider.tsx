@@ -343,9 +343,14 @@ function SocketProvider({ children }: Props) {
     })
 
     // Lắng nghe sự kiện MESSAGE_UPDATED
-    socket.on(SOCKET_EVENTS.MESSAGE_UPDATED, () => {
-      console.log('MESSAGE_UPDATED event received in provider')
-    })
+    socket.on(SOCKET_EVENTS.MESSAGE_UPDATED, (data) => {
+      console.log('MESSAGE_UPDATED event received in provider (from enum):', data);
+    });
+
+    // Lắng nghe tất cả các sự kiện để debug
+    socket.onAny((eventName, ...args) => {
+      console.log(`Socket event received: ${eventName}`, args);
+    });
 
     // Lắng nghe sự kiện CONVERSATION_DELETED
     socket.on(SOCKET_EVENTS.CONVERSATION_DELETED, (data) => {

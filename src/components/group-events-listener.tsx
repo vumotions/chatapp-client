@@ -204,8 +204,6 @@ export default function GroupEventsListener() {
       // Hiển thị thông báo
       if (data.newMembers?.includes(currentUserId)) {
         toast.success('Bạn đã được thêm vào nhóm')
-      } else {
-        toast.info(`${data.message?.content || 'Có thành viên mới được thêm vào nhóm'}`)
       }
     }
 
