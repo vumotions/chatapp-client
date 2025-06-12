@@ -12,7 +12,7 @@ type FriendHoverCardProps = {
   friend: {
     _id: string
     name: string
-    username?: string
+    username: string
     avatar?: string
   }
   isOnline?: boolean
@@ -39,9 +39,8 @@ export default function FriendHoverCard({ friend, children }: FriendHoverCardPro
   }
 
   // Xử lý khi người dùng muốn xem trang cá nhân
-  const handleViewProfile = (userId: string, username: string) => {
+  const handleViewProfile = (username: string) => {
     if (isPending) return
-
     startTransition(() => {
       router.push(`/profile/${username}`)
     })
@@ -58,20 +57,15 @@ export default function FriendHoverCard({ friend, children }: FriendHoverCardPro
           </Avatar>
           <div className='text-center'>
             <h4 className='text-lg font-medium'>{friend.name}</h4>
+            {friend.username && <p className='text-muted-foreground text-sm'>@{friend.username}</p>}
           </div>
           <div className='mt-2 flex w-full gap-2'>
-            <Button
-              variant='outline'
-              size='icon'
-              className='flex-1'
-              onClick={() => handleViewProfile(friend._id, friend.username || '')}
-            >
+            <Button variant='outline' size='icon' className='flex-1' onClick={() => handleViewProfile(friend.username)}>
               <User className='size-4' />
               <span className='sr-only'>Trang cá nhân</span>
             </Button>
             <Button variant='default' size='icon' className='flex-1' onClick={() => handleStartChat(friend._id)}>
               <MessageSquare className='size-4' />
-
               <span className='sr-only'>Nhắn tin</span>
             </Button>
           </div>
