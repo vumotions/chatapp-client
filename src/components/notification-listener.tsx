@@ -61,7 +61,7 @@ export default function NotificationListener() {
         // Hiển thị toast nếu không phải là cập nhật
         if (!notification.isUpdate) {
           toast(message, {
-            position: 'bottom-left',
+            position: 'top-right',
             description: 'Nhấp để xem chi tiết',
             action: {
               label: 'Xem',
@@ -137,7 +137,7 @@ export default function NotificationListener() {
 
         // Hiển thị toast
         toast('Có yêu cầu tham gia mới vào nhóm', {
-          position: 'bottom-left',
+          position: 'top-right',
           description: 'Nhấp để xem chi tiết',
           action: {
             label: 'Xem',

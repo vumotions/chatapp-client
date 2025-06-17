@@ -246,7 +246,7 @@ function SocketProvider({ children }: Props) {
         // Hiển thị toast thông báo
         toast(`Tin nhắn mới từ ${message.senderName || 'Ai đó'}`, {
           description: message.content || 'Bạn có tin nhắn mới',
-          position: 'bottom-left',
+          position: 'top-right',
           duration: 5000,
           action: {
             label: 'Xem',
@@ -344,13 +344,13 @@ function SocketProvider({ children }: Props) {
 
     // Lắng nghe sự kiện MESSAGE_UPDATED
     socket.on(SOCKET_EVENTS.MESSAGE_UPDATED, (data) => {
-      console.log('MESSAGE_UPDATED event received in provider (from enum):', data);
-    });
+      console.log('MESSAGE_UPDATED event received in provider (from enum):', data)
+    })
 
     // Lắng nghe tất cả các sự kiện để debug
     socket.onAny((eventName, ...args) => {
-      console.log(`Socket event received: ${eventName}`, args);
-    });
+      console.log(`Socket event received: ${eventName}`, args)
+    })
 
     // Lắng nghe sự kiện CONVERSATION_DELETED
     socket.on(SOCKET_EVENTS.CONVERSATION_DELETED, (data) => {

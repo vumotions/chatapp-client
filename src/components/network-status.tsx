@@ -20,13 +20,13 @@ export function NetworkStatus() {
       toast.error('Mất kết nối mạng. Một số tính năng có thể không hoạt động.', {
         id: 'network-offline',
         duration: Infinity,
-        position: 'top-left'
+        position: 'top-right'
       })
     } else if (wasOffline) {
       // Khi kết nối lại sau khi mất kết nối
       toast.success('Đã kết nối lại mạng!', {
         id: 'network-online',
-        position: 'top-left'
+        position: 'top-right'
       })
       // Đóng toast offline
       toast.dismiss('network-offline')

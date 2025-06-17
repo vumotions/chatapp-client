@@ -65,7 +65,7 @@ function Layout({ params, children }: Props) {
                   {/* <TokenRefresher /> */}
                   <NotificationListener />
                   <Toaster
-                    position='bottom-left'
+                    position='top-right'
                     toastOptions={{
                       style: {
                         background: 'var(--background)',

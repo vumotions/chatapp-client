@@ -5,7 +5,7 @@ import { X, MessageCircle } from 'lucide-react'
 import { cn } from '~/lib/utils'
 import { Button } from '~/components/ui/button'
 
-export type ChatPosition = 'bottom-right' | 'bottom-left'
+export type ChatPosition = 'bottom-right' | 'top-right'
 export type ChatSize = 'sm' | 'md' | 'lg' | 'xl' | 'full'
 
 const chatConfig = {
@@ -18,11 +18,11 @@ const chatConfig = {
   },
   positions: {
     'bottom-right': 'bottom-5 right-5',
-    'bottom-left': 'bottom-5 left-5'
+    'top-right': 'bottom-5 left-5'
   },
   chatPositions: {
     'bottom-right': 'sm:bottom-[calc(100%+10px)] sm:right-0',
-    'bottom-left': 'sm:bottom-[calc(100%+10px)] sm:left-0'
+    'top-right': 'sm:bottom-[calc(100%+10px)] sm:left-0'
   },
   states: {
     open: 'pointer-events-auto opacity-100 visible scale-100 translate-y-0',
